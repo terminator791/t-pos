@@ -35,7 +35,7 @@ func (r *TransactionRepositoryImpl) GetByID(ctx context.Context, id uuid.UUID) (
 }
 
 // GetByShopID retrieves transactions by shop ID
-func (r *TransactionRepositoryImpl) GetByShopID(ctx context.Context, shopID uint) ([]*entities.Transaction, error) {
+func (r *TransactionRepositoryImpl) GetByShopID(ctx context.Context, shopID uuid.UUID) ([]*entities.Transaction, error) {
 	var transactions []*entities.Transaction
 	err := r.db.WithContext(ctx).Where("shop_id = ?", shopID).Find(&transactions).Error
 	return transactions, err
@@ -63,7 +63,7 @@ func (r *TransactionRepositoryImpl) GetByStatus(ctx context.Context, status enti
 }
 
 // GetTodaysTransactions retrieves today's transactions for a shop
-func (r *TransactionRepositoryImpl) GetTodaysTransactions(ctx context.Context, shopID uint) ([]*entities.Transaction, error) {
+func (r *TransactionRepositoryImpl) GetTodaysTransactions(ctx context.Context, shopID uuid.UUID) ([]*entities.Transaction, error) {
 	var transactions []*entities.Transaction
 	today := time.Now().Format("2006-01-02")
 	err := r.db.WithContext(ctx).Where("shop_id = ? AND DATE(created_at) = ?", shopID, today).Find(&transactions).Error

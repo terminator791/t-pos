@@ -9,7 +9,7 @@ import (
 func SetupRoutes(
 	router *gin.Engine,
 	productHandler *handlers.ProductHandler,
-	orderHandler *handlers.OrderHandler,
+	checkoutHandler *handlers.CheckoutHandler,
 ) {
 	// API version 1
 	v1 := router.Group("/api/v1")
@@ -27,14 +27,19 @@ func SetupRoutes(
 			products.DELETE("/:id", productHandler.DeleteProduct)
 		}
 
-		// Order routes
-		orders := v1.Group("/orders")
+		// Checkout and transaction routes
+		checkout := v1.Group("/checkout")
 		{
-			orders.POST("", orderHandler.CreateOrder)
-			orders.GET("", orderHandler.ListOrders)
-			orders.GET("/today", orderHandler.GetTodaysOrders)
-			orders.GET("/:id", orderHandler.GetOrder)
-			orders.GET("/number/:orderNumber", orderHandler.GetOrderByNumber)
+			checkout.POST("", checkoutHandler.ProcessCheckout)
+			checkout.POST("/:transactionId/complete", checkoutHandler.CompletePayment)
+			checkout.POST("/:transactionId/cancel", checkoutHandler.CancelTransaction)
+		}
+
+		// Transaction routes
+		transactions := v1.Group("/transactions")
+		{
+			transactions.GET("/:transactionId", checkoutHandler.GetTransactionDetails)
+			transactions.GET("/shop/:shopId/today", checkoutHandler.GetTodaysTransactions)
 		}
 	}
 

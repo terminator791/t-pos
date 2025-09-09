@@ -1,14 +1,20 @@
-.PHONY: run run-backend run-frontend build-backend test-backend clean help
+.PHONY: run run-backend run-frontend build-backend test-backend clean help migrate-up migrate-down migrate-fresh migrate-status
 
 # Default target
 help:
 	@echo "T-POS Development Commands:"
-	@echo "  make run          - Run both backend and frontend concurrently"
-	@echo "  make run-backend  - Run only the backend server"
-	@echo "  make run-frontend - Run only the frontend development server"
-	@echo "  make build-backend- Build the backend application"
-	@echo "  make test-backend - Run backend tests"
-	@echo "  make clean        - Clean build artifacts"
+	@echo "  make run            - Run both backend and frontend concurrently"
+	@echo "  make run-backend    - Run only the backend server"
+	@echo "  make run-frontend   - Run only the frontend development server"
+	@echo "  make build-backend  - Build the backend application"
+	@echo "  make test-backend   - Run backend tests"
+	@echo "  make clean          - Clean build artifacts"
+	@echo ""
+	@echo "Database Migration Commands:"
+	@echo "  make migrate-up     - Run pending migrations"
+	@echo "  make migrate-down   - Drop all tables (rollback)"
+	@echo "  make migrate-fresh  - Drop all tables and re-run migrations"
+	@echo "  make migrate-status - Check migration status"
 
 # Run both backend and frontend concurrently
 run:
@@ -64,3 +70,20 @@ docker-up:
 docker-down:
 	@echo "Stopping Docker containers..."
 	@docker-compose down
+
+# Database Migration Commands
+migrate-up:
+	@echo "Running database migrations..."
+	@cd backend && go run cmd/migrate/main.go up
+
+migrate-down:
+	@echo "Rolling back database migrations..."
+	@cd backend && go run cmd/migrate/main.go down
+
+migrate-fresh:
+	@echo "Refreshing database (drop + migrate)..."
+	@cd backend && go run cmd/migrate/main.go fresh
+
+migrate-status:
+	@echo "Checking migration status..."
+	@cd backend && go run cmd/migrate/main.go status

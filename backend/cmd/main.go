@@ -42,16 +42,16 @@ func main() {
 	categoryRepo := repositories.NewCategoryRepository(db)
 	productRepo := repositories.NewProductRepository(db)
 	shopRepo := repositories.NewShopRepository(db)
-	customerRepo := repositories.NewCustomerRepository(db)
-	orderRepo := repositories.NewOrderRepository(db)
+	transactionRepo := repositories.NewTransactionRepository(db)
+	paymentRepo := repositories.NewPaymentRepository(db)
 
 	// Initialize use cases
 	productUseCase := usecases.NewProductUseCase(productRepo, categoryRepo, shopRepo)
-	orderUseCase := usecases.NewOrderUseCase(orderRepo, productRepo, customerRepo, userRepo)
+	checkoutUseCase := usecases.NewCheckoutUseCase(transactionRepo, productRepo, shopRepo, userRepo, paymentRepo)
 
 	// Initialize handlers
 	productHandler := handlers.NewProductHandler(productUseCase)
-	orderHandler := handlers.NewOrderHandler(orderUseCase)
+	checkoutHandler := handlers.NewCheckoutHandler(checkoutUseCase)
 
 	// Initialize Gin router
 	router := gin.Default()
@@ -71,7 +71,7 @@ func main() {
 	})
 
 	// Setup routes
-	routes.SetupRoutes(router, productHandler, orderHandler)
+	routes.SetupRoutes(router, productHandler, checkoutHandler)
 
 	// Start server
 	serverAddr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
