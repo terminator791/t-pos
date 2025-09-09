@@ -81,6 +81,10 @@ const ChatPage = lazy(() => import("./pages/app/chat"));
 
 const BoardsPage = lazy(() => import("./pages/app/boards"));
 // const CalenderPage = lazy(() => import("./pages/app/calender"));
+
+// True layout not refference
+const MainDashboard = lazy(() => import("./pages/main"));
+
 import Layout from "./layout/Layout";
 import Loading from "@/components/Loading";
 import AuthLayout from "./layout/AuthLayout";
@@ -101,6 +105,7 @@ function App() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="ecommerce" element={<Ecommerce />} />
           <Route path="crm" element={<CrmPage />} />
+          <Route path="main/dashboard" element={<MainDashboard />} />
 
           {/* App pages */}
           <Route path="todos" element={<TodoPage />} />

@@ -152,6 +152,7 @@ logs
 # Build artifacts
 build/
 dist/
+backend/bin/
 
 # Database files
 *.db
