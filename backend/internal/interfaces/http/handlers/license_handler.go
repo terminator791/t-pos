@@ -1,12 +1,12 @@
 package handlers
 
 import (
-	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/terminator791/t-pos/internal/application/services"
+	"github.com/terminator791/t-pos/pkg/response"
 )
 
 // LicenseHandler handles license-related HTTP requests
@@ -26,26 +26,17 @@ func (h *LicenseHandler) GetLicense(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid license ID",
-			"message": err.Error(),
-		})
+		response.ErrorBadRequest(c, "Invalid license ID", err.Error())
 		return
 	}
 
 	license, err := h.licenseService.GetLicense(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "License not found",
-			"message": err.Error(),
-		})
+		response.ErrorNotFound(c, "License not found", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"data":    license,
-		"message": "License retrieved successfully",
-	})
+	response.SuccessOK(c, "License retrieved successfully", license)
 }
 
 // GetAllLicenses handles GET /api/v1/licenses
@@ -56,83 +47,59 @@ func (h *LicenseHandler) GetAllLicenses(c *gin.Context) {
 
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid limit parameter",
-			"message": err.Error(),
-		})
+		response.ErrorBadRequest(c, "Invalid limit parameter", err.Error())
 		return
 	}
 
 	offset, err := strconv.Atoi(offsetStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid offset parameter",
-			"message": err.Error(),
-		})
+		response.ErrorBadRequest(c, "Invalid offset parameter", err.Error())
 		return
 	}
 
 	licenses, err := h.licenseService.GetAllLicenses(c.Request.Context(), limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to retrieve licenses",
-			"message": err.Error(),
-		})
+		response.ErrorInternalServer(c, "Failed to retrieve licenses", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"data":    licenses,
-		"count":   len(licenses),
-		"limit":   limit,
-		"offset":  offset,
-		"message": "Licenses retrieved successfully",
-	})
+	data := gin.H{
+		"licenses": licenses,
+		"count":    len(licenses),
+		"limit":    limit,
+		"offset":   offset,
+	}
+	response.SuccessOK(c, "Licenses retrieved successfully", data)
 }
 
 // CreateLicense handles POST /api/v1/licenses
 func (h *LicenseHandler) CreateLicense(c *gin.Context) {
 	var req services.CreateLicenseRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid request body",
-			"message": err.Error(),
-		})
+		response.ErrorBadRequest(c, "Invalid request body", err.Error())
 		return
 	}
 
 	// Get user ID from context (set by auth middleware)
 	userIDInterface, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error":   "User not authenticated",
-			"message": "User ID not found in context",
-		})
+		response.ErrorUnauthorized(c, "User not authenticated", "User ID not found in context")
 		return
 	}
 
 	userID, ok := userIDInterface.(uuid.UUID)
 	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Invalid user ID format",
-			"message": "User ID in context is not a valid UUID",
-		})
+		response.ErrorInternalServer(c, "Invalid user ID format", "User ID in context is not a valid UUID")
 		return
 	}
 
 	license, err := h.licenseService.CreateLicense(c.Request.Context(), req, userID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Failed to create license",
-			"message": err.Error(),
-		})
+		response.ErrorBadRequest(c, "Failed to create license", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"data":    license,
-		"message": "License created successfully",
-	})
+	response.SuccessCreated(c, "License created successfully", license)
 }
 
 // DeleteLicense handles DELETE /api/v1/licenses/:id
@@ -140,23 +107,15 @@ func (h *LicenseHandler) DeleteLicense(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid license ID",
-			"message": err.Error(),
-		})
+		response.ErrorBadRequest(c, "Invalid license ID", err.Error())
 		return
 	}
 
 	err = h.licenseService.DeleteLicense(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Failed to delete license",
-			"message": err.Error(),
-		})
+		response.ErrorBadRequest(c, "Failed to delete license", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "License deleted successfully",
-	})
+	response.SuccessOK(c, "License deleted successfully", nil)
 }

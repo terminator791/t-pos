@@ -1,12 +1,12 @@
 package handlers
 
 import (
-	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/terminator791/t-pos/internal/application/services"
+	"github.com/terminator791/t-pos/pkg/response"
 )
 
 // UserManagementHandler handles user management-related HTTP requests
@@ -26,26 +26,17 @@ func (h *UserManagementHandler) GetUser(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid user ID",
-			"message": err.Error(),
-		})
+		response.ErrorBadRequest(c, "Invalid user ID", err.Error())
 		return
 	}
 
 	user, err := h.userService.GetUser(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "User not found",
-			"message": err.Error(),
-		})
+		response.ErrorNotFound(c, "User not found", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"data":    user,
-		"message": "User retrieved successfully",
-	})
+	response.SuccessOK(c, "User retrieved successfully", user)
 }
 
 // GetAllUsers handles GET /api/v1/users
@@ -56,64 +47,46 @@ func (h *UserManagementHandler) GetAllUsers(c *gin.Context) {
 
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid limit parameter",
-			"message": err.Error(),
-		})
+		response.ErrorBadRequest(c, "Invalid limit parameter", err.Error())
 		return
 	}
 
 	offset, err := strconv.Atoi(offsetStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid offset parameter",
-			"message": err.Error(),
-		})
+		response.ErrorBadRequest(c, "Invalid offset parameter", err.Error())
 		return
 	}
 
 	users, err := h.userService.GetAllUsers(c.Request.Context(), limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to retrieve users",
-			"message": err.Error(),
-		})
+		response.ErrorInternalServer(c, "Failed to retrieve users", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"data":    users,
-		"count":   len(users),
-		"limit":   limit,
-		"offset":  offset,
-		"message": "Users retrieved successfully",
-	})
+	data := gin.H{
+		"users":  users,
+		"count":  len(users),
+		"limit":  limit,
+		"offset": offset,
+	}
+	response.SuccessOK(c, "Users retrieved successfully", data)
 }
 
 // CreateUser handles POST /api/v1/users
 func (h *UserManagementHandler) CreateUser(c *gin.Context) {
 	var req services.CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid request body",
-			"message": err.Error(),
-		})
+		response.ErrorBadRequest(c, "Invalid request body", err.Error())
 		return
 	}
 
 	user, err := h.userService.CreateUser(c.Request.Context(), req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Failed to create user",
-			"message": err.Error(),
-		})
+		response.ErrorBadRequest(c, "Failed to create user", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"data":    user,
-		"message": "User created successfully",
-	})
+	response.SuccessCreated(c, "User created successfully", user)
 }
 
 // UpdateUserPassword handles PUT /api/v1/users/:id
@@ -121,34 +94,23 @@ func (h *UserManagementHandler) UpdateUserPassword(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid user ID",
-			"message": err.Error(),
-		})
+		response.ErrorBadRequest(c, "Invalid user ID", err.Error())
 		return
 	}
 
 	var req services.UpdateUserPasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid request body",
-			"message": err.Error(),
-		})
+		response.ErrorBadRequest(c, "Invalid request body", err.Error())
 		return
 	}
 
 	err = h.userService.UpdateUserPassword(c.Request.Context(), id, req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Failed to update user password",
-			"message": err.Error(),
-		})
+		response.ErrorBadRequest(c, "Failed to update user password", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "User password updated successfully",
-	})
+	response.SuccessOK(c, "User password updated successfully", nil)
 }
 
 // DeleteUser handles DELETE /api/v1/users/:id
@@ -156,23 +118,15 @@ func (h *UserManagementHandler) DeleteUser(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid user ID",
-			"message": err.Error(),
-		})
+		response.ErrorBadRequest(c, "Invalid user ID", err.Error())
 		return
 	}
 
 	err = h.userService.DeleteUser(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Failed to delete user",
-			"message": err.Error(),
-		})
+		response.ErrorBadRequest(c, "Failed to delete user", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "User deleted successfully",
-	})
+	response.SuccessOK(c, "User deleted successfully", nil)
 }

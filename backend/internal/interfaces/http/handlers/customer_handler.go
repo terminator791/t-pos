@@ -1,12 +1,12 @@
 package handlers
 
 import (
-	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/terminator791/t-pos/internal/application/services"
+	"github.com/terminator791/t-pos/pkg/response"
 )
 
 // CustomerHandler handles customer-related HTTP requests
@@ -26,26 +26,17 @@ func (h *CustomerHandler) GetCustomer(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid customer ID",
-			"message": err.Error(),
-		})
+		response.ErrorBadRequest(c, "Invalid customer ID", err.Error())
 		return
 	}
 
 	customer, err := h.customerService.GetCustomer(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "Customer not found",
-			"message": err.Error(),
-		})
+		response.ErrorNotFound(c, "Customer not found", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"data":    customer,
-		"message": "Customer retrieved successfully",
-	})
+	response.SuccessOK(c, "Customer retrieved successfully", customer)
 }
 
 // GetAllCustomers handles GET /api/v1/customers
@@ -56,64 +47,46 @@ func (h *CustomerHandler) GetAllCustomers(c *gin.Context) {
 
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid limit parameter",
-			"message": err.Error(),
-		})
+		response.ErrorBadRequest(c, "Invalid limit parameter", err.Error())
 		return
 	}
 
 	offset, err := strconv.Atoi(offsetStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid offset parameter",
-			"message": err.Error(),
-		})
+		response.ErrorBadRequest(c, "Invalid offset parameter", err.Error())
 		return
 	}
 
 	customers, err := h.customerService.GetAllCustomers(c.Request.Context(), limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to retrieve customers",
-			"message": err.Error(),
-		})
+		response.ErrorInternalServer(c, "Failed to retrieve customers", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"data":    customers,
-		"count":   len(customers),
-		"limit":   limit,
-		"offset":  offset,
-		"message": "Customers retrieved successfully",
-	})
+	data := gin.H{
+		"customers": customers,
+		"count":     len(customers),
+		"limit":     limit,
+		"offset":    offset,
+	}
+	response.SuccessOK(c, "Customers retrieved successfully", data)
 }
 
 // CreateCustomer handles POST /api/v1/customers
 func (h *CustomerHandler) CreateCustomer(c *gin.Context) {
 	var req services.CreateCustomerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid request body",
-			"message": err.Error(),
-		})
+		response.ErrorBadRequest(c, "Invalid request body", err.Error())
 		return
 	}
 
 	customer, err := h.customerService.CreateCustomer(c.Request.Context(), req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Failed to create customer",
-			"message": err.Error(),
-		})
+		response.ErrorBadRequest(c, "Failed to create customer", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"data":    customer,
-		"message": "Customer created successfully",
-	})
+	response.SuccessCreated(c, "Customer created successfully", customer)
 }
 
 // DeleteCustomer handles DELETE /api/v1/customers/:id
@@ -121,23 +94,15 @@ func (h *CustomerHandler) DeleteCustomer(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid customer ID",
-			"message": err.Error(),
-		})
+		response.ErrorBadRequest(c, "Invalid customer ID", err.Error())
 		return
 	}
 
 	err = h.customerService.DeleteCustomer(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Failed to delete customer",
-			"message": err.Error(),
-		})
+		response.ErrorBadRequest(c, "Failed to delete customer", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Customer deleted successfully",
-	})
+	response.SuccessOK(c, "Customer deleted successfully", nil)
 }
