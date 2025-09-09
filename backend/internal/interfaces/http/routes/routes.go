@@ -2,6 +2,8 @@ package routes
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/terminator791/t-pos/internal/infrastructure/auth"
+	"github.com/terminator791/t-pos/internal/infrastructure/casbin"
 	"github.com/terminator791/t-pos/internal/interfaces/http/handlers"
 )
 
@@ -10,36 +12,62 @@ func SetupRoutes(
 	router *gin.Engine,
 	productHandler *handlers.ProductHandler,
 	checkoutHandler *handlers.CheckoutHandler,
+	authHandler *handlers.AuthHandler,
+	authMiddleware *auth.AuthMiddleware,
+	authzMiddleware *casbin.AuthzMiddleware,
 ) {
 	// API version 1
 	v1 := router.Group("/api/v1")
 	{
-		// Product routes
-		products := v1.Group("/products")
+		// Public authentication routes
+		auth := v1.Group("/auth")
 		{
-			products.POST("", productHandler.CreateProduct)
-			products.GET("", productHandler.ListProducts)
-			products.GET("/search", productHandler.SearchProducts)
-			products.GET("/low-stock", productHandler.GetLowStockProducts)
-			products.GET("/:id", productHandler.GetProduct)
-			products.GET("/barcode/:barcode", productHandler.GetProductByBarcode)
-			products.PUT("/:id", productHandler.UpdateProduct)
-			products.DELETE("/:id", productHandler.DeleteProduct)
+			auth.POST("/login", authHandler.Login)
+			auth.POST("/register", authHandler.Register)
 		}
 
-		// Checkout and transaction routes
-		checkout := v1.Group("/checkout")
+		// Protected authentication routes
+		authProtected := v1.Group("/auth")
+		authProtected.Use(authMiddleware.RequireAuth())
 		{
-			checkout.POST("", checkoutHandler.ProcessCheckout)
-			checkout.POST("/:transactionId/complete", checkoutHandler.CompletePayment)
-			checkout.POST("/:transactionId/cancel", checkoutHandler.CancelTransaction)
+			authProtected.POST("/logout", authHandler.Logout)
+			authProtected.POST("/refresh", authHandler.RefreshToken)
+			authProtected.GET("/profile", authHandler.Profile)
+			authProtected.GET("/permissions", authHandler.GetPermissions)
 		}
 
-		// Transaction routes
-		transactions := v1.Group("/transactions")
+		// Protected API routes
+		protected := v1.Group("")
+		protected.Use(authMiddleware.RequireAuth())
+		protected.Use(authzMiddleware.RequirePermission())
 		{
-			transactions.GET("/:transactionId", checkoutHandler.GetTransactionDetails)
-			transactions.GET("/shop/:shopId/today", checkoutHandler.GetTodaysTransactions)
+			// Product routes
+			products := protected.Group("/products")
+			{
+				products.POST("", productHandler.CreateProduct)
+				products.GET("", productHandler.ListProducts)
+				products.GET("/search", productHandler.SearchProducts)
+				products.GET("/low-stock", productHandler.GetLowStockProducts)
+				products.GET("/:id", productHandler.GetProduct)
+				products.GET("/barcode/:barcode", productHandler.GetProductByBarcode)
+				products.PUT("/:id", productHandler.UpdateProduct)
+				products.DELETE("/:id", productHandler.DeleteProduct)
+			}
+
+			// Checkout and transaction routes
+			checkout := protected.Group("/checkout")
+			{
+				checkout.POST("", checkoutHandler.ProcessCheckout)
+				checkout.POST("/:transactionId/complete", checkoutHandler.CompletePayment)
+				checkout.POST("/:transactionId/cancel", checkoutHandler.CancelTransaction)
+			}
+
+			// Transaction routes
+			transactions := protected.Group("/transactions")
+			{
+				transactions.GET("/:transactionId", checkoutHandler.GetTransactionDetails)
+				transactions.GET("/shop/:shopId/today", checkoutHandler.GetTodaysTransactions)
+			}
 		}
 	}
 
