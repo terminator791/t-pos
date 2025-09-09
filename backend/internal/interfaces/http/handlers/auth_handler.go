@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/terminator791/t-pos/internal/domain/entities"
@@ -172,12 +173,17 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	// Assign default role (if exists)
-	defaultRole, err := h.roleRepo.GetByName(context.Background(), "user")
+	// Assign default role (cashier for basic operational access)
+	defaultRole, err := h.roleRepo.GetByName(context.Background(), "cashier")
 	if err == nil && defaultRole != nil {
 		domain := req.Domain
 		if domain == "" {
-			domain = "*"
+			// Default to a generic shop domain format
+			domain = "shop1" // Default shop for new users without specified domain
+		}
+		// Ensure domain follows shop format
+		if domain != "*" && !strings.HasPrefix(domain, "shop") {
+			domain = "shop" + domain
 		}
 
 		userRole := &entities.UserRole{

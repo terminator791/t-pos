@@ -37,32 +37,26 @@ func (s *AuthSeeder) SeedRoles() error {
 	roles := []entities.Role{
 		{
 			Name:        "super_admin",
-			DisplayName: "Super Administrator",
-			Description: strPtr("Full system access across all domains"),
+			DisplayName: "Super Admin",
+			Description: strPtr("Full system access across all shops"),
 			IsActive:    true,
 		},
 		{
 			Name:        "admin",
-			DisplayName: "Administrator",
-			Description: strPtr("Administrative access within a domain"),
+			DisplayName: "Admin",
+			Description: strPtr("Administrative access within a shop"),
 			IsActive:    true,
 		},
 		{
-			Name:        "manager",
-			DisplayName: "Manager",
-			Description: strPtr("Management access to shop operations"),
+			Name:        "owner_business",
+			DisplayName: "Owner Business",
+			Description: strPtr("Business owner access to shop operations and management"),
 			IsActive:    true,
 		},
 		{
 			Name:        "cashier",
 			DisplayName: "Cashier",
-			Description: strPtr("Point of sale operations"),
-			IsActive:    true,
-		},
-		{
-			Name:        "user",
-			DisplayName: "User",
-			Description: strPtr("Basic user access"),
+			Description: strPtr("Point of sale operations within a shop"),
 			IsActive:    true,
 		},
 	}
@@ -92,48 +86,62 @@ func (s *AuthSeeder) SeedRoles() error {
 func (s *AuthSeeder) SeedPolicies() error {
 	ctx := context.Background()
 
-	// Define policies for different roles
+	// Define policies for different roles with shop-based domain
 	policies := []struct {
 		roleName string
 		domain   string
 		object   string
 		action   string
 	}{
-		// Super Admin - Full access
+		// Super Admin - Full access across all shops
 		{"super_admin", "*", "/api/v1/*", "GET|POST|PUT|DELETE"},
 		{"super_admin", "*", "/api/v1/admin/*", "GET|POST|PUT|DELETE"},
 
-		// Admin - Domain specific full access
-		{"admin", "*", "/api/v1/*", "GET|POST|PUT|DELETE"},
-		{"admin", "*", "/api/v1/products/*", "GET|POST|PUT|DELETE"},
-		{"admin", "*", "/api/v1/checkout/*", "GET|POST|PUT|DELETE"},
-		{"admin", "*", "/api/v1/transactions/*", "GET|POST|PUT|DELETE"},
-		{"admin", "*", "/api/v1/users/*", "GET|POST|PUT"},
+		// Admin - Shop specific full access (domain represents specific shop)
+		{"admin", "shop*", "/api/v1/*", "GET|POST|PUT|DELETE"},
+		{"admin", "shop*", "/api/v1/products/*", "GET|POST|PUT|DELETE"},
+		{"admin", "shop*", "/api/v1/checkout/*", "GET|POST|PUT|DELETE"},
+		{"admin", "shop*", "/api/v1/transactions/*", "GET|POST|PUT|DELETE"},
+		{"admin", "shop*", "/api/v1/users/*", "GET|POST|PUT"},
 
-		// Manager - Shop management access
-		{"manager", "*", "/api/v1/products", "GET|POST"},
-		{"manager", "*", "/api/v1/products/*", "GET|PUT"},
-		{"manager", "*", "/api/v1/checkout/*", "GET|POST"},
-		{"manager", "*", "/api/v1/transactions/*", "GET"},
-		{"manager", "*", "/api/v1/users", "GET"},
-		{"manager", "*", "/api/v1/users/*", "GET"},
+		// Owner Business - Full shop management access
+		{"owner_business", "shop*", "/api/v1/products", "GET|POST"},
+		{"owner_business", "shop*", "/api/v1/products/*", "GET|PUT|DELETE"},
+		{"owner_business", "shop*", "/api/v1/checkout/*", "GET|POST"},
+		{"owner_business", "shop*", "/api/v1/transactions/*", "GET"},
+		{"owner_business", "shop*", "/api/v1/users", "GET"},
+		{"owner_business", "shop*", "/api/v1/users/*", "GET|PUT"},
+		{"owner_business", "shop*", "/api/v1/reports/*", "GET"},
 
-		// Cashier - POS operations
-		{"cashier", "*", "/api/v1/products", "GET"},
-		{"cashier", "*", "/api/v1/products/*", "GET"},
-		{"cashier", "*", "/api/v1/products/search", "GET"},
-		{"cashier", "*", "/api/v1/products/barcode/*", "GET"},
-		{"cashier", "*", "/api/v1/checkout", "POST"},
-		{"cashier", "*", "/api/v1/checkout/*", "POST"},
-		{"cashier", "*", "/api/v1/transactions/*", "GET"},
+		// Cashier - POS operations within specific shop
+		{"cashier", "shop*", "/api/v1/products", "GET"},
+		{"cashier", "shop*", "/api/v1/products/*", "GET"},
+		{"cashier", "shop*", "/api/v1/products/search", "GET"},
+		{"cashier", "shop*", "/api/v1/products/barcode/*", "GET"},
+		{"cashier", "shop*", "/api/v1/checkout", "POST"},
+		{"cashier", "shop*", "/api/v1/checkout/*", "POST"},
+		{"cashier", "shop*", "/api/v1/transactions/*", "GET"},
 
-		// User - Basic read access
-		{"user", "*", "/api/v1/products", "GET"},
-		{"user", "*", "/api/v1/products/*", "GET"},
-		{"user", "*", "/api/v1/auth/profile", "GET"},
-		{"user", "*", "/api/v1/auth/logout", "POST"},
-		{"user", "*", "/api/v1/auth/refresh", "POST"},
-		{"user", "*", "/api/v1/auth/permissions", "GET"},
+		// Auth endpoints for all roles (within their shops)
+		{"super_admin", "*", "/api/v1/auth/profile", "GET"},
+		{"super_admin", "*", "/api/v1/auth/logout", "POST"},
+		{"super_admin", "*", "/api/v1/auth/refresh", "POST"},
+		{"super_admin", "*", "/api/v1/auth/permissions", "GET"},
+		
+		{"admin", "shop*", "/api/v1/auth/profile", "GET"},
+		{"admin", "shop*", "/api/v1/auth/logout", "POST"},
+		{"admin", "shop*", "/api/v1/auth/refresh", "POST"},
+		{"admin", "shop*", "/api/v1/auth/permissions", "GET"},
+		
+		{"owner_business", "shop*", "/api/v1/auth/profile", "GET"},
+		{"owner_business", "shop*", "/api/v1/auth/logout", "POST"},
+		{"owner_business", "shop*", "/api/v1/auth/refresh", "POST"},
+		{"owner_business", "shop*", "/api/v1/auth/permissions", "GET"},
+		
+		{"cashier", "shop*", "/api/v1/auth/profile", "GET"},
+		{"cashier", "shop*", "/api/v1/auth/logout", "POST"},
+		{"cashier", "shop*", "/api/v1/auth/refresh", "POST"},
+		{"cashier", "shop*", "/api/v1/auth/permissions", "GET"},
 	}
 
 	for _, p := range policies {
