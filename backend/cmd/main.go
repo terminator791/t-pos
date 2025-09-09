@@ -51,6 +51,7 @@ func main() {
 	shopRepo := repositories.NewShopRepository(db)
 	transactionRepo := repositories.NewTransactionRepository(db)
 	paymentRepo := repositories.NewPaymentRepository(db)
+	licenseRepo := repositories.NewLicenseRepository(db)
 
 	// Initialize JWT and Password services
 	jwtService := auth.NewJWTService(cfg.JWT.Secret, "t-pos", cfg.JWT.ExpiryHour)
@@ -71,6 +72,19 @@ func main() {
 	authSeeder := seeders.NewAuthSeeder(roleRepo, policyRepo, enforcerService)
 	if err := authSeeder.SeedAll(); err != nil {
 		log.Printf("Warning: Failed to seed auth data: %v", err)
+	}
+
+	initialDataSeeder := seeders.NewInitialDataSeeder(
+		licenseRepo,
+		userRepo,
+		userRoleRepo,
+		roleRepo,
+		shopRepo,
+		categoryRepo,
+		productRepo,
+	)
+	if err := initialDataSeeder.SeedAll(); err != nil {
+		log.Printf("Warning: Failed to seed initial data: %v", err)
 	}
 
 	// Initialize use cases

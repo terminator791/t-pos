@@ -2,12 +2,17 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 
 	"github.com/joho/godotenv"
 	"github.com/terminator791/t-pos/config"
+	"github.com/terminator791/t-pos/internal/infrastructure/casbin"
 	"github.com/terminator791/t-pos/internal/infrastructure/database"
+	"github.com/terminator791/t-pos/internal/infrastructure/repositories"
+	"github.com/terminator791/t-pos/internal/infrastructure/seeders"
 )
 
 func main() {
@@ -69,6 +74,12 @@ func main() {
 	case "status":
 		checkStatus()
 
+	case "seed":
+		if err := runSeeder(); err != nil {
+			log.Fatal("Seeding failed:", err)
+		}
+		log.Println("Seeding completed successfully")
+
 	default:
 		log.Printf("Unknown command: %s", command)
 		printUsage()
@@ -89,11 +100,58 @@ func printUsage() {
 	log.Println("  refresh  Alias for fresh")
 	log.Println("  drop     Drop all tables")
 	log.Println("  status   Check migration status")
+	log.Println("  seed     Run database seeders")
 	log.Println("")
 	log.Println("Examples:")
 	log.Println("  go run cmd/migrate/main.go up")
 	log.Println("  go run cmd/migrate/main.go fresh")
 	log.Println("  go run cmd/migrate/main.go down")
+}
+
+func runSeeder() error {
+	db := database.GetDB()
+	if db == nil {
+		return fmt.Errorf("database not connected")
+	}
+
+	// Initialize repositories
+	userRepo := repositories.NewUserRepository(db)
+	roleRepo := repositories.NewRoleRepository(db)
+	policyRepo := repositories.NewPolicyRepository(db)
+	userRoleRepo := repositories.NewUserRoleRepository(db)
+	categoryRepo := repositories.NewCategoryRepository(db)
+	productRepo := repositories.NewProductRepository(db)
+	shopRepo := repositories.NewShopRepository(db)
+	licenseRepo := repositories.NewLicenseRepository(db)
+
+	// Initialize Casbin enforcer for auth seeder
+	modelPath := filepath.Join("configs", "rbac_model.conf")
+	enforcerService, err := casbin.NewEnforcerService(db, modelPath)
+	if err != nil {
+		return fmt.Errorf("failed to initialize Casbin enforcer: %v", err)
+	}
+
+	// Run auth seeder first
+	authSeeder := seeders.NewAuthSeeder(roleRepo, policyRepo, enforcerService)
+	if err := authSeeder.SeedAll(); err != nil {
+		return fmt.Errorf("failed to seed auth data: %v", err)
+	}
+
+	// Run initial data seeder
+	initialDataSeeder := seeders.NewInitialDataSeeder(
+		licenseRepo,
+		userRepo,
+		userRoleRepo,
+		roleRepo,
+		shopRepo,
+		categoryRepo,
+		productRepo,
+	)
+	if err := initialDataSeeder.SeedAll(); err != nil {
+		return fmt.Errorf("failed to seed initial data: %v", err)
+	}
+
+	return nil
 }
 
 func checkStatus() {

@@ -28,3 +28,11 @@ func CalculatePercentage(value, percentage float64) float64 {
 func FormatCurrency(amount float64) string {
 	return fmt.Sprintf("$%.2f", amount)
 }
+
+// GenerateSerialNumber generates a serial number with a given prefix 
+func GenerateSerialNumber(prefix string) string {
+	// 10 characters random alphanumeric string
+	now := time.Now()
+	return fmt.Sprintf("%s-%d%02d%02d-%d", 
+		prefix, now.Year(), now.Month(), now.Day(), now.Unix()%10000)
+}
