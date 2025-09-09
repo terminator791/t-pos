@@ -8,6 +8,7 @@ const Ecommerce = lazy(() => import("./pages/dashboard/ecommerce"));
 const CrmPage = lazy(() => import("./pages/dashboard/crm"));
 
 const Login = lazy(() => import("./pages/auth/login"));
+const TPosLogin = lazy(() => import("./pages/auth/tpos-login"));
 const Login2 = lazy(() => import("./pages/auth/login2"));
 const Register = lazy(() => import("./pages/auth/register"));
 const Register2 = lazy(() => import("./pages/auth/register2"));
@@ -99,7 +100,8 @@ function App() {
     <main className="App  relative">
       <Routes>
         <Route path="/" element={<AuthLayout />}>
-          <Route path="/" element={<Login />} />
+          <Route path="/" element={<TPosLogin />} />
+          <Route path="/login" element={<Login />} />
           <Route path="/login2" element={<Login2 />} />
           <Route path="/register" element={<Register />} />
           <Route path="/register2" element={<Register2 />} />
