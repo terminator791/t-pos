@@ -2,52 +2,78 @@ import React, { useState } from "react";
 import Card from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import Button from "@/components/ui/Button";
-
-const productsData = [
-  {
-    id: 1,
-    name: "Product A",
-    category: "Electronics",
-    price: "$299.99",
-    stock: 45,
-    status: "Active",
-  },
-  {
-    id: 2,
-    name: "Product B",
-    category: "Clothing",
-    price: "$49.99",
-    stock: 120,
-    status: "Active",
-  },
-  {
-    id: 3,
-    name: "Product C",
-    category: "Home & Garden",
-    price: "$89.99",
-    stock: 0,
-    status: "Out of Stock",
-  },
-  {
-    id: 4,
-    name: "Product D",
-    category: "Electronics",
-    price: "$199.99",
-    stock: 78,
-    status: "Active",
-  },
-  {
-    id: 5,
-    name: "Product E",
-    category: "Books",
-    price: "$24.99",
-    stock: 200,
-    status: "Active",
-  },
-];
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import ErrorDisplay from "@/components/ui/ErrorDisplay";
+import ProductModal from "@/components/modals/ProductModal";
+import DeleteConfirmModal from "@/components/ui/DeleteConfirmModal";
+import { useProducts, useDeleteProduct } from "@/services/api";
 
 const ProductsPage = () => {
-  const [products, setProducts] = useState(productsData);
+  const [showModal, setShowModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // API hooks
+  const { data: productsData, isLoading, error, refetch } = useProducts();
+  const deleteProduct = useDeleteProduct();
+
+  const products = productsData?.data?.products || [];
+  const totalProducts = productsData?.data?.count || 0;
+
+  // Filter products based on search term
+  const filteredProducts = products.filter(product =>
+    product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    product.sku?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleAddProduct = () => {
+    setSelectedProduct(null);
+    setIsEditing(false);
+    setShowModal(true);
+  };
+
+  const handleEditProduct = (product) => {
+    setSelectedProduct(product);
+    setIsEditing(true);
+    setShowModal(true);
+  };
+
+  const handleDeleteProduct = (product) => {
+    setSelectedProduct(product);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (selectedProduct) {
+      try {
+        await deleteProduct.mutateAsync(selectedProduct.id);
+        setShowDeleteModal(false);
+        setSelectedProduct(null);
+      } catch (error) {
+        console.error("Delete failed:", error);
+      }
+    }
+  };
+
+  if (isLoading) {
+    return <LoadingSpinner message="Loading products..." />;
+  }
+
+  if (error) {
+    return (
+      <ErrorDisplay
+        message="Failed to load products. Please try again."
+        onRetry={refetch}
+      />
+    );
+  }
+
+  // Calculate stats
+  const activeProducts = products.filter(p => p.status === "active").length;
+  const outOfStockProducts = products.filter(p => p.stock_quantity === 0).length;
+  const totalValue = products.reduce((sum, p) => sum + (p.price * p.stock_quantity), 0);
 
   return (
     <div className="space-y-5">
@@ -65,7 +91,7 @@ const ProductsPage = () => {
             </div>
             <div>
               <span className="text-2xl font-medium text-gray-800 dark:text-white">
-                {products.length}
+                {totalProducts}
               </span>
               <span className="space-x-2 block mt-4">
                 <span className="badge bg-indigo-500/10 text-indigo-500">
@@ -91,7 +117,7 @@ const ProductsPage = () => {
             </div>
             <div>
               <span className="text-2xl font-medium text-gray-800 dark:text-white">
-                {products.filter(p => p.status === "Active").length}
+                {activeProducts}
               </span>
               <span className="space-x-2 block mt-4">
                 <span className="badge bg-green-500/10 text-green-500">
@@ -117,7 +143,7 @@ const ProductsPage = () => {
             </div>
             <div>
               <span className="text-2xl font-medium text-gray-800 dark:text-white">
-                {products.filter(p => p.status === "Out of Stock").length}
+                {outOfStockProducts}
               </span>
               <span className="space-x-2 block mt-4">
                 <span className="badge bg-red-500/10 text-red-500">
@@ -143,7 +169,7 @@ const ProductsPage = () => {
             </div>
             <div>
               <span className="text-2xl font-medium text-gray-800 dark:text-white">
-                $45,210
+                ${totalValue.toFixed(2)}
               </span>
               <span className="space-x-2 block mt-4">
                 <span className="badge bg-yellow-500/10 text-yellow-500">
@@ -165,6 +191,7 @@ const ProductsPage = () => {
             <Button 
               icon="ph:plus" 
               className="btn-primary"
+              onClick={handleAddProduct}
             >
               Add Product
             </Button>
@@ -180,6 +207,8 @@ const ProductsPage = () => {
               type="text"
               placeholder="Search products..."
               className="form-control"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
         </div>
@@ -192,7 +221,7 @@ const ProductsPage = () => {
                   Product
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Category
+                  SKU
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Price
@@ -209,7 +238,7 @@ const ProductsPage = () => {
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-              {products.map((product) => (
+              {filteredProducts.map((product) => (
                 <tr key={product.id}>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
@@ -223,23 +252,23 @@ const ProductsPage = () => {
                           {product.name}
                         </div>
                         <div className="text-sm text-gray-500 dark:text-gray-400">
-                          ID: {product.id}
+                          {product.description}
                         </div>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                    {product.category}
+                    {product.sku}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                    {product.price}
+                    ${product.price?.toFixed(2)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                    {product.stock}
+                    {product.stock_quantity} {product.unit}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      product.status === "Active" 
+                      product.status === "active" 
                         ? "bg-green-100 text-green-800" 
                         : "bg-red-100 text-red-800"
                     }`}>
@@ -248,10 +277,18 @@ const ProductsPage = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
-                      <Button size="sm" className="btn-secondary">
+                      <Button 
+                        size="sm" 
+                        className="btn-secondary"
+                        onClick={() => handleEditProduct(product)}
+                      >
                         <Icon icon="ph:pencil" />
                       </Button>
-                      <Button size="sm" className="btn-danger">
+                      <Button 
+                        size="sm" 
+                        className="btn-danger"
+                        onClick={() => handleDeleteProduct(product)}
+                      >
                         <Icon icon="ph:trash" />
                       </Button>
                     </div>
@@ -260,8 +297,35 @@ const ProductsPage = () => {
               ))}
             </tbody>
           </table>
+          
+          {filteredProducts.length === 0 && (
+            <div className="text-center py-8">
+              <p className="text-gray-500 dark:text-gray-400">
+                {searchTerm ? "No products found matching your search." : "No products available."}
+              </p>
+            </div>
+          )}
         </div>
       </Card>
+
+      {/* Product Modal */}
+      <ProductModal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        product={selectedProduct}
+        isEditing={isEditing}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={confirmDelete}
+        title="Delete Product"
+        message="Are you sure you want to delete this product? This action cannot be undone."
+        itemName={selectedProduct?.name}
+        isLoading={deleteProduct.isPending}
+      />
     </div>
   );
 };
