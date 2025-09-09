@@ -46,6 +46,7 @@ func main() {
 	roleRepo := repositories.NewRoleRepository(db)
 	policyRepo := repositories.NewPolicyRepository(db)
 	userRoleRepo := repositories.NewUserRoleRepository(db)
+	userDomainRepo := repositories.NewUserDomainRepository(db)
 	categoryRepo := repositories.NewCategoryRepository(db)
 	productRepo := repositories.NewProductRepository(db)
 	shopRepo := repositories.NewShopRepository(db)
@@ -92,7 +93,7 @@ func main() {
 	checkoutUseCase := usecases.NewCheckoutUseCase(transactionRepo, productRepo, shopRepo, userRepo, paymentRepo)
 
 	// Initialize handlers
-	authHandler := handlers.NewAuthHandler(userRepo, userRoleRepo, roleRepo, jwtService, passwordService, enforcerService)
+	authHandler := handlers.NewAuthHandler(userRepo, userRoleRepo, userDomainRepo, roleRepo, licenseRepo, shopRepo, jwtService, passwordService, enforcerService)
 	productHandler := handlers.NewProductHandler(productUseCase)
 	checkoutHandler := handlers.NewCheckoutHandler(checkoutUseCase)
 

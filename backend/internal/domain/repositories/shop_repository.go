@@ -12,6 +12,7 @@ type ShopRepository interface {
 	Create(ctx context.Context, shop *entities.Shop) error
 	GetByID(ctx context.Context, id uuid.UUID) (*entities.Shop, error)
 	GetByLicenseID(ctx context.Context, licenseID uuid.UUID) ([]*entities.Shop, error)
+	GetFirstByLicenseID(ctx context.Context, licenseID uuid.UUID) (*entities.Shop, error)
 	GetByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]*entities.Shop, error)
 	Update(ctx context.Context, shop *entities.Shop) error
 	Delete(ctx context.Context, id uuid.UUID) error

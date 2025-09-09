@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"context"
-	"strings"
+	"log"
 
 	"github.com/gin-gonic/gin"
 	"github.com/terminator791/t-pos/internal/domain/entities"
@@ -17,7 +17,10 @@ import (
 type AuthHandler struct {
 	userRepo        repositories.UserRepository
 	userRoleRepo    repositories.UserRoleRepository
+	userDomainRepo  repositories.UserDomainRepository
 	roleRepo        repositories.RoleRepository
+	licenseRepo     repositories.LicenseRepository
+	shopRepo        repositories.ShopRepository
 	jwtService      *auth.JWTService
 	passwordService *auth.PasswordService
 	enforcerService *casbin.EnforcerService
@@ -32,12 +35,8 @@ type LoginRequest struct {
 
 // RegisterRequest represents registration request payload
 type RegisterRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Username string `json:"username" binding:"required,min=3"`
-	Name     string `json:"name" binding:"required,min=2"`
-	Password string `json:"password" binding:"required,min=6"`
-	Pin      *int   `json:"pin,omitempty"`
-	Domain   string `json:"domain,omitempty"` // Optional tenant/shop domain
+	Username     string `json:"username" binding:"required,min=3"`
+	SerialNumber string `json:"serial_number" binding:"required"`
 }
 
 // LoginResponse represents login response
@@ -53,7 +52,10 @@ type LoginResponse struct {
 func NewAuthHandler(
 	userRepo repositories.UserRepository,
 	userRoleRepo repositories.UserRoleRepository,
+	userDomainRepo repositories.UserDomainRepository,
 	roleRepo repositories.RoleRepository,
+	licenseRepo repositories.LicenseRepository,
+	shopRepo repositories.ShopRepository,
 	jwtService *auth.JWTService,
 	passwordService *auth.PasswordService,
 	enforcerService *casbin.EnforcerService,
@@ -61,14 +63,17 @@ func NewAuthHandler(
 	return &AuthHandler{
 		userRepo:        userRepo,
 		userRoleRepo:    userRoleRepo,
+		userDomainRepo:  userDomainRepo,
 		roleRepo:        roleRepo,
+		licenseRepo:     licenseRepo,
+		shopRepo:        shopRepo,
 		jwtService:      jwtService,
 		passwordService: passwordService,
 		enforcerService: enforcerService,
 	}
 }
 
-// Login handles user login
+// Login handles user login with new single role system
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -93,23 +98,54 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Set domain
-	domain := req.Domain
-	if domain == "" {
-		domain = "*" // Default domain
-	}
-
-	// Get user roles for the domain
-	userRoles, err := h.userRoleRepo.GetByUserAndDomain(context.Background(), user.ID, domain)
-	if err != nil {
-		response.ErrorInternalServer(c, "Failed to get user roles", err.Error())
+	// Get user's role
+	if user.RoleID == nil {
+		response.ErrorUnauthorized(c, "User has no assigned role", nil)
 		return
 	}
 
-	var roles []string
-	for _, userRole := range userRoles {
-		if userRole.Role != nil {
-			roles = append(roles, userRole.Role.Name)
+	role, err := h.roleRepo.GetByID(context.Background(), *user.RoleID)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to get user role", err.Error())
+		return
+	}
+
+	// Set domain for token
+	domain := req.Domain
+	if domain == "" {
+		// Get user's accessible domains
+		userDomains, err := h.userDomainRepo.GetByUserID(context.Background(), user.ID)
+		if err != nil || len(userDomains) == 0 {
+			// Fallback based on role
+			switch role.Name {
+			case "super_admin":
+				domain = "*"
+			case "admin":
+				domain = "shop*"
+			default:
+				domain = "shop*" // Default fallback
+			}
+		} else {
+			// Use first accessible domain
+			domain = userDomains[0].Domain
+		}
+	}
+
+	// Verify user has access to requested domain
+	if req.Domain != "" {
+		hasAccess := false
+		userDomains, err := h.userDomainRepo.GetByUserID(context.Background(), user.ID)
+		if err == nil {
+			for _, ud := range userDomains {
+				if ud.Domain == req.Domain || ud.Domain == "*" || ud.Domain == "shop*" {
+					hasAccess = true
+					break
+				}
+			}
+		}
+		if !hasAccess {
+			response.ErrorUnauthorized(c, "Access denied to requested domain", nil)
+			return
 		}
 	}
 
@@ -131,13 +167,13 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	response.SuccessOK(c, "Login successful", LoginResponse{
 		Token:     token,
 		User:      user,
-		Roles:     roles,
+		Roles:     []string{role.Name}, // Single role
 		Domain:    domain,
 		ExpiresAt: 0, // You might want to calculate this from JWT claims
 	})
 }
 
-// Register handles user registration
+// Register handles user registration with new single role system
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -145,27 +181,36 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	// Check if user already exists
-	existingUser, err := h.userRepo.GetByEmail(context.Background(), req.Email)
+	// Check if user already exists by username
+	existingUser, err := h.userRepo.GetByUsername(context.Background(), req.Username)
 	if err == nil && existingUser != nil {
-		response.ErrorBadRequest(c, "User with this email already exists", nil)
+		response.ErrorBadRequest(c, "User with this username already exists", nil)
 		return
 	}
 
-	// Hash password
-	hashedPassword, err := h.passwordService.HashPassword(req.Password)
+	// Check if license exists
+	license, err := h.licenseRepo.GetBySerialNumber(context.Background(), req.SerialNumber)
 	if err != nil {
-		response.ErrorInternalServer(c, "Failed to hash password", err.Error())
+		if err == gorm.ErrRecordNotFound {
+			response.ErrorBadRequest(c, "License not found", nil)
+		} else {
+			response.ErrorInternalServer(c, "Database error", err.Error())
+		}
 		return
 	}
 
-	// Create user
+	// Get default role (owner_business) for new registrations
+	defaultRole, err := h.roleRepo.GetByName(context.Background(), "owner_business")
+	if err != nil {
+		response.ErrorInternalServer(c, "Default role not found", err.Error())
+		return
+	}
+
+	// Create user with role
 	user := &entities.User{
-		Email:    &req.Email,
-		Username: &req.Username,
-		Name:     req.Name,
-		Password: hashedPassword,
-		Pin:      req.Pin,
+		Username:  &req.Username,
+		LicenseID: &license.ID,
+		RoleID:    &defaultRole.ID,
 	}
 
 	if err := h.userRepo.Create(context.Background(), user); err != nil {
@@ -173,29 +218,50 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	// Assign default role (cashier for basic operational access)
-	defaultRole, err := h.roleRepo.GetByName(context.Background(), "cashier")
-	if err == nil && defaultRole != nil {
-		domain := req.Domain
-		if domain == "" {
-			// Default to a generic shop domain format
-			domain = "shop1" // Default shop for new users without specified domain
+	// Assign domain access based on role
+	var domains []string
+	
+	switch defaultRole.Name {
+	case "super_admin":
+		// Super admin gets access to all domains
+		domains = []string{"*"}
+	case "admin":
+		// Admin gets access to all shops (shop*)
+		domains = []string{"shop*"}
+	case "owner_business":
+		// Owner business gets access to shops under their license
+		shops, err := h.shopRepo.GetByLicenseID(context.Background(), license.ID)
+		if err != nil {
+			response.ErrorInternalServer(c, "Failed to get shops for license", err.Error())
+			return
 		}
-		// Ensure domain follows shop format
-		if domain != "*" && !strings.HasPrefix(domain, "shop") {
-			domain = "shop" + domain
+		for _, shop := range shops {
+			domains = append(domains, shop.Domain)
 		}
+		// If no shops exist yet, give access to all shops under license (they can create shops later)
+		if len(domains) == 0 {
+			domains = []string{"shop*"}
+		}
+	case "cashier":
+		// Cashier needs to be assigned to specific shop - this would be done by owner_business later
+		// For now, give no domain access (will be assigned by owner)
+		domains = []string{}
+	}
 
-		userRole := &entities.UserRole{
+	// Create user domain records
+	for _, domain := range domains {
+		userDomain := &entities.UserDomain{
 			UserID: user.ID,
-			RoleID: defaultRole.ID,
 			Domain: domain,
 		}
-
-		if err := h.userRoleRepo.Create(context.Background(), userRole); err == nil {
-			// Add role to Casbin
-			h.enforcerService.AddRoleForUser(user.ID.String(), defaultRole.Name, domain)
+		
+		if err := h.userDomainRepo.Create(context.Background(), userDomain); err != nil {
+			// Log error but don't fail registration
+			log.Printf("Failed to create user domain %s for user %s: %v", domain, user.ID, err)
 		}
+
+		// Add role to Casbin for this domain
+		h.enforcerService.AddRoleForUser(user.ID.String(), defaultRole.Name, domain)
 	}
 
 	// Remove password from response
@@ -238,7 +304,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	})
 }
 
-// Profile returns the current user's profile
+// Profile returns the current user's profile with new single role system
 func (h *AuthHandler) Profile(c *gin.Context) {
 	userID, exists := auth.GetUserIDFromContext(c)
 	if !exists {
@@ -252,30 +318,38 @@ func (h *AuthHandler) Profile(c *gin.Context) {
 		return
 	}
 
-	// Get user roles
-	userRoles, err := h.userRoleRepo.GetByUserID(context.Background(), userID)
+	// Get user's role
+	var roleName string
+	if user.RoleID != nil {
+		role, err := h.roleRepo.GetByID(context.Background(), *user.RoleID)
+		if err == nil {
+			roleName = role.Name
+		}
+	}
+
+	// Get user's accessible domains
+	userDomains, err := h.userDomainRepo.GetByUserID(context.Background(), userID)
 	if err != nil {
-		response.ErrorInternalServer(c, "Failed to get user roles", err.Error())
+		response.ErrorInternalServer(c, "Failed to get user domains", err.Error())
 		return
 	}
 
-	var roles []string
-	for _, userRole := range userRoles {
-		if userRole.Role != nil {
-			roles = append(roles, userRole.Role.Name)
-		}
+	var domains []string
+	for _, ud := range userDomains {
+		domains = append(domains, ud.Domain)
 	}
 
 	// Remove password from response
 	user.Password = ""
 
 	response.SuccessOK(c, "Profile retrieved successfully", gin.H{
-		"user":  user,
-		"roles": roles,
+		"user":    user,
+		"role":    roleName, // Single role
+		"domains": domains,  // Multiple domains
 	})
 }
 
-// GetPermissions returns the current user's permissions
+// GetPermissions returns the current user's permissions with new single role system
 func (h *AuthHandler) GetPermissions(c *gin.Context) {
 	userID, exists := auth.GetUserIDFromContext(c)
 	if !exists {
@@ -288,7 +362,23 @@ func (h *AuthHandler) GetPermissions(c *gin.Context) {
 		domain = "*"
 	}
 
-	// Get user roles from Casbin
+	// Get user
+	user, err := h.userRepo.GetByID(context.Background(), userID)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to get user", err.Error())
+		return
+	}
+
+	// Get user's role
+	var roleName string
+	if user.RoleID != nil {
+		role, err := h.roleRepo.GetByID(context.Background(), *user.RoleID)
+		if err == nil {
+			roleName = role.Name
+		}
+	}
+
+	// Get user roles from Casbin for the specific domain
 	roles := h.enforcerService.GetRolesForUser(userID.String(), domain)
 
 	// Get all policies to determine permissions
@@ -297,23 +387,35 @@ func (h *AuthHandler) GetPermissions(c *gin.Context) {
 
 	for _, policy := range allPolicies {
 		if len(policy) >= 4 {
-			// Check if this policy applies to any of the user's roles
-			for _, userRole := range roles {
-				if policy[0] == userRole && policy[1] == domain {
-					permissions = append(permissions, map[string]string{
-						"role":   policy[0],
-						"domain": policy[1],
-						"object": policy[2],
-						"action": policy[3],
-					})
-				}
+			// Check if this policy applies to the user's role and domain
+			if policy[0] == roleName && (policy[1] == domain || policy[1] == "*" || policy[1] == "shop*") {
+				permissions = append(permissions, map[string]string{
+					"role":   policy[0],
+					"domain": policy[1],
+					"object": policy[2],
+					"action": policy[3],
+				})
 			}
 		}
 	}
 
+	// Get user's accessible domains
+	userDomains, err := h.userDomainRepo.GetByUserID(context.Background(), userID)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to get user domains", err.Error())
+		return
+	}
+
+	var accessibleDomains []string
+	for _, ud := range userDomains {
+		accessibleDomains = append(accessibleDomains, ud.Domain)
+	}
+
 	response.SuccessOK(c, "Permissions retrieved successfully", gin.H{
-		"roles":       roles,
-		"permissions": permissions,
-		"domain":      domain,
+		"role":                roleName,         // Single role
+		"casbin_roles":        roles,            // Casbin roles for this domain
+		"permissions":         permissions,      // Permissions for this domain
+		"current_domain":      domain,           // Current domain context
+		"accessible_domains":  accessibleDomains, // All domains user can access
 	})
 }

@@ -40,6 +40,16 @@ func (r *ShopRepositoryImpl) GetByLicenseID(ctx context.Context, licenseID uuid.
 	return shops, err
 }
 
+// GetFirstByLicenseID retrieves the first shop by license ID
+func (r *ShopRepositoryImpl) GetFirstByLicenseID(ctx context.Context, licenseID uuid.UUID) (*entities.Shop, error) {
+	var shop entities.Shop
+	err := r.db.WithContext(ctx).Where("license_id = ?", licenseID).First(&shop).Error
+	if err != nil {
+		return nil, err
+	}
+	return &shop, nil
+}
+
 // GetByOwnerID retrieves shops by owner ID
 func (r *ShopRepositoryImpl) GetByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]*entities.Shop, error) {
 	var shops []*entities.Shop

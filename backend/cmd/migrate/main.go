@@ -161,10 +161,10 @@ func checkStatus() {
 	}
 
 	tables := []string{
-		"licenses", "users", "license_logs", "shops", "categories", 
-		"products", "carts", "transactions", "transaction_products", 
-		"payments", "receipts", "histories", "stock_histories", 
-		"expenses", "logs",
+		"licenses", "users", "roles", "user_roles", "policies", "license_logs", 
+		"shops", "categories", "products", "carts", "transactions", "transaction_products", 
+		"payments", "receipts", "histories", "stock_histories", "expenses", "logs", 
+		"user_domains", "casbin_rule",
 	}
 
 	log.Println("Checking table status...")

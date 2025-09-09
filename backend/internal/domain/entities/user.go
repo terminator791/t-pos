@@ -11,6 +11,7 @@ import (
 type User struct {
 	ID               uuid.UUID      `gorm:"type:uuid;primary_key;default:uuid_generate_v4()" json:"id"`
 	LicenseID        *uuid.UUID     `gorm:"type:uuid" json:"license_id"`
+	RoleID           *uuid.UUID     `gorm:"type:uuid" json:"role_id"`
 	Email            *string        `gorm:"size:255;uniqueIndex" json:"email"`
 	EmailVerifiedAt  *time.Time     `json:"email_verified_at"`
 	Username         *string        `gorm:"size:255" json:"username"`
@@ -26,6 +27,8 @@ type User struct {
 
 	// Relationships
 	License           *License       `gorm:"foreignKey:LicenseID;constraint:OnDelete:CASCADE" json:"license,omitempty"`
+	Role              *Role          `gorm:"foreignKey:RoleID;constraint:OnDelete:SET NULL" json:"role,omitempty"`
+	UserDomains       []UserDomain   `gorm:"foreignKey:UserID" json:"user_domains,omitempty"`
 	OwnedShops        []Shop         `gorm:"foreignKey:UserID" json:"owned_shops,omitempty"`
 	CashierTransactions []Transaction `gorm:"foreignKey:CashierID" json:"cashier_transactions,omitempty"`
 	CustomerTransactions []Transaction `gorm:"foreignKey:UserID" json:"customer_transactions,omitempty"`
@@ -33,7 +36,7 @@ type User struct {
 	Payments          []Payment      `gorm:"foreignKey:UserID" json:"payments,omitempty"`
 	LicenseLogs       []LicenseLog   `gorm:"foreignKey:UserID" json:"license_logs,omitempty"`
 	Logs              []Log          `gorm:"foreignKey:UserID" json:"logs,omitempty"`
-	UserRoles         []UserRole     `gorm:"foreignKey:UserID" json:"user_roles,omitempty"`
+	UserRoles         []UserRole     `gorm:"foreignKey:UserID" json:"user_roles,omitempty"` // Keep for backward compatibility
 }
 
 // TableName specifies the table name for User

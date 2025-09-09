@@ -57,6 +57,7 @@ func Migrate() error {
 		&entities.StockHistory{},
 		&entities.Expense{},
 		&entities.Log{},
+		&entities.UserDomain{},
 	)
 
 	if err != nil {
@@ -113,6 +114,7 @@ func DropAllTables() error {
 		"license_logs",
 		"users",
 		"licenses",
+		"user_domains",
 	}
 
 	// Drop tables in reverse order to respect foreign key constraints

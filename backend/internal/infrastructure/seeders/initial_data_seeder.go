@@ -128,7 +128,7 @@ func (s *InitialDataSeeder) SeedUsers() error {
 	return nil
 }
 
-// SeedUserRoles assigns roles to users
+// SeedUserRoles assigns roles to users with new single role system
 func (s *InitialDataSeeder) SeedUserRoles() error {
 	ctx := context.Background()
 
@@ -158,38 +158,20 @@ func (s *InitialDataSeeder) SeedUserRoles() error {
 		return err
 	}
 
-	userRoles := []entities.UserRole{
-		{
-			UserID: superAdmin.ID,
-			RoleID: superAdminRole.ID,
-			Domain: "*",
-		},
-		{
-			UserID: admin.ID,
-			RoleID: adminRole.ID,
-			Domain: "shop*",
-		},
+	// Update users with their roles directly
+	superAdmin.RoleID = &superAdminRole.ID
+	if err := s.userRepo.Update(ctx, superAdmin); err != nil {
+		log.Printf("Failed to assign role to super admin: %v", err)
+		return err
 	}
+	log.Printf("Assigned super_admin role to superadmin user")
 
-	for _, userRole := range userRoles {
-		// Check if user role already exists
-		existing, err := s.userRoleRepo.GetByUserAndDomain(ctx, userRole.UserID, userRole.Domain)
-		if err != nil {
-			log.Printf("Error checking user role: %v", err)
-			return err
-		}
-
-		if len(existing) == 0 {
-			// Create the user role
-			if err := s.userRoleRepo.Create(ctx, &userRole); err != nil {
-				log.Printf("Failed to create user role for user %s: %v", userRole.UserID, err)
-				return err
-			}
-			log.Printf("Created user role: %s -> %s", userRole.UserID, userRole.Domain)
-		} else {
-			log.Printf("User role already exists for user %s in domain %s", userRole.UserID, userRole.Domain)
-		}
+	admin.RoleID = &adminRole.ID
+	if err := s.userRepo.Update(ctx, admin); err != nil {
+		log.Printf("Failed to assign role to admin: %v", err)
+		return err
 	}
+	log.Printf("Assigned admin role to admin user")
 
 	return nil
 }
@@ -217,7 +199,16 @@ func (s *InitialDataSeeder) SeedShops() error {
 			LicenseID: license.ID,
 			UserID:    admin.ID,
 			Name:      "Demo Shop",
+			Domain:    "shop-1",
 			Address:   strPtr("Jl. Demo No. 123, Jakarta"),
+			Slogan:    strPtr("Your Trusted Partner"),
+		},
+		{
+			LicenseID: license.ID,
+			UserID:    admin.ID,
+			Name:      "Demo Shop 2",
+			Domain:    "shop-2",
+			Address:   strPtr("Jl. Demo No. 123sda, Semarang"),
 			Slogan:    strPtr("Your Trusted Partner"),
 		},
 	}

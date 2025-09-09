@@ -13,6 +13,7 @@ type Shop struct {
 	LicenseID        uuid.UUID      `gorm:"type:uuid;not null" json:"license_id"`
 	UserID           uuid.UUID      `gorm:"type:uuid;not null" json:"user_id"` // owner_user_id
 	Name             string         `gorm:"size:255;not null" json:"name"`
+	Domain           string         `gorm:"size:100;not null;uniqueIndex" json:"domain"` // unique domain for multi-tenancy
 	Photo            *string        `gorm:"size:255" json:"photo"`
 	Address          *string        `gorm:"type:text" json:"address"`
 	Slogan           *string        `gorm:"size:255" json:"slogan"`
