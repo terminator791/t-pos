@@ -11,7 +11,7 @@ import Japan from "@/assets/images/flags/japan.svg";
 import Italy from "@/assets/images/flags/italy.svg";
 import Chin from "@/assets/images/flags/chin.svg";
 import India from "@/assets/images/flags/india.svg";
-import Earnings from "@/components/partials/widget/chart/Earnings";
+import Earnings from "@/components/partials/widget/chart/earnings";
 import RecentOrderTable from "@/components/partials/Table/order-table";
 
 const country = [

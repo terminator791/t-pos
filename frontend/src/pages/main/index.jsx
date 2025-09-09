@@ -3,15 +3,7 @@ import Card from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import History from "@/components/partials/widget/chart/history";
 import RadarChart from "@/components/partials/widget/chart/radar-chart";
-
-// image import
-import Usa from "@/assets/images/flags/usa.svg";
-import Brasil from "@/assets/images/flags/bra.svg";
-import Japan from "@/assets/images/flags/japan.svg";
-import Italy from "@/assets/images/flags/italy.svg";
-import Chin from "@/assets/images/flags/chin.svg";
-import India from "@/assets/images/flags/india.svg";
-import Earnings from "@/components/partials/widget/chart/Earnings";
+import Earnings from "@/components/partials/widget/chart/earnings";
 import RecentOrderTable from "@/components/partials/Table/order-table";
 
 const country = [
@@ -98,20 +90,20 @@ const Dashboard = () => {
         <Card>
           <div>
             <div className="flex">
-              <div className="flex-1 text-base font-medium">Sales</div>
+              <div className="flex-1 text-base font-medium">Products</div>
               <div className="flex-none">
                 <div className="h-10 w-10  rounded-full bg-indigo-500 text-white text-2xl flex items-center justify-center">
-                  <Icon icon="ph:car" />
+                  <Icon icon="ph:package" />
                 </div>
               </div>
             </div>
             <div>
               <span className=" text-2xl font-medium text-gray-800  dark:text-white">
-                2.382
+                145
               </span>
               <span className="  space-x-2 block mt-4 ">
                 <span className="badge bg-indigo-500/10 text-indigo-500 ">
-                  3.65%
+                  8.2%
                 </span>
                 <span className=" text-sm text-gray-500 dark:text-gray-400">
                   Since last week
@@ -123,23 +115,23 @@ const Dashboard = () => {
         <Card>
           <div>
             <div className="flex">
-              <div className="flex-1 text-base font-medium">Earnings</div>
+              <div className="flex-1 text-base font-medium">Licenses</div>
               <div className="flex-none">
                 <div className="h-10 w-10  rounded-full bg-yellow-500 text-white text-2xl flex items-center justify-center">
-                  <Icon icon="ph:currency-dollar" />
+                  <Icon icon="ph:certificate" />
                 </div>
               </div>
             </div>
             <div>
               <span className=" text-2xl font-medium text-gray-800  dark:text-white">
-                $21.300
+                24
               </span>
               <span className="  space-x-2 block mt-4 ">
                 <span className="badge bg-yellow-500/10 text-yellow-500 ">
-                  4.44%
+                  2.1%
                 </span>
                 <span className=" text-sm text-gray-500 dark:text-gray-400">
-                  Since last week
+                  Active licenses
                 </span>
               </span>
             </div>
@@ -148,21 +140,21 @@ const Dashboard = () => {
         <Card>
           <div>
             <div className="flex">
-              <div className="flex-1 text-base font-medium">Visitors</div>
+              <div className="flex-1 text-base font-medium">Customers</div>
               <div className="flex-none">
                 <div className="h-10 w-10  rounded-full bg-red-500 text-white text-2xl flex items-center justify-center">
-                  <Icon icon="ph:user-switch" />
+                  <Icon icon="ph:users" />
                 </div>
               </div>
             </div>
             <div>
               <span className=" text-2xl font-medium text-gray-800  dark:text-white">
-                14.212
+                1,421
               </span>
               <span className="  space-x-2 block mt-4 ">
-                <span className="badge bg-red-500/10 text-red-500 ">5.25%</span>
+                <span className="badge bg-red-500/10 text-red-500 ">12.5%</span>
                 <span className=" text-sm text-gray-500 dark:text-gray-400">
-                  Since last week
+                  Total customers
                 </span>
               </span>
             </div>
@@ -171,23 +163,23 @@ const Dashboard = () => {
         <Card>
           <div>
             <div className="flex">
-              <div className="flex-1 text-base font-medium">Orders</div>
+              <div className="flex-1 text-base font-medium">Users</div>
               <div className="flex-none">
                 <div className="h-10 w-10  rounded-full bg-green-500 text-white text-2xl flex items-center justify-center">
-                  <Icon icon="ph:shopping-cart" />
+                  <Icon icon="ph:user-circle" />
                 </div>
               </div>
             </div>
             <div>
               <span className=" text-2xl font-medium text-gray-800  dark:text-white">
-                600
+                18
               </span>
               <span className="  space-x-2 block mt-4 ">
                 <span className="badge bg-green-500/10 text-green-500 ">
-                  6.77%
+                  Active
                 </span>
                 <span className=" text-sm text-gray-500 dark:text-gray-400">
-                  Since last week
+                  System users
                 </span>
               </span>
             </div>
@@ -199,7 +191,7 @@ const Dashboard = () => {
         <div className="xl:col-span-7 col-span-12">
           <Card
             className="!bg-indigo-500 "
-            title="Sell History"
+            title="Sales History"
             titleClass="!text-white"
             noborder
           >
@@ -207,49 +199,49 @@ const Dashboard = () => {
           </Card>
         </div>
         <div className="xl:col-span-5 col-span-12">
-          <Card title="Support Tracker" subscribe>
+          <Card title="System Overview" subscribe>
             <RadarChart />
 
             <div className="grid  grid-cols-3 gap-2 py-4">
               <div className=" text-center">
                 <div>
                   <div className="h-10 w-10 mb-2 mx-auto rounded-md bg-indigo-500/10 text-indigo-500 text-xl flex items-center justify-center">
-                    <Icon icon="ph:ticket" />
+                    <Icon icon="ph:package" />
                   </div>
                 </div>
                 <div>
                   <div className=" font-medium text-gray-800 dark:text-white text-sm truncate mb-[2px]">
-                    New Tickets
+                    Active Products
                   </div>
-                  <div className=" text-xs text-gray-400">100</div>
+                  <div className=" text-xs text-gray-400">142</div>
                 </div>
               </div>
               {/* end single */}
               <div className=" text-center">
                 <div>
                   <div className="h-10 w-10 mb-2 mx-auto rounded-md bg-green-500/10 text-green-500 text-xl flex items-center justify-center">
-                    <Icon icon="ph:check" />
+                    <Icon icon="ph:users" />
                   </div>
                 </div>
                 <div>
                   <div className=" font-medium text-gray-800 dark:text-white text-sm truncate mb-[2px]">
-                    Open Tickets
+                    Active Customers
                   </div>
-                  <div className=" text-xs text-gray-400">16</div>
+                  <div className=" text-xs text-gray-400">1,398</div>
                 </div>
               </div>
               {/* end single */}
               <div className=" text-center">
                 <div>
                   <div className="h-10 w-10 mb-2 mx-auto rounded-md bg-yellow-500/10 text-yellow-500 text-xl flex items-center justify-center">
-                    <Icon icon="ph:clock-countdown" />
+                    <Icon icon="ph:certificate" />
                   </div>
                 </div>
                 <div>
                   <div className=" font-medium text-gray-800 dark:text-white text-sm truncate mb-[2px]">
-                    Response Time
+                    Valid Licenses
                   </div>
-                  <div className=" text-xs text-gray-400">1 day</div>
+                  <div className=" text-xs text-gray-400">22</div>
                 </div>
               </div>
               {/* end single */}
@@ -259,76 +251,55 @@ const Dashboard = () => {
         </div>
       </div>
       {/* end grid */}
-      <div className="grid xl:grid-cols-3 gap-5 ">
-        <Card title="Top Countries" subtitle="Monthly Sales Overview">
-          <ul className=" space-y-4">
-            {country?.map((item, i) => (
-              <li key={i} className="flex justify-between items-center">
-                <div className="flex items-center space-x-3 rtl:space-x-reverse">
-                  <div className="flex-none">
-                    <div className="h-[34px] w-[34px] rounded-full">
-                      <img
-                        src={item.flag}
-                        alt=""
-                        className=" w-full h-full object-cover object-center"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex-1">
-                    <div className=" text-sm ">{item.name}</div>
-                  </div>
+      <div className="grid xl:grid-cols-2 gap-5 ">
+        <Card title="Recent Activity" subtitle="Last 30 days overview">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <div className="flex items-center space-x-3">
+                <div className="h-8 w-8 bg-green-500 rounded-full flex items-center justify-center">
+                  <Icon icon="ph:plus" className="text-white text-sm" />
                 </div>
-                <div className="text-gray-800 dark:text-white   flex items-center space-x-[2px] rtl:space-x-reverse">
-                  <span className=" text-sm  ">{item.count}</span>
-                  <Icon
-                    icon={item.icon}
-                    className={`${
-                      item.icon === "heroicons:arrow-small-up"
-                        ? " text-green-500 "
-                        : " text-red-500"
-                    }  text-lg`}
-                  />
+                <div>
+                  <div className="text-sm font-medium">New Product Added</div>
+                  <div className="text-xs text-gray-500">Product X was added to inventory</div>
                 </div>
-              </li>
-            ))}
-          </ul>
+              </div>
+              <div className="text-xs text-gray-400">2 hours ago</div>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <div className="flex items-center space-x-3">
+                <div className="h-8 w-8 bg-blue-500 rounded-full flex items-center justify-center">
+                  <Icon icon="ph:user-plus" className="text-white text-sm" />
+                </div>
+                <div>
+                  <div className="text-sm font-medium">New Customer Registration</div>
+                  <div className="text-xs text-gray-500">John Smith joined the platform</div>
+                </div>
+              </div>
+              <div className="text-xs text-gray-400">5 hours ago</div>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <div className="flex items-center space-x-3">
+                <div className="h-8 w-8 bg-yellow-500 rounded-full flex items-center justify-center">
+                  <Icon icon="ph:certificate" className="text-white text-sm" />
+                </div>
+                <div>
+                  <div className="text-sm font-medium">License Renewed</div>
+                  <div className="text-xs text-gray-500">Enterprise license extended</div>
+                </div>
+              </div>
+              <div className="text-xs text-gray-400">1 day ago</div>
+            </div>
+          </div>
         </Card>
-        <Card title="Source Visits" subtitle="28.2k Visitors">
-          <ul className=" space-y-4">
-            {source?.map((item, i) => (
-              <li key={i} className="flex justify-between items-center">
-                <div className="flex items-center space-x-3 rtl:space-x-reverse">
-                  <div className="flex-none">
-                    <div className="h-[34px] w-[34px] bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-300 flex  items-center justify-center rounded-full">
-                      <Icon icon={item.flag} className="text-xl" />
-                    </div>
-                  </div>
-                  <div className="flex-1">
-                    <div className=" text-sm ">{item.name}</div>
-                  </div>
-                </div>
-                <div className="text-gray-800 dark:text-white   flex items-center space-x-[2px] rtl:space-x-reverse">
-                  <span className=" text-sm  ">{item.count}</span>
-                  <Icon
-                    icon={item.icon}
-                    className={`${
-                      item.icon === "heroicons:arrow-small-up"
-                        ? " text-green-500 "
-                        : " text-red-500"
-                    }  text-lg`}
-                  />
-                </div>
-              </li>
-            ))}
-          </ul>
-        </Card>
-        <Card title="Total Earning">
+        
+        <Card title="Quick Stats">
           <Earnings />
         </Card>
       </div>
       {/* end grid */}
       <div>
-        <div className="card-title mb-5">Latest Order</div>
+        <div className="card-title mb-5">Recent Orders</div>
         <RecentOrderTable />
       </div>
     </div>
