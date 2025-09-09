@@ -26,7 +26,7 @@ func (r *RoleRepositoryImpl) Create(ctx context.Context, role *entities.Role) er
 // GetByID retrieves a role by ID
 func (r *RoleRepositoryImpl) GetByID(ctx context.Context, id uuid.UUID) (*entities.Role, error) {
 	var role entities.Role
-	err := r.db.WithContext(ctx).Preload("UserRoles").Preload("Policies").First(&role, "id = ?", id).Error
+	err := r.db.WithContext(ctx).Preload("Policies").First(&role, "id = ?", id).Error
 	if err != nil {
 		return nil, err
 	}

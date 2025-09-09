@@ -14,8 +14,8 @@ type User struct {
 	RoleID           *uuid.UUID     `gorm:"type:uuid" json:"role_id"`
 	Email            *string        `gorm:"size:255;uniqueIndex" json:"email"`
 	EmailVerifiedAt  *time.Time     `json:"email_verified_at"`
-	Username         *string        `gorm:"size:255;uniqueIndex" json:"username"`
-	Name             string         `gorm:"size:255;not null" json:"name"`
+	Username         *string        `gorm:"size:255;uniqueIndex;not null" json:"username"`
+	Name             string         `gorm:"size:255" json:"name"`
 	Password         string         `gorm:"size:255;not null" json:"-"` // hashed password
 	Pin              *string        `gorm:"size:255" json:"-"`           // hashed pin code
 	InfoDevice       *string        `gorm:"size:255" json:"info_device"`

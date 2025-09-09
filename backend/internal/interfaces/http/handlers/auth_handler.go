@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"log"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/terminator791/t-pos/internal/domain/entities"
@@ -36,6 +37,8 @@ type LoginRequest struct {
 type RegisterRequest struct {
 	Username     string `json:"username" binding:"required,min=3"`
 	SerialNumber string `json:"serial_number" binding:"required"`
+	// Pin          string `json:"pin" binding:"required,min=6,max=6"`
+	// Name         string `json:"name" binding:"required"`
 }
 
 // LoginResponse represents login response
@@ -127,8 +130,13 @@ func (h *AuthHandler) Login(c *gin.Context) {
 				domain = "shop*" // Default fallback
 			}
 		} else {
-			// Use first accessible domain
-			domain = userDomains[0].Domain
+			// Collect all domains into a slice of strings
+			var domains []string
+			for _, ud := range userDomains {
+				domains = append(domains, ud.Domain)
+			}
+			// Join all domains into a single comma-separated string
+			domain = strings.Join(domains, ",")
 		}
 	}
 
@@ -156,7 +164,12 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		username = *user.Username
 	}
 	
-	token, err := h.jwtService.GenerateToken(user.ID, *user.Email, username, user.Name, domain)
+	email := ""
+	if user.Email != nil {
+		email = *user.Email
+	}
+	
+	token, err := h.jwtService.GenerateToken(user.ID, email, username, user.Name, domain)
 	if err != nil {
 		response.ErrorInternalServer(c, "Failed to generate token", err.Error())
 		return
@@ -207,12 +220,19 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
+	// hash pin
+	// hashedPin, err := h.passwordService.HashPin(req.Pin)
+	// if err != nil {
+	// 	response.ErrorInternalServer(c, "Failed to hash pin", err.Error())
+	// 	return
+	// }
 
 	// Create user with role
 	user := &entities.User{
 		Username:  &req.Username,
 		LicenseID: &license.ID,
 		RoleID:    &defaultRole.ID,
+		// Pin:       &hashedPin,
 	}
 
 	if err := h.userRepo.Create(context.Background(), user); err != nil {
