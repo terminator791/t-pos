@@ -22,7 +22,7 @@ func SetupRoutes(
 			products.GET("/search", productHandler.SearchProducts)
 			products.GET("/low-stock", productHandler.GetLowStockProducts)
 			products.GET("/:id", productHandler.GetProduct)
-			products.GET("/sku/:sku", productHandler.GetProductBySKU)
+			products.GET("/barcode/:barcode", productHandler.GetProductByBarcode)
 			products.PUT("/:id", productHandler.UpdateProduct)
 			products.DELETE("/:id", productHandler.DeleteProduct)
 		}

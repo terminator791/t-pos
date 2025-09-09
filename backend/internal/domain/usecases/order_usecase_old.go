@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/google/uuid"
 	"github.com/terminator791/t-pos/internal/domain/entities"
 	"github.com/terminator791/t-pos/internal/domain/repositories"
 )
@@ -34,7 +36,7 @@ func NewOrderUseCase(
 
 // CreateOrderRequest represents the request to create an order
 type CreateOrderRequest struct {
-	UserID         uint                      `json:"user_id"`
+	UserID         uuid.UUID                `json:"user_id"`
 	CustomerID     *uint                     `json:"customer_id"`
 	Items          []CreateOrderItemRequest  `json:"items"`
 	PaymentMethod  string                    `json:"payment_method"`
@@ -51,12 +53,9 @@ type CreateOrderItemRequest struct {
 // CreateOrder creates a new order
 func (uc *OrderUseCase) CreateOrder(ctx context.Context, req *CreateOrderRequest) (*entities.Order, error) {
 	// Validate user exists
-	user, err := uc.userRepo.GetByID(ctx, req.UserID)
+	_, err := uc.userRepo.GetByID(ctx, req.UserID)
 	if err != nil {
 		return nil, errors.New("invalid user ID")
-	}
-	if !user.IsActive {
-		return nil, errors.New("user is not active")
 	}
 
 	// Validate customer exists if provided
@@ -96,18 +95,14 @@ func (uc *OrderUseCase) CreateOrder(ctx context.Context, req *CreateOrderRequest
 			return nil, fmt.Errorf("invalid product ID: %d", item.ProductID)
 		}
 
-		if !product.IsActive {
-			return nil, fmt.Errorf("product %s is not active", product.Name)
-		}
-
-		if product.StockQuantity < item.Quantity {
+		if product.Stock < item.Quantity {
 			return nil, fmt.Errorf("insufficient stock for product %s", product.Name)
 		}
 
 		orderItem := entities.OrderItem{
 			ProductID:  item.ProductID,
 			Quantity:   item.Quantity,
-			UnitPrice:  product.Price,
+			UnitPrice:  product.Sale,
 		}
 		orderItem.CalculateTotal()
 

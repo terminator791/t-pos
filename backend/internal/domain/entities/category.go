@@ -2,21 +2,22 @@ package entities
 
 import (
 	"time"
+
 	"gorm.io/gorm"
 )
 
-// Category represents a product category
+// Category represents a product category per shop
 type Category struct {
-	ID          uint           `gorm:"primaryKey" json:"id"`
-	Name        string         `gorm:"not null" json:"name"`
-	Description string         `json:"description"`
-	IsActive    bool           `gorm:"default:true" json:"is_active"`
-	CreatedAt   time.Time      `json:"created_at"`
-	UpdatedAt   time.Time      `json:"updated_at"`
-	DeletedAt   gorm.DeletedAt `gorm:"index" json:"-"`
+	ID        uint           `gorm:"primaryKey" json:"id"`
+	ShopID    uint           `gorm:"not null" json:"shop_id"`
+	Name      string         `gorm:"size:255;not null" json:"name"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Relationships
-	Products []Product `gorm:"foreignKey:CategoryID" json:"products,omitempty"`
+	Shop     Shop      `gorm:"foreignKey:ShopID;constraint:OnDelete:CASCADE" json:"shop,omitempty"`
+	Products []Product `gorm:"foreignKey:CatID" json:"products,omitempty"`
 }
 
 // TableName specifies the table name for Category

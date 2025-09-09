@@ -2,6 +2,8 @@ package repositories
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 	"github.com/terminator791/t-pos/internal/domain/entities"
 )
 
@@ -13,7 +15,7 @@ type OrderRepository interface {
 	Update(ctx context.Context, order *entities.Order) error
 	Delete(ctx context.Context, id uint) error
 	List(ctx context.Context, limit, offset int) ([]*entities.Order, error)
-	GetByUser(ctx context.Context, userID uint) ([]*entities.Order, error)
+	GetByUser(ctx context.Context, userID uuid.UUID) ([]*entities.Order, error)
 	GetByCustomer(ctx context.Context, customerID uint) ([]*entities.Order, error)
 	GetByDateRange(ctx context.Context, startDate, endDate string) ([]*entities.Order, error)
 	GetTodaysOrders(ctx context.Context) ([]*entities.Order, error)

@@ -2,23 +2,46 @@ package entities
 
 import (
 	"time"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
-// Payment represents a payment made for an order
+// PaymentStatus represents the status of a payment
+type PaymentStatus string
+
+const (
+	PaymentStatusPending   PaymentStatus = "pending"
+	PaymentStatusCompleted PaymentStatus = "completed"
+	PaymentStatusFailed    PaymentStatus = "failed"
+	PaymentStatusCancelled PaymentStatus = "cancelled"
+)
+
+// Payment represents payments linked to a transaction
 type Payment struct {
-	ID              uint      `gorm:"primaryKey" json:"id"`
-	OrderID         uint      `gorm:"not null" json:"order_id"`
-	Amount          float64   `gorm:"type:decimal(10,2);not null" json:"amount"`
-	PaymentMethod   string    `gorm:"not null" json:"payment_method"` // cash, card, digital
-	ReferenceNumber string    `json:"reference_number"`
-	Status          string    `gorm:"default:completed" json:"status"` // pending, completed, failed
-	CreatedAt       time.Time `json:"created_at"`
+	ID            uint           `gorm:"primaryKey" json:"id"`
+	ShopID        uint           `gorm:"not null" json:"shop_id"`
+	UserID        *uuid.UUID     `gorm:"type:uuid" json:"user_id"`
+	TransactionID uuid.UUID      `gorm:"type:uuid;not null" json:"transaction_id"`
+	Status        PaymentStatus  `gorm:"default:pending" json:"status"`
+	Total         float64        `gorm:"type:decimal(10,2);not null" json:"total"`
+	CreatedAt     time.Time      `json:"created_at"`
+	UpdatedAt     time.Time      `json:"updated_at"`
+	DeletedAt     gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Relationships
-	Order Order `gorm:"foreignKey:OrderID" json:"order,omitempty"`
+	Shop        Shop        `gorm:"foreignKey:ShopID;constraint:OnDelete:CASCADE" json:"shop,omitempty"`
+	User        *User       `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"user,omitempty"`
+	Transaction Transaction `gorm:"foreignKey:TransactionID;constraint:OnDelete:CASCADE" json:"transaction,omitempty"`
+	Receipts    []Receipt   `gorm:"foreignKey:PaymentsID" json:"receipts,omitempty"`
 }
 
 // TableName specifies the table name for Payment
 func (Payment) TableName() string {
 	return "payments"
+}
+
+// IsCompleted checks if the payment is completed
+func (p *Payment) IsCompleted() bool {
+	return p.Status == PaymentStatusCompleted
 }

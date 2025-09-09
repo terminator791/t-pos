@@ -3,6 +3,7 @@ package usecases
 import (
 	"context"
 	"errors"
+
 	"github.com/terminator791/t-pos/internal/domain/entities"
 	"github.com/terminator791/t-pos/internal/domain/repositories"
 )
@@ -10,12 +11,14 @@ import (
 // CategoryUseCase handles category-related business logic
 type CategoryUseCase struct {
 	categoryRepo repositories.CategoryRepository
+	shopRepo     repositories.ShopRepository
 }
 
 // NewCategoryUseCase creates a new CategoryUseCase
-func NewCategoryUseCase(categoryRepo repositories.CategoryRepository) *CategoryUseCase {
+func NewCategoryUseCase(categoryRepo repositories.CategoryRepository, shopRepo repositories.ShopRepository) *CategoryUseCase {
 	return &CategoryUseCase{
 		categoryRepo: categoryRepo,
+		shopRepo:     shopRepo,
 	}
 }
 
@@ -25,12 +28,23 @@ func (uc *CategoryUseCase) CreateCategory(ctx context.Context, category *entitie
 		return errors.New("category name is required")
 	}
 
+	// Check if shop exists
+	_, err := uc.shopRepo.GetByID(ctx, category.ShopID)
+	if err != nil {
+		return errors.New("invalid shop ID")
+	}
+
 	return uc.categoryRepo.Create(ctx, category)
 }
 
 // GetCategory retrieves a category by ID
 func (uc *CategoryUseCase) GetCategory(ctx context.Context, id uint) (*entities.Category, error) {
 	return uc.categoryRepo.GetByID(ctx, id)
+}
+
+// GetCategoriesByShop retrieves categories by shop ID
+func (uc *CategoryUseCase) GetCategoriesByShop(ctx context.Context, shopID uint) ([]*entities.Category, error) {
+	return uc.categoryRepo.GetByShopID(ctx, shopID)
 }
 
 // UpdateCategory updates an existing category
@@ -66,9 +80,4 @@ func (uc *CategoryUseCase) DeleteCategory(ctx context.Context, id uint) error {
 // ListCategories retrieves a list of categories
 func (uc *CategoryUseCase) ListCategories(ctx context.Context, limit, offset int) ([]*entities.Category, error) {
 	return uc.categoryRepo.List(ctx, limit, offset)
-}
-
-// GetActiveCategories retrieves all active categories
-func (uc *CategoryUseCase) GetActiveCategories(ctx context.Context) ([]*entities.Category, error) {
-	return uc.categoryRepo.GetActiveCategories(ctx)
 }

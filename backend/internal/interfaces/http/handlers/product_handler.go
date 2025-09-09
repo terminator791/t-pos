@@ -56,15 +56,15 @@ func (h *ProductHandler) GetProduct(c *gin.Context) {
 	c.JSON(http.StatusOK, product)
 }
 
-// GetProductBySKU retrieves a product by SKU
-func (h *ProductHandler) GetProductBySKU(c *gin.Context) {
-	sku := c.Param("sku")
-	if sku == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "SKU is required"})
+// GetProductByBarcode retrieves a product by barcode
+func (h *ProductHandler) GetProductByBarcode(c *gin.Context) {
+	barcode := c.Param("barcode")
+	if barcode == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Barcode is required"})
 		return
 	}
 
-	product, err := h.productUseCase.GetProductBySKU(c.Request.Context(), sku)
+	product, err := h.productUseCase.GetProductByBarcode(c.Request.Context(), barcode)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Product not found"})
 		return
@@ -143,12 +143,23 @@ func (h *ProductHandler) ListProducts(c *gin.Context) {
 // SearchProducts searches for products
 func (h *ProductHandler) SearchProducts(c *gin.Context) {
 	query := c.Query("q")
+	shopIDParam := c.Query("shop_id")
 	if query == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Search query is required"})
 		return
 	}
+	if shopIDParam == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Shop ID is required"})
+		return
+	}
 
-	products, err := h.productUseCase.SearchProducts(c.Request.Context(), query)
+	shopID, err := strconv.ParseUint(shopIDParam, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid shop ID"})
+		return
+	}
+
+	products, err := h.productUseCase.SearchProducts(c.Request.Context(), query, uint(shopID))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -159,7 +170,19 @@ func (h *ProductHandler) SearchProducts(c *gin.Context) {
 
 // GetLowStockProducts retrieves products with low stock
 func (h *ProductHandler) GetLowStockProducts(c *gin.Context) {
-	products, err := h.productUseCase.GetLowStockProducts(c.Request.Context())
+	shopIDParam := c.Query("shop_id")
+	if shopIDParam == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Shop ID is required"})
+		return
+	}
+
+	shopID, err := strconv.ParseUint(shopIDParam, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid shop ID"})
+		return
+	}
+
+	products, err := h.productUseCase.GetLowStockProducts(c.Request.Context(), uint(shopID))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

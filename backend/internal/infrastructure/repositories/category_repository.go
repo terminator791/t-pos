@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+
 	"github.com/terminator791/t-pos/internal/domain/entities"
 	"gorm.io/gorm"
 )
@@ -31,6 +32,23 @@ func (r *CategoryRepositoryImpl) GetByID(ctx context.Context, id uint) (*entitie
 	return &category, nil
 }
 
+// GetByShopID retrieves categories by shop ID
+func (r *CategoryRepositoryImpl) GetByShopID(ctx context.Context, shopID uint) ([]*entities.Category, error) {
+	var categories []*entities.Category
+	err := r.db.WithContext(ctx).Where("shop_id = ?", shopID).Find(&categories).Error
+	return categories, err
+}
+
+// GetByName retrieves a category by name within a shop
+func (r *CategoryRepositoryImpl) GetByName(ctx context.Context, name string, shopID uint) (*entities.Category, error) {
+	var category entities.Category
+	err := r.db.WithContext(ctx).Where("name = ? AND shop_id = ?", name, shopID).First(&category).Error
+	if err != nil {
+		return nil, err
+	}
+	return &category, nil
+}
+
 // Update updates an existing category
 func (r *CategoryRepositoryImpl) Update(ctx context.Context, category *entities.Category) error {
 	return r.db.WithContext(ctx).Save(category).Error
@@ -45,12 +63,5 @@ func (r *CategoryRepositoryImpl) Delete(ctx context.Context, id uint) error {
 func (r *CategoryRepositoryImpl) List(ctx context.Context, limit, offset int) ([]*entities.Category, error) {
 	var categories []*entities.Category
 	err := r.db.WithContext(ctx).Limit(limit).Offset(offset).Find(&categories).Error
-	return categories, err
-}
-
-// GetActiveCategories retrieves all active categories
-func (r *CategoryRepositoryImpl) GetActiveCategories(ctx context.Context) ([]*entities.Category, error) {
-	var categories []*entities.Category
-	err := r.db.WithContext(ctx).Where("is_active = ?", true).Find(&categories).Error
 	return categories, err
 }

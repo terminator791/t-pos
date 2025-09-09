@@ -2,6 +2,8 @@ package repositories
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 	"github.com/terminator791/t-pos/internal/domain/entities"
 	"gorm.io/gorm"
 )
@@ -78,7 +80,7 @@ func (r *OrderRepositoryImpl) List(ctx context.Context, limit, offset int) ([]*e
 }
 
 // GetByUser retrieves orders by user ID
-func (r *OrderRepositoryImpl) GetByUser(ctx context.Context, userID uint) ([]*entities.Order, error) {
+func (r *OrderRepositoryImpl) GetByUser(ctx context.Context, userID uuid.UUID) ([]*entities.Order, error) {
 	var orders []*entities.Order
 	err := r.db.WithContext(ctx).
 		Preload("Customer").

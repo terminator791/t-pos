@@ -41,11 +41,12 @@ func main() {
 	userRepo := repositories.NewUserRepository(db)
 	categoryRepo := repositories.NewCategoryRepository(db)
 	productRepo := repositories.NewProductRepository(db)
+	shopRepo := repositories.NewShopRepository(db)
 	customerRepo := repositories.NewCustomerRepository(db)
 	orderRepo := repositories.NewOrderRepository(db)
 
 	// Initialize use cases
-	productUseCase := usecases.NewProductUseCase(productRepo, categoryRepo)
+	productUseCase := usecases.NewProductUseCase(productRepo, categoryRepo, shopRepo)
 	orderUseCase := usecases.NewOrderUseCase(orderRepo, productRepo, customerRepo, userRepo)
 
 	// Initialize handlers

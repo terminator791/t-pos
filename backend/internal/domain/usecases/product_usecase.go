@@ -3,6 +3,7 @@ package usecases
 import (
 	"context"
 	"errors"
+
 	"github.com/terminator791/t-pos/internal/domain/entities"
 	"github.com/terminator791/t-pos/internal/domain/repositories"
 )
@@ -11,13 +12,15 @@ import (
 type ProductUseCase struct {
 	productRepo  repositories.ProductRepository
 	categoryRepo repositories.CategoryRepository
+	shopRepo     repositories.ShopRepository
 }
 
 // NewProductUseCase creates a new ProductUseCase
-func NewProductUseCase(productRepo repositories.ProductRepository, categoryRepo repositories.CategoryRepository) *ProductUseCase {
+func NewProductUseCase(productRepo repositories.ProductRepository, categoryRepo repositories.CategoryRepository, shopRepo repositories.ShopRepository) *ProductUseCase {
 	return &ProductUseCase{
 		productRepo:  productRepo,
 		categoryRepo: categoryRepo,
+		shopRepo:     shopRepo,
 	}
 }
 
@@ -26,20 +29,29 @@ func (uc *ProductUseCase) CreateProduct(ctx context.Context, product *entities.P
 	if product.Name == "" {
 		return errors.New("product name is required")
 	}
-	if product.SKU == "" {
-		return errors.New("product SKU is required")
+	if product.Sale <= 0 {
+		return errors.New("product sale price must be greater than 0")
 	}
-	if product.Price <= 0 {
-		return errors.New("product price must be greater than 0")
+	if product.Buy <= 0 {
+		return errors.New("product buy price must be greater than 0")
+	}
+
+	// Check if shop exists
+	_, err := uc.shopRepo.GetByID(ctx, product.ShopID)
+	if err != nil {
+		return errors.New("invalid shop ID")
 	}
 
 	// Check if category exists if provided
-	if product.CategoryID != nil {
-		_, err := uc.categoryRepo.GetByID(ctx, *product.CategoryID)
+	if product.CatID != nil {
+		_, err := uc.categoryRepo.GetByID(ctx, *product.CatID)
 		if err != nil {
 			return errors.New("invalid category ID")
 		}
 	}
+
+	// Calculate profit
+	product.CalculateProfit()
 
 	return uc.productRepo.Create(ctx, product)
 }
@@ -49,14 +61,14 @@ func (uc *ProductUseCase) GetProduct(ctx context.Context, id uint) (*entities.Pr
 	return uc.productRepo.GetByID(ctx, id)
 }
 
-// GetProductBySKU retrieves a product by SKU
-func (uc *ProductUseCase) GetProductBySKU(ctx context.Context, sku string) (*entities.Product, error) {
-	return uc.productRepo.GetBySKU(ctx, sku)
-}
-
 // GetProductByBarcode retrieves a product by barcode
 func (uc *ProductUseCase) GetProductByBarcode(ctx context.Context, barcode string) (*entities.Product, error) {
 	return uc.productRepo.GetByBarcode(ctx, barcode)
+}
+
+// GetProductsByShop retrieves products by shop ID
+func (uc *ProductUseCase) GetProductsByShop(ctx context.Context, shopID uint) ([]*entities.Product, error) {
+	return uc.productRepo.GetByShopID(ctx, shopID)
 }
 
 // UpdateProduct updates an existing product
@@ -73,7 +85,23 @@ func (uc *ProductUseCase) UpdateProduct(ctx context.Context, product *entities.P
 		return errors.New("product not found")
 	}
 
+	// Calculate profit
+	product.CalculateProfit()
+
 	return uc.productRepo.Update(ctx, product)
+}
+
+// UpdateProductStock updates product stock
+func (uc *ProductUseCase) UpdateProductStock(ctx context.Context, productID uint, quantity int) error {
+	existing, err := uc.productRepo.GetByID(ctx, productID)
+	if err != nil {
+		return err
+	}
+	if existing == nil {
+		return errors.New("product not found")
+	}
+
+	return uc.productRepo.UpdateStock(ctx, productID, quantity)
 }
 
 // DeleteProduct deletes a product
@@ -95,11 +123,11 @@ func (uc *ProductUseCase) ListProducts(ctx context.Context, limit, offset int) (
 }
 
 // GetLowStockProducts retrieves products with low stock
-func (uc *ProductUseCase) GetLowStockProducts(ctx context.Context) ([]*entities.Product, error) {
-	return uc.productRepo.GetLowStockProducts(ctx)
+func (uc *ProductUseCase) GetLowStockProducts(ctx context.Context, shopID uint) ([]*entities.Product, error) {
+	return uc.productRepo.GetLowStockProducts(ctx, shopID)
 }
 
-// SearchProducts searches for products by name or SKU
-func (uc *ProductUseCase) SearchProducts(ctx context.Context, query string) ([]*entities.Product, error) {
-	return uc.productRepo.Search(ctx, query)
+// SearchProducts searches for products by name or barcode within a shop
+func (uc *ProductUseCase) SearchProducts(ctx context.Context, query string, shopID uint) ([]*entities.Product, error) {
+	return uc.productRepo.Search(ctx, query, shopID)
 }
