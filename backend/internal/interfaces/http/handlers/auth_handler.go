@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/terminator791/t-pos/internal/domain/entities"
@@ -175,6 +176,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	// Calculate expires at
+	expiresAt := time.Now().Add(h.jwtService.GetExpiryTime()).Unix()
+
 	// Remove password from response
 	user.Password = ""
 
@@ -183,7 +187,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		User:      user,
 		Roles:     []string{role.Name}, // Single role
 		Domain:    domain,
-		ExpiresAt: 0, // You might want to calculate this from JWT claims
+		ExpiresAt: expiresAt,
 	})
 }
 
@@ -294,8 +298,16 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 // Logout handles user logout (for client-side token invalidation)
 func (h *AuthHandler) Logout(c *gin.Context) {
+	// Extract token from header
+	authHeader := c.GetHeader("Authorization")
+	tokenString := h.jwtService.ExtractTokenFromHeader(authHeader)
+	if tokenString != "" {
+		// Blacklist the token
+		h.jwtService.BlacklistToken(tokenString)
+	}
+
 	response.SuccessOK(c, "Logout successful", gin.H{
-		"message": "Please remove the token from client storage",
+		"message": "Token has been invalidated",
 	})
 }
 

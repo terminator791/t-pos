@@ -2,6 +2,7 @@ package auth
 
 import (
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -13,6 +14,8 @@ type JWTService struct {
 	secret     []byte
 	issuer     string
 	expiryTime time.Duration
+	blacklist  map[string]bool
+	mutex      sync.RWMutex
 }
 
 // Claims represents the JWT claims structure
@@ -31,6 +34,7 @@ func NewJWTService(secret string, issuer string, expiryHours int) *JWTService {
 		secret:     []byte(secret),
 		issuer:     issuer,
 		expiryTime: time.Duration(expiryHours) * time.Hour,
+		blacklist:  make(map[string]bool),
 	}
 }
 
@@ -58,6 +62,14 @@ func (j *JWTService) GenerateToken(userID uuid.UUID, email, username, name, doma
 
 // ValidateToken validates and parses a JWT token
 func (j *JWTService) ValidateToken(tokenString string) (*Claims, error) {
+	// Check if token is blacklisted
+	j.mutex.RLock()
+	if j.blacklist[tokenString] {
+		j.mutex.RUnlock()
+		return nil, errors.New("token has been revoked")
+	}
+	j.mutex.RUnlock()
+
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
 		// Validate the signing method
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -98,6 +110,18 @@ func (j *JWTService) RefreshToken(claims *Claims) (string, error) {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, newClaims)
 	return token.SignedString(j.secret)
+}
+
+// GetExpiryTime returns the token expiry duration
+func (j *JWTService) GetExpiryTime() time.Duration {
+	return j.expiryTime
+}
+
+// BlacklistToken adds a token to the blacklist
+func (j *JWTService) BlacklistToken(tokenString string) {
+	j.mutex.Lock()
+	defer j.mutex.Unlock()
+	j.blacklist[tokenString] = true
 }
 
 // ExtractTokenFromHeader extracts token from Authorization header
