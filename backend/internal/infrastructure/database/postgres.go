@@ -42,7 +42,6 @@ func Migrate() error {
 		&entities.License{},
 		&entities.User{},
 		&entities.Role{},
-		&entities.UserRole{},
 		&entities.Policy{},
 		&entities.LicenseLog{},
 		&entities.Shop{},
@@ -96,6 +95,7 @@ func DropAllTables() error {
 	// Get all table names
 	tables := []string{
 		"casbin_rule", // Casbin table
+		"user_roles",  // User-Role relationship table (to be dropped)
 		"logs",
 		"stock_histories", 
 		"expenses",
@@ -109,7 +109,6 @@ func DropAllTables() error {
 		"categories",
 		"shops",
 		"policies",
-		"user_roles",
 		"roles",
 		"license_logs",
 		"users",

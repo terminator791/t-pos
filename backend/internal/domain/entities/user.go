@@ -14,7 +14,7 @@ type User struct {
 	RoleID           *uuid.UUID     `gorm:"type:uuid" json:"role_id"`
 	Email            *string        `gorm:"size:255;uniqueIndex" json:"email"`
 	EmailVerifiedAt  *time.Time     `json:"email_verified_at"`
-	Username         *string        `gorm:"size:255" json:"username"`
+	Username         *string        `gorm:"size:255;uniqueIndex" json:"username"`
 	Name             string         `gorm:"size:255;not null" json:"name"`
 	Password         string         `gorm:"size:255;not null" json:"-"` // hashed password
 	Pin              *int           `json:"pin"`                         // pin code
@@ -36,7 +36,6 @@ type User struct {
 	Payments          []Payment      `gorm:"foreignKey:UserID" json:"payments,omitempty"`
 	LicenseLogs       []LicenseLog   `gorm:"foreignKey:UserID" json:"license_logs,omitempty"`
 	Logs              []Log          `gorm:"foreignKey:UserID" json:"logs,omitempty"`
-	UserRoles         []UserRole     `gorm:"foreignKey:UserID" json:"user_roles,omitempty"` // Keep for backward compatibility
 }
 
 // TableName specifies the table name for User

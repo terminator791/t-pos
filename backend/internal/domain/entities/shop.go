@@ -9,7 +9,7 @@ import (
 
 // Shop represents a merchant shop operating under a license
 type Shop struct {
-	ID               uuid.UUID      `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	ID               uuid.UUID      `gorm:"type:uuid;primaryKey" json:"id"`
 	LicenseID        uuid.UUID      `gorm:"type:uuid;not null" json:"license_id"`
 	UserID           uuid.UUID      `gorm:"type:uuid;not null" json:"user_id"` // owner_user_id
 	Name             string         `gorm:"size:255;not null" json:"name"`
@@ -38,4 +38,20 @@ type Shop struct {
 // TableName specifies the table name for Shop
 func (Shop) TableName() string {
 	return "shops"
+}
+
+// BeforeCreate hook to generate ID and Domain automatically
+func (s *Shop) BeforeCreate(tx *gorm.DB) error {
+	if s.ID == uuid.Nil {
+		s.ID = uuid.New()
+	}
+	if s.Domain == "" {
+		s.Domain = "shop-" + s.ID.String()
+	}
+	return nil
+}
+
+// DomainName returns the shop domain as ("shop-" + uuid)
+func (s *Shop) DomainName() string {
+	return "shop-" + s.ID.String()
 }

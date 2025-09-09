@@ -29,15 +29,3 @@ type PolicyRepository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 	GetActivePolicies(ctx context.Context) ([]*entities.Policy, error)
 }
-
-// UserRoleRepository defines the interface for user-role data access
-type UserRoleRepository interface {
-	Create(ctx context.Context, userRole *entities.UserRole) error
-	GetByID(ctx context.Context, id uuid.UUID) (*entities.UserRole, error)
-	GetByUserID(ctx context.Context, userID uuid.UUID) ([]*entities.UserRole, error)
-	GetByUserAndDomain(ctx context.Context, userID uuid.UUID, domain string) ([]*entities.UserRole, error)
-	List(ctx context.Context, limit, offset int) ([]*entities.UserRole, error)
-	Update(ctx context.Context, userRole *entities.UserRole) error
-	Delete(ctx context.Context, id uuid.UUID) error
-	DeleteByUserAndRole(ctx context.Context, userID, roleID uuid.UUID, domain string) error
-}

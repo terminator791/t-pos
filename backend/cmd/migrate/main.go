@@ -118,7 +118,6 @@ func runSeeder() error {
 	userRepo := repositories.NewUserRepository(db)
 	roleRepo := repositories.NewRoleRepository(db)
 	policyRepo := repositories.NewPolicyRepository(db)
-	userRoleRepo := repositories.NewUserRoleRepository(db)
 	categoryRepo := repositories.NewCategoryRepository(db)
 	productRepo := repositories.NewProductRepository(db)
 	shopRepo := repositories.NewShopRepository(db)
@@ -141,7 +140,6 @@ func runSeeder() error {
 	initialDataSeeder := seeders.NewInitialDataSeeder(
 		licenseRepo,
 		userRepo,
-		userRoleRepo,
 		roleRepo,
 		shopRepo,
 		categoryRepo,
@@ -161,7 +159,7 @@ func checkStatus() {
 	}
 
 	tables := []string{
-		"licenses", "users", "roles", "user_roles", "policies", "license_logs", 
+		"licenses", "users", "roles", "policies", "license_logs", 
 		"shops", "categories", "products", "carts", "transactions", "transaction_products", 
 		"payments", "receipts", "histories", "stock_histories", "expenses", "logs", 
 		"user_domains", "casbin_rule",

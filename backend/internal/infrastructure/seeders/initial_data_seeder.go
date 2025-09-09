@@ -13,20 +13,18 @@ import (
 
 // InitialDataSeeder handles seeding of initial application data
 type InitialDataSeeder struct {
-	licenseRepo    repositories.LicenseRepository
-	userRepo       repositories.UserRepository
-	userRoleRepo   repositories.UserRoleRepository
-	roleRepo       repositories.RoleRepository
-	shopRepo       repositories.ShopRepository
-	categoryRepo   repositories.CategoryRepository
-	productRepo    repositories.ProductRepository
+	licenseRepo  repositories.LicenseRepository
+	userRepo     repositories.UserRepository
+	roleRepo     repositories.RoleRepository
+	shopRepo     repositories.ShopRepository
+	categoryRepo repositories.CategoryRepository
+	productRepo  repositories.ProductRepository
 }
 
 // NewInitialDataSeeder creates a new initial data seeder
 func NewInitialDataSeeder(
 	licenseRepo repositories.LicenseRepository,
 	userRepo repositories.UserRepository,
-	userRoleRepo repositories.UserRoleRepository,
 	roleRepo repositories.RoleRepository,
 	shopRepo repositories.ShopRepository,
 	categoryRepo repositories.CategoryRepository,
@@ -35,7 +33,6 @@ func NewInitialDataSeeder(
 	return &InitialDataSeeder{
 		licenseRepo:  licenseRepo,
 		userRepo:     userRepo,
-		userRoleRepo: userRoleRepo,
 		roleRepo:     roleRepo,
 		shopRepo:     shopRepo,
 		categoryRepo: categoryRepo,
@@ -199,7 +196,6 @@ func (s *InitialDataSeeder) SeedShops() error {
 			LicenseID: license.ID,
 			UserID:    admin.ID,
 			Name:      "Demo Shop",
-			Domain:    "shop-1",
 			Address:   strPtr("Jl. Demo No. 123, Jakarta"),
 			Slogan:    strPtr("Your Trusted Partner"),
 		},
@@ -207,7 +203,6 @@ func (s *InitialDataSeeder) SeedShops() error {
 			LicenseID: license.ID,
 			UserID:    admin.ID,
 			Name:      "Demo Shop 2",
-			Domain:    "shop-2",
 			Address:   strPtr("Jl. Demo No. 123sda, Semarang"),
 			Slogan:    strPtr("Your Trusted Partner"),
 		},

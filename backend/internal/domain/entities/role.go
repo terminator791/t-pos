@@ -19,23 +19,7 @@ type Role struct {
 	DeletedAt   gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Relationships
-	UserRoles []UserRole `gorm:"foreignKey:RoleID" json:"user_roles,omitempty"`
 	Policies  []Policy   `gorm:"foreignKey:RoleID" json:"policies,omitempty"`
-}
-
-// UserRole represents the many-to-many relationship between users and roles with domain support
-type UserRole struct {
-	ID        uuid.UUID      `gorm:"type:uuid;primary_key;default:uuid_generate_v4()" json:"id"`
-	UserID    uuid.UUID      `gorm:"type:uuid;not null" json:"user_id"`
-	RoleID    uuid.UUID      `gorm:"type:uuid;not null" json:"role_id"`
-	Domain    string         `gorm:"size:255;not null;default:'*'" json:"domain"` // tenant/shop domain
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
-	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
-
-	// Relationships
-	User *User `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"user,omitempty"`
-	Role *Role `gorm:"foreignKey:RoleID;constraint:OnDelete:CASCADE" json:"role,omitempty"`
 }
 
 // Policy represents a Casbin policy entry
@@ -61,11 +45,6 @@ func (Role) TableName() string {
 	return "roles"
 }
 
-// TableName specifies the table name for UserRole
-func (UserRole) TableName() string {
-	return "user_roles"
-}
-
 // TableName specifies the table name for Policy
 func (Policy) TableName() string {
 	return "policies"
@@ -75,14 +54,6 @@ func (Policy) TableName() string {
 func (r *Role) BeforeCreate(tx *gorm.DB) error {
 	if r.ID == uuid.Nil {
 		r.ID = uuid.New()
-	}
-	return nil
-}
-
-// BeforeCreate sets the ID field to a new UUID if it's not already set
-func (ur *UserRole) BeforeCreate(tx *gorm.DB) error {
-	if ur.ID == uuid.Nil {
-		ur.ID = uuid.New()
 	}
 	return nil
 }

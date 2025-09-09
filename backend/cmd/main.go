@@ -45,7 +45,6 @@ func main() {
 	userRepo := repositories.NewUserRepository(db)
 	roleRepo := repositories.NewRoleRepository(db)
 	policyRepo := repositories.NewPolicyRepository(db)
-	userRoleRepo := repositories.NewUserRoleRepository(db)
 	userDomainRepo := repositories.NewUserDomainRepository(db)
 	categoryRepo := repositories.NewCategoryRepository(db)
 	productRepo := repositories.NewProductRepository(db)
@@ -78,7 +77,6 @@ func main() {
 	initialDataSeeder := seeders.NewInitialDataSeeder(
 		licenseRepo,
 		userRepo,
-		userRoleRepo,
 		roleRepo,
 		shopRepo,
 		categoryRepo,
@@ -93,7 +91,7 @@ func main() {
 	checkoutUseCase := usecases.NewCheckoutUseCase(transactionRepo, productRepo, shopRepo, userRepo, paymentRepo)
 
 	// Initialize handlers
-	authHandler := handlers.NewAuthHandler(userRepo, userRoleRepo, userDomainRepo, roleRepo, licenseRepo, shopRepo, jwtService, passwordService, enforcerService)
+	authHandler := handlers.NewAuthHandler(userRepo, userDomainRepo, roleRepo, licenseRepo, shopRepo, jwtService, passwordService, enforcerService)
 	productHandler := handlers.NewProductHandler(productUseCase)
 	checkoutHandler := handlers.NewCheckoutHandler(checkoutUseCase)
 

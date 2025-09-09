@@ -16,7 +16,6 @@ import (
 // AuthHandler handles authentication related requests
 type AuthHandler struct {
 	userRepo        repositories.UserRepository
-	userRoleRepo    repositories.UserRoleRepository
 	userDomainRepo  repositories.UserDomainRepository
 	roleRepo        repositories.RoleRepository
 	licenseRepo     repositories.LicenseRepository
@@ -51,7 +50,6 @@ type LoginResponse struct {
 // NewAuthHandler creates a new authentication handler
 func NewAuthHandler(
 	userRepo repositories.UserRepository,
-	userRoleRepo repositories.UserRoleRepository,
 	userDomainRepo repositories.UserDomainRepository,
 	roleRepo repositories.RoleRepository,
 	licenseRepo repositories.LicenseRepository,
@@ -62,7 +60,6 @@ func NewAuthHandler(
 ) *AuthHandler {
 	return &AuthHandler{
 		userRepo:        userRepo,
-		userRoleRepo:    userRoleRepo,
 		userDomainRepo:  userDomainRepo,
 		roleRepo:        roleRepo,
 		licenseRepo:     licenseRepo,
