@@ -13,6 +13,9 @@ func SetupRoutes(
 	productHandler *handlers.ProductHandler,
 	checkoutHandler *handlers.CheckoutHandler,
 	authHandler *handlers.AuthHandler,
+	licenseHandler *handlers.LicenseHandler,
+	customerHandler *handlers.CustomerHandler,
+	userManagementHandler *handlers.UserManagementHandler,
 	authMiddleware *auth.AuthMiddleware,
 	authzMiddleware *casbin.AuthzMiddleware,
 ) {
@@ -70,6 +73,34 @@ func SetupRoutes(
 			{
 				transactions.GET("/:transactionId", checkoutHandler.GetTransactionDetails)
 				transactions.GET("/shop/:shopId/today", checkoutHandler.GetTodaysTransactions)
+			}
+
+			// License routes
+			licenses := protected.Group("/licenses")
+			{
+				licenses.GET("", licenseHandler.GetAllLicenses)
+				licenses.GET("/:id", licenseHandler.GetLicense)
+				licenses.POST("", licenseHandler.CreateLicense)
+				licenses.DELETE("/:id", licenseHandler.DeleteLicense)
+			}
+
+			// Customer routes (users with cashier/owner_business roles)
+			customers := protected.Group("/customers")
+			{
+				customers.GET("", customerHandler.GetAllCustomers)
+				customers.GET("/:id", customerHandler.GetCustomer)
+				customers.POST("", customerHandler.CreateCustomer)
+				customers.DELETE("/:id", customerHandler.DeleteCustomer)
+			}
+
+			// User management routes (users with admin/super_admin roles)
+			users := protected.Group("/users")
+			{
+				users.GET("", userManagementHandler.GetAllUsers)
+				users.GET("/:id", userManagementHandler.GetUser)
+				users.POST("", userManagementHandler.CreateUser)
+				users.PUT("/:id", userManagementHandler.UpdateUserPassword)
+				users.DELETE("/:id", userManagementHandler.DeleteUser)
 			}
 		}
 	}
