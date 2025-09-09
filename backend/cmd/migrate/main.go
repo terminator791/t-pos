@@ -118,6 +118,7 @@ func runSeeder() error {
 	userRepo := repositories.NewUserRepository(db)
 	roleRepo := repositories.NewRoleRepository(db)
 	policyRepo := repositories.NewPolicyRepository(db)
+	userDomainRepo := repositories.NewUserDomainRepository(db)
 	categoryRepo := repositories.NewCategoryRepository(db)
 	productRepo := repositories.NewProductRepository(db)
 	shopRepo := repositories.NewShopRepository(db)
@@ -144,6 +145,8 @@ func runSeeder() error {
 		shopRepo,
 		categoryRepo,
 		productRepo,
+		userDomainRepo,
+		enforcerService,
 	)
 	if err := initialDataSeeder.SeedAll(); err != nil {
 		return fmt.Errorf("failed to seed initial data: %v", err)

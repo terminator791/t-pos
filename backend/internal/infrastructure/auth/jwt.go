@@ -131,3 +131,12 @@ func (j *JWTService) ExtractTokenFromHeader(authHeader string) string {
 	}
 	return ""
 }
+
+// Get UserID from token
+func (j *JWTService) GetUserIDFromToken(tokenString string) (uuid.UUID, error) {
+	claims, err := j.ValidateToken(tokenString)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return claims.UserID, nil
+}

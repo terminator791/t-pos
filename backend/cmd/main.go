@@ -81,6 +81,8 @@ func main() {
 		shopRepo,
 		categoryRepo,
 		productRepo,
+		userDomainRepo,
+		enforcerService,
 	)
 	if err := initialDataSeeder.SeedAll(); err != nil {
 		log.Printf("Warning: Failed to seed initial data: %v", err)

@@ -23,6 +23,21 @@ func (r *UserRepositoryImpl) Create(ctx context.Context, user *entities.User) er
 	return r.db.WithContext(ctx).Create(user).Error
 }
 
+// CreatePin creates or updates a PIN for a user by ID
+func (r *UserRepositoryImpl) CreatePin(ctx context.Context, id uuid.UUID, pin string) error {
+	return r.db.WithContext(ctx).Model(&entities.User{}).Where("id = ?", id).Update("pin", pin).Error
+}
+
+// UpdatePin updates the PIN for a user by ID
+func (r *UserRepositoryImpl) UpdatePin(ctx context.Context, id uuid.UUID, pin string) error {
+	return r.db.WithContext(ctx).Model(&entities.User{}).Where("id = ?", id).Update("pin", pin).Error
+}
+
+// DeletePin deletes the PIN for a user by ID (sets to NULL)
+func (r *UserRepositoryImpl) DeletePin(ctx context.Context, id uuid.UUID) error {
+	return r.db.WithContext(ctx).Model(&entities.User{}).Where("id = ?", id).Update("pin", nil).Error
+}
+
 // GetByID retrieves a user by ID
 func (r *UserRepositoryImpl) GetByID(ctx context.Context, id uuid.UUID) (*entities.User, error) {
 	var user entities.User

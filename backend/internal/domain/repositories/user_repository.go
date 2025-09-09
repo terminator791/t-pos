@@ -10,6 +10,9 @@ import (
 // UserRepository defines the interface for user data access
 type UserRepository interface {
 	Create(ctx context.Context, user *entities.User) error
+	CreatePin(ctx context.Context, id uuid.UUID, pin string) error
+	UpdatePin(ctx context.Context, id uuid.UUID, pin string) error
+	DeletePin(ctx context.Context, id uuid.UUID) error
 	GetByID(ctx context.Context, id uuid.UUID) (*entities.User, error)
 	GetByEmail(ctx context.Context, email string) (*entities.User, error)
 	GetByUsername(ctx context.Context, username string) (*entities.User, error)

@@ -7,18 +7,21 @@ import (
 	"github.com/google/uuid"
 	"github.com/terminator791/t-pos/internal/domain/entities"
 	"github.com/terminator791/t-pos/internal/domain/repositories"
+	"github.com/terminator791/t-pos/internal/infrastructure/casbin"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
 // InitialDataSeeder handles seeding of initial application data
 type InitialDataSeeder struct {
-	licenseRepo  repositories.LicenseRepository
-	userRepo     repositories.UserRepository
-	roleRepo     repositories.RoleRepository
-	shopRepo     repositories.ShopRepository
-	categoryRepo repositories.CategoryRepository
-	productRepo  repositories.ProductRepository
+	licenseRepo     repositories.LicenseRepository
+	userRepo        repositories.UserRepository
+	roleRepo        repositories.RoleRepository
+	shopRepo        repositories.ShopRepository
+	categoryRepo    repositories.CategoryRepository
+	productRepo     repositories.ProductRepository
+	userDomainRepo  repositories.UserDomainRepository
+	enforcerService *casbin.EnforcerService
 }
 
 // NewInitialDataSeeder creates a new initial data seeder
@@ -29,14 +32,18 @@ func NewInitialDataSeeder(
 	shopRepo repositories.ShopRepository,
 	categoryRepo repositories.CategoryRepository,
 	productRepo repositories.ProductRepository,
+	userDomainRepo repositories.UserDomainRepository,
+	enforcerService *casbin.EnforcerService,
 ) *InitialDataSeeder {
 	return &InitialDataSeeder{
-		licenseRepo:  licenseRepo,
-		userRepo:     userRepo,
-		roleRepo:     roleRepo,
-		shopRepo:     shopRepo,
-		categoryRepo: categoryRepo,
-		productRepo:  productRepo,
+		licenseRepo:     licenseRepo,
+		userRepo:        userRepo,
+		roleRepo:        roleRepo,
+		shopRepo:        shopRepo,
+		categoryRepo:    categoryRepo,
+		productRepo:     productRepo,
+		userDomainRepo:  userDomainRepo,
+		enforcerService: enforcerService,
 	}
 }
 
@@ -454,6 +461,155 @@ func (s *InitialDataSeeder) SeedProducts() error {
 	return nil
 }
 
+// SeedUserDomains creates initial user domains for super admin and admin
+func (s *InitialDataSeeder) SeedUserDomains() error {
+	ctx := context.Background()
+
+	// Get users
+	superAdmin, err := s.userRepo.GetByEmail(ctx, "superadmin@example.com")
+	if err != nil {
+		log.Printf("Failed to get super admin user: %v", err)
+		return err
+	}
+
+	admin, err := s.userRepo.GetByEmail(ctx, "admin@example.com")
+	if err != nil {
+		log.Printf("Failed to get admin user: %v", err)
+		return err
+	}
+
+	// Get license for domain
+	license, err := s.licenseRepo.GetBySerialNumber(ctx, "LIC-001-DEMO")
+	if err != nil {
+		log.Printf("Failed to get license: %v", err)
+		return err
+	}
+
+	domain := license.SerialNumber
+
+	// Create user domains
+	userDomains := []entities.UserDomain{
+		{
+			UserID: superAdmin.ID,
+			Domain: domain,
+		},
+		{
+			UserID: admin.ID,
+			Domain: domain,
+		},
+	}
+
+	for _, userDomain := range userDomains {
+		// Check if user domain already exists
+		existing, err := s.userDomainRepo.GetByUserAndDomain(ctx, userDomain.UserID, userDomain.Domain)
+		if err == gorm.ErrRecordNotFound {
+			// Create the user domain
+			if err := s.userDomainRepo.Create(ctx, &userDomain); err != nil {
+				log.Printf("Failed to create user domain for user %s: %v", userDomain.UserID, err)
+				return err
+			}
+			log.Printf("Created user domain for user %s in domain %s", userDomain.UserID, userDomain.Domain)
+		} else if err != nil {
+			log.Printf("Error checking user domain for user %s: %v", userDomain.UserID, err)
+			return err
+		} else {
+			log.Printf("User domain for user %s in domain %s already exists", existing.UserID, existing.Domain)
+		}
+	}
+
+	return nil
+}
+
+// SeedCasbinRules creates initial Casbin rules for super admin and admin
+func (s *InitialDataSeeder) SeedCasbinRules() error {
+	ctx := context.Background()
+
+	// Get users
+	superAdmin, err := s.userRepo.GetByEmail(ctx, "superadmin@example.com")
+	if err != nil {
+		log.Printf("Failed to get super admin user: %v", err)
+		return err
+	}
+
+	admin, err := s.userRepo.GetByEmail(ctx, "admin@example.com")
+	if err != nil {
+		log.Printf("Failed to get admin user: %v", err)
+		return err
+	}
+
+	// Get license for domain
+	license, err := s.licenseRepo.GetBySerialNumber(ctx, "LIC-001-DEMO")
+	if err != nil {
+		log.Printf("Failed to get license: %v", err)
+		return err
+	}
+
+	domain := license.SerialNumber
+
+	// Assign roles to users in domain
+	// Super admin gets super_admin role
+	_, err = s.enforcerService.AddRoleForUser(superAdmin.ID.String(), "super_admin", domain)
+	if err != nil {
+		log.Printf("Failed to assign super_admin role to super admin: %v", err)
+		return err
+	}
+	log.Printf("Assigned super_admin role to super admin in domain %s", domain)
+
+	// Admin gets admin role
+	_, err = s.enforcerService.AddRoleForUser(admin.ID.String(), "admin", domain)
+	if err != nil {
+		log.Printf("Failed to assign admin role to admin: %v", err)
+		return err
+	}
+	log.Printf("Assigned admin role to admin in domain %s", domain)
+
+	// Add policies for roles
+	// Super admin has full access to all resources
+	_, err = s.enforcerService.AddPolicy("super_admin", domain, "*", "*")
+	if err != nil {
+		log.Printf("Failed to add super_admin policy: %v", err)
+		return err
+	}
+	log.Printf("Added super_admin policy for domain %s", domain)
+
+	// Admin has access to most resources but not system-level operations
+	adminPolicies := []struct {
+		object string
+		action string
+	}{
+		{"/api/v1/shops", "GET"},
+		{"/api/v1/shops", "POST"},
+		{"/api/v1/shops/*", "GET"},
+		{"/api/v1/shops/*", "PUT"},
+		{"/api/v1/categories", "GET"},
+		{"/api/v1/categories", "POST"},
+		{"/api/v1/categories/*", "GET"},
+		{"/api/v1/categories/*", "PUT"},
+		{"/api/v1/categories/*", "DELETE"},
+		{"/api/v1/products", "GET"},
+		{"/api/v1/products", "POST"},
+		{"/api/v1/products/*", "GET"},
+		{"/api/v1/products/*", "PUT"},
+		{"/api/v1/products/*", "DELETE"},
+		{"/api/v1/transactions", "GET"},
+		{"/api/v1/transactions", "POST"},
+		{"/api/v1/transactions/*", "GET"},
+		{"/api/v1/users/profile", "GET"},
+		{"/api/v1/users/profile", "PUT"},
+	}
+
+	for _, policy := range adminPolicies {
+		_, err = s.enforcerService.AddPolicy("admin", domain, policy.object, policy.action)
+		if err != nil {
+			log.Printf("Failed to add admin policy for %s %s: %v", policy.object, policy.action, err)
+			return err
+		}
+	}
+	log.Printf("Added admin policies for domain %s", domain)
+
+	return nil
+}
+
 // SeedAll runs all initial data seeders
 func (s *InitialDataSeeder) SeedAll() error {
 	log.Println("Starting initial data seeding...")
@@ -479,6 +635,14 @@ func (s *InitialDataSeeder) SeedAll() error {
 	}
 
 	if err := s.SeedProducts(); err != nil {
+		return err
+	}
+
+	if err := s.SeedUserDomains(); err != nil {
+		return err
+	}
+
+	if err := s.SeedCasbinRules(); err != nil {
 		return err
 	}
 

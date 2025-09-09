@@ -34,6 +34,9 @@ func SetupRoutes(
 			authProtected.POST("/refresh", authHandler.RefreshToken)
 			authProtected.GET("/profile", authHandler.Profile)
 			authProtected.GET("/permissions", authHandler.GetPermissions)
+			authProtected.POST("/pin", authHandler.CreatePin)
+			authProtected.PUT("/pin", authHandler.UpdatePin)
+			authProtected.DELETE("/pin", authHandler.DeletePin)
 		}
 
 		// Protected API routes
