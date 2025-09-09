@@ -41,6 +41,9 @@ func Migrate() error {
 	err := DB.AutoMigrate(
 		&entities.License{},
 		&entities.User{},
+		&entities.Role{},
+		&entities.UserRole{},
+		&entities.Policy{},
 		&entities.LicenseLog{},
 		&entities.Shop{},
 		&entities.Category{},
@@ -91,6 +94,7 @@ func DropAllTables() error {
 
 	// Get all table names
 	tables := []string{
+		"casbin_rule", // Casbin table
 		"logs",
 		"stock_histories", 
 		"expenses",
@@ -103,6 +107,9 @@ func DropAllTables() error {
 		"products",
 		"categories",
 		"shops",
+		"policies",
+		"user_roles",
+		"roles",
 		"license_logs",
 		"users",
 		"licenses",

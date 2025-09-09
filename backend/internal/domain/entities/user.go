@@ -33,6 +33,7 @@ type User struct {
 	Payments          []Payment      `gorm:"foreignKey:UserID" json:"payments,omitempty"`
 	LicenseLogs       []LicenseLog   `gorm:"foreignKey:UserID" json:"license_logs,omitempty"`
 	Logs              []Log          `gorm:"foreignKey:UserID" json:"logs,omitempty"`
+	UserRoles         []UserRole     `gorm:"foreignKey:UserID" json:"user_roles,omitempty"`
 }
 
 // TableName specifies the table name for User

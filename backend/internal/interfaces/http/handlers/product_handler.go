@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/terminator791/t-pos/internal/domain/entities"
 	"github.com/terminator791/t-pos/internal/domain/usecases"
+	"github.com/terminator791/t-pos/pkg/response"
 )
 
 // ProductHandler handles product-related HTTP requests
@@ -26,17 +27,17 @@ func NewProductHandler(productUseCase *usecases.ProductUseCase) *ProductHandler 
 func (h *ProductHandler) CreateProduct(c *gin.Context) {
 	var product entities.Product
 	if err := c.ShouldBindJSON(&product); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.ErrorBadRequest(c, "Invalid request data", err.Error())
 		return
 	}
 
 	err := h.productUseCase.CreateProduct(c.Request.Context(), &product)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.ErrorBadRequest(c, "Failed to create product", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusCreated, product)
+	response.SuccessCreated(c, "Product created successfully", product)
 }
 
 // GetProduct retrieves a product by ID
@@ -44,34 +45,34 @@ func (h *ProductHandler) GetProduct(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID"})
+		response.ErrorBadRequest(c, "Invalid product ID", err.Error())
 		return
 	}
 
 	product, err := h.productUseCase.GetProduct(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Product not found"})
+		response.ErrorNotFound(c, "Product not found", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, product)
+	response.SuccessOK(c, "Product retrieved successfully", product)
 }
 
 // GetProductByBarcode retrieves a product by barcode
 func (h *ProductHandler) GetProductByBarcode(c *gin.Context) {
 	barcode := c.Param("barcode")
 	if barcode == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Barcode is required"})
+		response.ErrorBadRequest(c, "Barcode is required", nil)
 		return
 	}
 
 	product, err := h.productUseCase.GetProductByBarcode(c.Request.Context(), barcode)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Product not found"})
+		response.ErrorNotFound(c, "Product not found", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, product)
+	response.SuccessOK(c, "Product retrieved successfully", product)
 }
 
 // UpdateProduct updates an existing product
