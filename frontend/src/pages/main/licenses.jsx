@@ -2,48 +2,77 @@ import React, { useState } from "react";
 import Card from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import Button from "@/components/ui/Button";
-
-const licensesData = [
-  {
-    id: 1,
-    name: "Professional License",
-    type: "Enterprise",
-    validFrom: "2024-01-01",
-    validTo: "2024-12-31",
-    status: "Active",
-    users: 50,
-  },
-  {
-    id: 2,
-    name: "Basic License",
-    type: "Standard",
-    validFrom: "2024-03-15",
-    validTo: "2025-03-14",
-    status: "Active",
-    users: 10,
-  },
-  {
-    id: 3,
-    name: "Trial License",
-    type: "Trial",
-    validFrom: "2024-01-01",
-    validTo: "2024-01-31",
-    status: "Expired",
-    users: 5,
-  },
-  {
-    id: 4,
-    name: "Premium License",
-    type: "Premium",
-    validFrom: "2024-06-01",
-    validTo: "2025-05-31",
-    status: "Active",
-    users: 100,
-  },
-];
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import ErrorDisplay from "@/components/ui/ErrorDisplay";
+import LicenseModal from "@/components/modals/LicenseModal";
+import DeleteConfirmModal from "@/components/ui/DeleteConfirmModal";
+import { useLicenses, useDeleteLicense } from "@/services/api";
 
 const LicensesPage = () => {
-  const [licenses, setLicenses] = useState(licensesData);
+  const [showModal, setShowModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [selectedLicense, setSelectedLicense] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // API hooks
+  const { data: licensesData, isLoading, error, refetch } = useLicenses();
+  const deleteLicense = useDeleteLicense();
+
+  const licenses = licensesData?.data?.licenses || [];
+  const totalLicenses = licensesData?.data?.count || 0;
+
+  // Filter licenses based on search term
+  const filteredLicenses = licenses.filter(license =>
+    license.serial_number?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleAddLicense = () => {
+    setSelectedLicense(null);
+    setIsEditing(false);
+    setShowModal(true);
+  };
+
+  const handleViewLicense = (license) => {
+    setSelectedLicense(license);
+    setIsEditing(true);
+    setShowModal(true);
+  };
+
+  const handleDeleteLicense = (license) => {
+    setSelectedLicense(license);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (selectedLicense) {
+      try {
+        await deleteLicense.mutateAsync(selectedLicense.id);
+        setShowDeleteModal(false);
+        setSelectedLicense(null);
+      } catch (error) {
+        console.error("Delete failed:", error);
+      }
+    }
+  };
+
+  if (isLoading) {
+    return <LoadingSpinner message="Loading licenses..." />;
+  }
+
+  if (error) {
+    return (
+      <ErrorDisplay
+        message="Failed to load licenses. Please try again."
+        onRetry={refetch}
+      />
+    );
+  }
+
+  // Calculate stats
+  const activeLicenses = licenses.length; // All fetched licenses are considered active
+  const expiredLicenses = 0; // Backend doesn't provide expired status in this simplified version
+  const totalUsers = licenses.length * 10; // Estimate for display
 
   return (
     <div className="space-y-5">
@@ -61,7 +90,7 @@ const LicensesPage = () => {
             </div>
             <div>
               <span className="text-2xl font-medium text-gray-800 dark:text-white">
-                {licenses.length}
+                {totalLicenses}
               </span>
               <span className="space-x-2 block mt-4">
                 <span className="badge bg-indigo-500/10 text-indigo-500">
@@ -87,7 +116,7 @@ const LicensesPage = () => {
             </div>
             <div>
               <span className="text-2xl font-medium text-gray-800 dark:text-white">
-                {licenses.filter(l => l.status === "Active").length}
+                {activeLicenses}
               </span>
               <span className="space-x-2 block mt-4">
                 <span className="badge bg-green-500/10 text-green-500">
@@ -113,11 +142,11 @@ const LicensesPage = () => {
             </div>
             <div>
               <span className="text-2xl font-medium text-gray-800 dark:text-white">
-                {licenses.filter(l => l.status === "Expired").length}
+                {expiredLicenses}
               </span>
               <span className="space-x-2 block mt-4">
                 <span className="badge bg-red-500/10 text-red-500">
-                  1
+                  0
                 </span>
                 <span className="text-sm text-gray-500 dark:text-gray-400">
                   Needs renewal
@@ -130,7 +159,7 @@ const LicensesPage = () => {
         <Card>
           <div>
             <div className="flex">
-              <div className="flex-1 text-base font-medium">Total Users</div>
+              <div className="flex-1 text-base font-medium">Estimated Users</div>
               <div className="flex-none">
                 <div className="h-10 w-10 rounded-full bg-yellow-500 text-white text-2xl flex items-center justify-center">
                   <Icon icon="ph:users" />
@@ -139,7 +168,7 @@ const LicensesPage = () => {
             </div>
             <div>
               <span className="text-2xl font-medium text-gray-800 dark:text-white">
-                {licenses.reduce((sum, l) => sum + l.users, 0)}
+                {totalUsers}
               </span>
               <span className="space-x-2 block mt-4">
                 <span className="badge bg-yellow-500/10 text-yellow-500">
@@ -161,6 +190,7 @@ const LicensesPage = () => {
             <Button 
               icon="ph:plus" 
               className="btn-primary"
+              onClick={handleAddLicense}
             >
               Add License
             </Button>
@@ -176,6 +206,8 @@ const LicensesPage = () => {
               type="text"
               placeholder="Search licenses..."
               className="form-control"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
         </div>
@@ -188,16 +220,10 @@ const LicensesPage = () => {
                   License
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Type
+                  Serial Number
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Valid From
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Valid To
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Users
+                  Created Date
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Status
@@ -208,7 +234,7 @@ const LicensesPage = () => {
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-              {licenses.map((license) => (
+              {filteredLicenses.map((license) => (
                 <tr key={license.id}>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
@@ -219,54 +245,41 @@ const LicensesPage = () => {
                       </div>
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900 dark:text-white">
-                          {license.name}
+                          License #{license.id?.slice(0, 8)}
                         </div>
                         <div className="text-sm text-gray-500 dark:text-gray-400">
-                          ID: {license.id}
+                          Active License
                         </div>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      license.type === "Enterprise" 
-                        ? "bg-purple-100 text-purple-800" 
-                        : license.type === "Premium"
-                        ? "bg-blue-100 text-blue-800"
-                        : license.type === "Standard"
-                        ? "bg-green-100 text-green-800"
-                        : "bg-gray-100 text-gray-800"
-                    }`}>
-                      {license.type}
-                    </span>
+                    <div className="text-sm font-mono text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
+                      {license.serial_number}
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                    {license.validFrom}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                    {license.validTo}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                    {license.users}
+                    {new Date(license.created_at).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      license.status === "Active" 
-                        ? "bg-green-100 text-green-800" 
-                        : "bg-red-100 text-red-800"
-                    }`}>
-                      {license.status}
+                    <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                      Active
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
-                      <Button size="sm" className="btn-secondary">
-                        <Icon icon="ph:pencil" />
+                      <Button 
+                        size="sm" 
+                        className="btn-secondary"
+                        onClick={() => handleViewLicense(license)}
+                      >
+                        <Icon icon="ph:eye" />
                       </Button>
-                      <Button size="sm" className="btn-warning">
-                        <Icon icon="ph:arrows-clockwise" />
-                      </Button>
-                      <Button size="sm" className="btn-danger">
+                      <Button 
+                        size="sm" 
+                        className="btn-danger"
+                        onClick={() => handleDeleteLicense(license)}
+                      >
                         <Icon icon="ph:trash" />
                       </Button>
                     </div>
@@ -275,8 +288,35 @@ const LicensesPage = () => {
               ))}
             </tbody>
           </table>
+          
+          {filteredLicenses.length === 0 && (
+            <div className="text-center py-8">
+              <p className="text-gray-500 dark:text-gray-400">
+                {searchTerm ? "No licenses found matching your search." : "No licenses available."}
+              </p>
+            </div>
+          )}
         </div>
       </Card>
+
+      {/* License Modal */}
+      <LicenseModal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        license={selectedLicense}
+        isEditing={isEditing}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={confirmDelete}
+        title="Delete License"
+        message="Are you sure you want to delete this license? This action cannot be undone and may affect all associated users and data."
+        itemName={selectedLicense?.serial_number}
+        isLoading={deleteLicense.isPending}
+      />
     </div>
   );
 };
