@@ -92,12 +92,20 @@ func (s *InitialDataSeeder) SeedUsers() error {
 		return err
 	}
 
+	// Hash pin
+	hashedPin, err := bcrypt.GenerateFromPassword([]byte("123456"), bcrypt.DefaultCost)
+	if err != nil {
+		log.Printf("Failed to hash pin: %v", err)
+		return err
+	}
+
 	users := []entities.User{
 		{
 			LicenseID: nil, // Super admin doesn't need license
 			Email:     strPtr("superadmin@example.com"),
 			Username:  strPtr("superadmin"),
 			Name:      "Super Admin",
+			Pin:      strPtr(string(hashedPin)),
 			Password:  string(hashedPassword),
 		},
 		{
@@ -105,6 +113,7 @@ func (s *InitialDataSeeder) SeedUsers() error {
 			Email:     strPtr("admin@example.com"),
 			Username:  strPtr("admin"),
 			Name:      "Admin User",
+			Pin:      strPtr(string(hashedPin)),
 			Password:  string(hashedPassword),
 		},
 	}
@@ -491,11 +500,19 @@ func (s *InitialDataSeeder) SeedUserDomains() error {
 	userDomains := []entities.UserDomain{
 		{
 			UserID: superAdmin.ID,
-			Domain: domain,
+			Domain: "*", // Super admin gets global domain access
+		},
+		{
+			UserID: superAdmin.ID,
+			Domain: domain, // Super admin also gets specific domain access
 		},
 		{
 			UserID: admin.ID,
-			Domain: domain,
+			Domain: "*", // Admin gets global domain access  
+		},
+		{
+			UserID: admin.ID,
+			Domain: domain, // Admin also gets specific domain access
 		},
 	}
 
@@ -547,65 +564,35 @@ func (s *InitialDataSeeder) SeedCasbinRules() error {
 	domain := license.SerialNumber
 
 	// Assign roles to users in domain
-	// Super admin gets super_admin role
+	// Super admin gets super_admin role in global domain "*" and specific domain
+	_, err = s.enforcerService.AddRoleForUser(superAdmin.ID.String(), "super_admin", "*")
+	if err != nil {
+		log.Printf("Failed to assign super_admin role to super admin in global domain: %v", err)
+		return err
+	}
+	log.Printf("Assigned super_admin role to super admin in global domain *")
+
 	_, err = s.enforcerService.AddRoleForUser(superAdmin.ID.String(), "super_admin", domain)
 	if err != nil {
-		log.Printf("Failed to assign super_admin role to super admin: %v", err)
+		log.Printf("Failed to assign super_admin role to super admin in domain %s: %v", domain, err)
 		return err
 	}
 	log.Printf("Assigned super_admin role to super admin in domain %s", domain)
 
-	// Admin gets admin role
+	// Admin gets admin role in global domain and specific domain
+	_, err = s.enforcerService.AddRoleForUser(admin.ID.String(), "admin", "*")
+	if err != nil {
+		log.Printf("Failed to assign admin role to admin in global domain: %v", err)
+		return err
+	}
+	log.Printf("Assigned admin role to admin in global domain *")
+
 	_, err = s.enforcerService.AddRoleForUser(admin.ID.String(), "admin", domain)
 	if err != nil {
-		log.Printf("Failed to assign admin role to admin: %v", err)
+		log.Printf("Failed to assign admin role to admin in domain %s: %v", domain, err)
 		return err
 	}
 	log.Printf("Assigned admin role to admin in domain %s", domain)
-
-	// Add policies for roles
-	// Super admin has full access to all resources
-	_, err = s.enforcerService.AddPolicy("super_admin", domain, "*", "*")
-	if err != nil {
-		log.Printf("Failed to add super_admin policy: %v", err)
-		return err
-	}
-	log.Printf("Added super_admin policy for domain %s", domain)
-
-	// Admin has access to most resources but not system-level operations
-	adminPolicies := []struct {
-		object string
-		action string
-	}{
-		{"/api/v1/shops", "GET"},
-		{"/api/v1/shops", "POST"},
-		{"/api/v1/shops/*", "GET"},
-		{"/api/v1/shops/*", "PUT"},
-		{"/api/v1/categories", "GET"},
-		{"/api/v1/categories", "POST"},
-		{"/api/v1/categories/*", "GET"},
-		{"/api/v1/categories/*", "PUT"},
-		{"/api/v1/categories/*", "DELETE"},
-		{"/api/v1/products", "GET"},
-		{"/api/v1/products", "POST"},
-		{"/api/v1/products/*", "GET"},
-		{"/api/v1/products/*", "PUT"},
-		{"/api/v1/products/*", "DELETE"},
-		{"/api/v1/transactions", "GET"},
-		{"/api/v1/transactions", "POST"},
-		{"/api/v1/transactions/*", "GET"},
-		{"/api/v1/users/profile", "GET"},
-		{"/api/v1/users/profile", "PUT"},
-	}
-
-	for _, policy := range adminPolicies {
-		_, err = s.enforcerService.AddPolicy("admin", domain, policy.object, policy.action)
-		if err != nil {
-			log.Printf("Failed to add admin policy for %s %s: %v", policy.object, policy.action, err)
-			return err
-		}
-	}
-	log.Printf("Added admin policies for domain %s", domain)
 
 	return nil
 }

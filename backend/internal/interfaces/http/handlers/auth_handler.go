@@ -125,13 +125,45 @@ func (h *AuthHandler) Login(c *gin.Context) {
         return
     }
 
-    // Get license to get serialNumber
-    license, err := h.licenseRepo.GetByID(context.Background(), *user.LicenseID)
-    if err != nil {
-        response.ErrorInternalServer(c, "Failed to get license", err.Error())
-        return
+    // Get license to get serialNumber or handle users without license
+    var domain string
+    if user.LicenseID != nil {
+        license, err := h.licenseRepo.GetByID(context.Background(), *user.LicenseID)
+        if err != nil {
+            response.ErrorInternalServer(c, "Failed to get license", err.Error())
+            return
+        }
+        domain = license.SerialNumber
+    } else {
+        // For users without license (superadmin, admin), set domain based on role and user domains
+        switch role.Name {
+        case "super_admin":
+            // Super admin gets access to all domains
+            domain = "*"
+        case "admin":
+            // Admin can access all shops, but prefer specific domain if available
+            userDomains, err := h.userDomainRepo.GetByUserID(context.Background(), user.ID)
+            if err == nil && len(userDomains) > 0 {
+                // Use first domain if available, otherwise use wildcard
+                domain = userDomains[0].Domain
+            } else {
+                domain = "*"
+            }
+        default:
+            // For other roles, get domain from user domains
+            userDomains, err := h.userDomainRepo.GetByUserID(context.Background(), user.ID)
+            if err != nil {
+                response.ErrorInternalServer(c, "Failed to get user domains", err.Error())
+                return
+            }
+            if len(userDomains) > 0 {
+                domain = userDomains[0].Domain
+            } else {
+               response.ErrorUnauthorized(c, "User has no assigned domain", nil)
+               return
+            }
+        }
     }
-    domain := license.SerialNumber
 
     // Generate JWT token
     username := ""
