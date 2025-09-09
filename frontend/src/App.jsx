@@ -84,8 +84,14 @@ const BoardsPage = lazy(() => import("./pages/app/boards"));
 
 // True layout not refference
 const MainDashboard = lazy(() => import("./pages/main"));
+const ProductsPage = lazy(() => import("./pages/main/products"));
+const LicensesPage = lazy(() => import("./pages/main/licenses"));
+const CustomersPage = lazy(() => import("./pages/main/customers"));
+const UsersPage = lazy(() => import("./pages/main/users"));
+const RolesPage = lazy(() => import("./pages/main/roles"));
 
 import Layout from "./layout/Layout";
+import MainLayout from "./layout/MainLayout";
 import Loading from "@/components/Loading";
 import AuthLayout from "./layout/AuthLayout";
 function App() {
@@ -105,7 +111,6 @@ function App() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="ecommerce" element={<Ecommerce />} />
           <Route path="crm" element={<CrmPage />} />
-          <Route path="main/dashboard" element={<MainDashboard />} />
 
           {/* App pages */}
           <Route path="todos" element={<TodoPage />} />
@@ -159,6 +164,16 @@ function App() {
           <Route path="icons" element={<IconPage />} />
           <Route path="notifications" element={<NotificationPage />} />
           <Route path="*" element={<Navigate to="/404" />} />
+        </Route>
+
+        {/* Main Dashboard Routes with Custom Sidebar */}
+        <Route path="/main/*" element={<MainLayout />}>
+          <Route path="dashboard" element={<MainDashboard />} />
+          <Route path="products" element={<ProductsPage />} />
+          <Route path="licenses" element={<LicensesPage />} />
+          <Route path="customers" element={<CustomersPage />} />
+          <Route path="users" element={<UsersPage />} />
+          <Route path="roles" element={<RolesPage />} />
         </Route>
         <Route
           path="/404"
