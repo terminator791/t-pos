@@ -27,8 +27,8 @@ type AuthHandler struct {
 
 // LoginRequest represents login request payload
 type LoginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=6"`
+	Username string `json:"username" binding:"required"`
+	Pin      string `json:"pin" binding:"required"`
 	Domain   string `json:"domain,omitempty"` // Optional tenant/shop domain
 }
 
@@ -79,7 +79,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	// Find user by email
-	user, err := h.userRepo.GetByEmail(context.Background(), req.Email)
+	user, err := h.userRepo.GetByUsername(context.Background(), req.Username)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			response.ErrorUnauthorized(c, "Invalid credentials", nil)
@@ -89,8 +89,12 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Verify password
-	if err := h.passwordService.VerifyPassword(user.Password, req.Password); err != nil {
+	// Verify pin
+	if user.Pin == nil {
+		response.ErrorUnauthorized(c, "PIN not set", nil)
+		return
+	}
+	if err := h.passwordService.VerifyPin(*user.Pin, req.Pin); err != nil {
 		response.ErrorUnauthorized(c, "Invalid credentials", nil)
 		return
 	}
@@ -202,6 +206,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		response.ErrorInternalServer(c, "Default role not found", err.Error())
 		return
 	}
+
 
 	// Create user with role
 	user := &entities.User{

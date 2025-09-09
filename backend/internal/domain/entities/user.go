@@ -17,7 +17,7 @@ type User struct {
 	Username         *string        `gorm:"size:255;uniqueIndex" json:"username"`
 	Name             string         `gorm:"size:255;not null" json:"name"`
 	Password         string         `gorm:"size:255;not null" json:"-"` // hashed password
-	Pin              *int           `json:"pin"`                         // pin code
+	Pin              *string        `gorm:"size:255" json:"-"`           // hashed pin code
 	InfoDevice       *string        `gorm:"size:255" json:"info_device"`
 	FCMToken         *string        `gorm:"size:255" json:"fcm_token"`
 	RememberToken    *string        `gorm:"size:100" json:"-"`

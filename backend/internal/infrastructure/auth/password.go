@@ -29,3 +29,15 @@ func (p *PasswordService) HashPassword(password string) (string, error) {
 func (p *PasswordService) VerifyPassword(hashedPassword, password string) error {
 	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
 }
+
+func (p *PasswordService) HashPin(pin string) (string, error) {
+	hashedPin, err := bcrypt.GenerateFromPassword([]byte(pin), p.cost)
+	if err != nil {
+		return "", err
+	}
+	return string(hashedPin), nil
+}
+
+func (p *PasswordService) VerifyPin(hashedPin, pin string) error {
+	return bcrypt.CompareHashAndPassword([]byte(hashedPin), []byte(pin))
+}

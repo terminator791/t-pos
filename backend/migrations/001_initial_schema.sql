@@ -21,7 +21,7 @@ CREATE TABLE users (
     username VARCHAR(255),
     name VARCHAR(255) NOT NULL,
     password VARCHAR(255) NOT NULL,
-    pin INTEGER,
+    pin VARCHAR(255),
     info_device VARCHAR(255),
     fcm_token VARCHAR(255),
     remember_token VARCHAR(100),
