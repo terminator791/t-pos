@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/terminator791/t-pos/config"
+	"github.com/terminator791/t-pos/internal/application/services"
 	"github.com/terminator791/t-pos/internal/domain/usecases"
 	"github.com/terminator791/t-pos/internal/infrastructure/auth"
 	"github.com/terminator791/t-pos/internal/infrastructure/casbin"
@@ -52,6 +53,7 @@ func main() {
 	transactionRepo := repositories.NewTransactionRepository(db)
 	paymentRepo := repositories.NewPaymentRepository(db)
 	licenseRepo := repositories.NewLicenseRepository(db)
+	licenseLogRepo := repositories.NewLicenseLogRepository(db)
 
 	// Initialize JWT and Password services
 	jwtService := auth.NewJWTService(cfg.JWT.Secret, "t-pos", cfg.JWT.ExpiryHour)
@@ -92,10 +94,18 @@ func main() {
 	productUseCase := usecases.NewProductUseCase(productRepo, categoryRepo, shopRepo)
 	checkoutUseCase := usecases.NewCheckoutUseCase(transactionRepo, productRepo, shopRepo, userRepo, paymentRepo)
 
+	// Initialize services
+	licenseService := services.NewLicenseService(licenseRepo, licenseLogRepo, userRepo, db)
+	customerService := services.NewCustomerService(userRepo, roleRepo, licenseRepo, db)
+	userManagementService := services.NewUserManagementService(userRepo, roleRepo, licenseRepo, db)
+
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(userRepo, userDomainRepo, roleRepo, licenseRepo, shopRepo, jwtService, passwordService, enforcerService)
 	productHandler := handlers.NewProductHandler(productUseCase)
 	checkoutHandler := handlers.NewCheckoutHandler(checkoutUseCase)
+	licenseHandler := handlers.NewLicenseHandler(licenseService)
+	customerHandler := handlers.NewCustomerHandler(customerService)
+	userManagementHandler := handlers.NewUserManagementHandler(userManagementService)
 
 	// Initialize Gin router
 	router := gin.Default()
@@ -115,7 +125,7 @@ func main() {
 	})
 
 	// Setup routes
-	routes.SetupRoutes(router, productHandler, checkoutHandler, authHandler, authMiddleware, authzMiddleware)
+	routes.SetupRoutes(router, productHandler, checkoutHandler, authHandler, licenseHandler, customerHandler, userManagementHandler, authMiddleware, authzMiddleware)
 
 	// Start server
 	serverAddr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
