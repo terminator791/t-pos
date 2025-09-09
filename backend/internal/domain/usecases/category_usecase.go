@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/google/uuid"
 	"github.com/terminator791/t-pos/internal/domain/entities"
 	"github.com/terminator791/t-pos/internal/domain/repositories"
 )
@@ -38,18 +39,18 @@ func (uc *CategoryUseCase) CreateCategory(ctx context.Context, category *entitie
 }
 
 // GetCategory retrieves a category by ID
-func (uc *CategoryUseCase) GetCategory(ctx context.Context, id uint) (*entities.Category, error) {
+func (uc *CategoryUseCase) GetCategory(ctx context.Context, id uuid.UUID) (*entities.Category, error) {
 	return uc.categoryRepo.GetByID(ctx, id)
 }
 
 // GetCategoriesByShop retrieves categories by shop ID
-func (uc *CategoryUseCase) GetCategoriesByShop(ctx context.Context, shopID uint) ([]*entities.Category, error) {
+func (uc *CategoryUseCase) GetCategoriesByShop(ctx context.Context, shopID uuid.UUID) ([]*entities.Category, error) {
 	return uc.categoryRepo.GetByShopID(ctx, shopID)
 }
 
 // UpdateCategory updates an existing category
 func (uc *CategoryUseCase) UpdateCategory(ctx context.Context, category *entities.Category) error {
-	if category.ID == 0 {
+	if category.ID == uuid.Nil {
 		return errors.New("category ID is required")
 	}
 
@@ -65,7 +66,7 @@ func (uc *CategoryUseCase) UpdateCategory(ctx context.Context, category *entitie
 }
 
 // DeleteCategory deletes a category
-func (uc *CategoryUseCase) DeleteCategory(ctx context.Context, id uint) error {
+func (uc *CategoryUseCase) DeleteCategory(ctx context.Context, id uuid.UUID) error {
 	existing, err := uc.categoryRepo.GetByID(ctx, id)
 	if err != nil {
 		return err

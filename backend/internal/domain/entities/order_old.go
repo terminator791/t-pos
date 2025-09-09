@@ -9,10 +9,10 @@ import (
 
 // Order represents a transaction/order in the POS system
 type Order struct {
-	ID             uint           `gorm:"primaryKey" json:"id"`
+	ID             uuid.UUID      `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
 	OrderNumber    string         `gorm:"uniqueIndex;not null" json:"order_number"`
 	UserID         uuid.UUID      `gorm:"type:uuid;not null" json:"user_id"`
-	CustomerID     *uint          `json:"customer_id"`
+	CustomerID     *uuid.UUID     `gorm:"type:uuid" json:"customer_id"`
 	Subtotal       float64        `gorm:"type:decimal(10,2);not null" json:"subtotal"`
 	TaxAmount      float64        `gorm:"type:decimal(10,2);default:0" json:"tax_amount"`
 	DiscountAmount float64        `gorm:"type:decimal(10,2);default:0" json:"discount_amount"`
@@ -42,7 +42,7 @@ func (o *Order) CalculateTotal() {
 
 // Customer represents a customer in the POS system
 type Customer struct {
-	ID        uint           `gorm:"primaryKey" json:"id"`
+	ID        uuid.UUID      `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
 	Name      string         `gorm:"size:255;not null" json:"name"`
 	Email     *string        `gorm:"size:255;uniqueIndex" json:"email"`
 	Phone     *string        `gorm:"size:20" json:"phone"`
@@ -62,9 +62,9 @@ func (Customer) TableName() string {
 
 // OrderItem represents an item in an order
 type OrderItem struct {
-	ID        uint           `gorm:"primaryKey" json:"id"`
-	OrderID   uint           `gorm:"not null" json:"order_id"`
-	ProductID uint           `gorm:"not null" json:"product_id"`
+	ID        uuid.UUID      `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	OrderID   uuid.UUID      `gorm:"type:uuid;not null" json:"order_id"`
+	ProductID uuid.UUID      `gorm:"type:uuid;not null" json:"product_id"`
 	Quantity  int            `gorm:"not null" json:"quantity"`
 	UnitPrice float64        `gorm:"type:decimal(10,2);not null" json:"unit_price"`
 	TotalPrice float64       `gorm:"type:decimal(10,2);not null" json:"total_price"`

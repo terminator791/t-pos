@@ -37,17 +37,17 @@ func NewOrderUseCase(
 // CreateOrderRequest represents the request to create an order
 type CreateOrderRequest struct {
 	UserID         uuid.UUID                `json:"user_id"`
-	CustomerID     *uint                     `json:"customer_id"`
-	Items          []CreateOrderItemRequest  `json:"items"`
-	PaymentMethod  string                    `json:"payment_method"`
-	DiscountAmount float64                   `json:"discount_amount"`
-	TaxRate        float64                   `json:"tax_rate"`
+	CustomerID     *uuid.UUID               `json:"customer_id"`
+	Items          []CreateOrderItemRequest `json:"items"`
+	PaymentMethod  string                   `json:"payment_method"`
+	DiscountAmount float64                  `json:"discount_amount"`
+	TaxRate        float64                  `json:"tax_rate"`
 }
 
 // CreateOrderItemRequest represents an item in the order creation request
 type CreateOrderItemRequest struct {
-	ProductID uint `json:"product_id"`
-	Quantity  int  `json:"quantity"`
+	ProductID uuid.UUID `json:"product_id"`
+	Quantity  int       `json:"quantity"`
 }
 
 // CreateOrder creates a new order
@@ -131,7 +131,7 @@ func (uc *OrderUseCase) CreateOrder(ctx context.Context, req *CreateOrderRequest
 }
 
 // GetOrder retrieves an order by ID
-func (uc *OrderUseCase) GetOrder(ctx context.Context, id uint) (*entities.Order, error) {
+func (uc *OrderUseCase) GetOrder(ctx context.Context, id uuid.UUID) (*entities.Order, error) {
 	return uc.orderRepo.GetByID(ctx, id)
 }
 

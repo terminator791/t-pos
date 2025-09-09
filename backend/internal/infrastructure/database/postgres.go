@@ -39,13 +39,21 @@ func Migrate() error {
 	}
 
 	err := DB.AutoMigrate(
+		&entities.License{},
 		&entities.User{},
+		&entities.LicenseLog{},
+		&entities.Shop{},
 		&entities.Category{},
 		&entities.Product{},
-		&entities.Customer{},
-		&entities.Order{},
-		&entities.OrderItem{},
+		&entities.Cart{},
+		&entities.Transaction{},
+		&entities.TransactionProduct{},
 		&entities.Payment{},
+		&entities.Receipt{},
+		&entities.History{},
+		&entities.StockHistory{},
+		&entities.Expense{},
+		&entities.Log{},
 	)
 
 	if err != nil {

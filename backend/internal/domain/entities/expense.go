@@ -3,6 +3,7 @@ package entities
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -18,8 +19,8 @@ const (
 
 // Expense represents shop expenses/outflows
 type Expense struct {
-	ID        uint           `gorm:"primaryKey" json:"id"`
-	ShopID    uint           `gorm:"not null" json:"shop_id"`
+	ID        uuid.UUID      `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	ShopID    uuid.UUID      `gorm:"type:uuid;not null" json:"shop_id"`
 	Nominal   float64        `gorm:"type:decimal(10,2);not null" json:"nominal"`
 	Status    ExpenseStatus  `gorm:"default:pending" json:"status"`
 	Date      time.Time      `gorm:"type:date;not null" json:"date"`

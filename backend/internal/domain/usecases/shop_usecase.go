@@ -47,7 +47,7 @@ func (uc *ShopUseCase) CreateShop(ctx context.Context, shop *entities.Shop) erro
 }
 
 // GetShop retrieves a shop by ID
-func (uc *ShopUseCase) GetShop(ctx context.Context, id uint) (*entities.Shop, error) {
+func (uc *ShopUseCase) GetShop(ctx context.Context, id uuid.UUID) (*entities.Shop, error) {
 	return uc.shopRepo.GetByID(ctx, id)
 }
 
@@ -63,7 +63,7 @@ func (uc *ShopUseCase) GetShopsByOwner(ctx context.Context, ownerID uuid.UUID) (
 
 // UpdateShop updates an existing shop
 func (uc *ShopUseCase) UpdateShop(ctx context.Context, shop *entities.Shop) error {
-	if shop.ID == 0 {
+	if shop.ID == uuid.Nil {
 		return errors.New("shop ID is required")
 	}
 
@@ -79,7 +79,7 @@ func (uc *ShopUseCase) UpdateShop(ctx context.Context, shop *entities.Shop) erro
 }
 
 // DeleteShop deletes a shop
-func (uc *ShopUseCase) DeleteShop(ctx context.Context, id uint) error {
+func (uc *ShopUseCase) DeleteShop(ctx context.Context, id uuid.UUID) error {
 	existing, err := uc.shopRepo.GetByID(ctx, id)
 	if err != nil {
 		return err

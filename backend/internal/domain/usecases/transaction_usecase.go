@@ -75,7 +75,7 @@ func (uc *TransactionUseCase) GetTransaction(ctx context.Context, id uuid.UUID) 
 }
 
 // GetTransactionsByShop retrieves transactions by shop ID
-func (uc *TransactionUseCase) GetTransactionsByShop(ctx context.Context, shopID uint) ([]*entities.Transaction, error) {
+func (uc *TransactionUseCase) GetTransactionsByShop(ctx context.Context, shopID uuid.UUID) ([]*entities.Transaction, error) {
 	return uc.transactionRepo.GetByShopID(ctx, shopID)
 }
 
@@ -85,7 +85,7 @@ func (uc *TransactionUseCase) GetTransactionsByCashier(ctx context.Context, cash
 }
 
 // GetTodaysTransactions retrieves today's transactions for a shop
-func (uc *TransactionUseCase) GetTodaysTransactions(ctx context.Context, shopID uint) ([]*entities.Transaction, error) {
+func (uc *TransactionUseCase) GetTodaysTransactions(ctx context.Context, shopID uuid.UUID) ([]*entities.Transaction, error) {
 	return uc.transactionRepo.GetTodaysTransactions(ctx, shopID)
 }
 

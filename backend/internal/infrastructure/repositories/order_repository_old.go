@@ -24,7 +24,7 @@ func (r *OrderRepositoryImpl) Create(ctx context.Context, order *entities.Order)
 }
 
 // GetByID retrieves an order by ID
-func (r *OrderRepositoryImpl) GetByID(ctx context.Context, id uint) (*entities.Order, error) {
+func (r *OrderRepositoryImpl) GetByID(ctx context.Context, id uuid.UUID) (*entities.Order, error) {
 	var order entities.Order
 	err := r.db.WithContext(ctx).
 		Preload("User").
@@ -62,7 +62,7 @@ func (r *OrderRepositoryImpl) Update(ctx context.Context, order *entities.Order)
 }
 
 // Delete deletes an order (soft delete)
-func (r *OrderRepositoryImpl) Delete(ctx context.Context, id uint) error {
+func (r *OrderRepositoryImpl) Delete(ctx context.Context, id uuid.UUID) error {
 	return r.db.WithContext(ctx).Delete(&entities.Order{}, id).Error
 }
 
@@ -92,7 +92,7 @@ func (r *OrderRepositoryImpl) GetByUser(ctx context.Context, userID uuid.UUID) (
 }
 
 // GetByCustomer retrieves orders by customer ID
-func (r *OrderRepositoryImpl) GetByCustomer(ctx context.Context, customerID uint) ([]*entities.Order, error) {
+func (r *OrderRepositoryImpl) GetByCustomer(ctx context.Context, customerID uuid.UUID) ([]*entities.Order, error) {
 	var orders []*entities.Order
 	err := r.db.WithContext(ctx).
 		Preload("User").

@@ -3,13 +3,14 @@ package entities
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
 // Category represents a product category per shop
 type Category struct {
-	ID        uint           `gorm:"primaryKey" json:"id"`
-	ShopID    uint           `gorm:"not null" json:"shop_id"`
+	ID        uuid.UUID      `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	ShopID    uuid.UUID      `gorm:"type:uuid;not null" json:"shop_id"`
 	Name      string         `gorm:"size:255;not null" json:"name"`
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`

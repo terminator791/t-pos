@@ -3,13 +3,14 @@ package entities
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
 // StockHistory represents append-only changes to product stock
 type StockHistory struct {
-	ID        uint           `gorm:"primaryKey" json:"id"`
-	ProductID uint           `gorm:"not null" json:"product_id"`
+	ID        uuid.UUID      `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	ProductID uuid.UUID      `gorm:"type:uuid;not null" json:"product_id"`
 	Stock     int            `gorm:"not null" json:"stock"`
 	LastStock int            `gorm:"not null" json:"last_stock"`
 	StockedAt time.Time      `gorm:"not null" json:"stocked_at"`

@@ -24,7 +24,7 @@ func (r *ShopRepositoryImpl) Create(ctx context.Context, shop *entities.Shop) er
 }
 
 // GetByID retrieves a shop by ID
-func (r *ShopRepositoryImpl) GetByID(ctx context.Context, id uint) (*entities.Shop, error) {
+func (r *ShopRepositoryImpl) GetByID(ctx context.Context, id uuid.UUID) (*entities.Shop, error) {
 	var shop entities.Shop
 	err := r.db.WithContext(ctx).First(&shop, id).Error
 	if err != nil {
@@ -53,7 +53,7 @@ func (r *ShopRepositoryImpl) Update(ctx context.Context, shop *entities.Shop) er
 }
 
 // Delete deletes a shop (soft delete)
-func (r *ShopRepositoryImpl) Delete(ctx context.Context, id uint) error {
+func (r *ShopRepositoryImpl) Delete(ctx context.Context, id uuid.UUID) error {
 	return r.db.WithContext(ctx).Delete(&entities.Shop{}, id).Error
 }
 

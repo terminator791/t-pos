@@ -9,9 +9,9 @@ import (
 
 // TransactionProduct represents line items per transaction
 type TransactionProduct struct {
-	ID            uint           `gorm:"primaryKey" json:"id"`
+	ID            uuid.UUID      `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
 	TransactionID uuid.UUID      `gorm:"type:uuid;not null" json:"transaction_id"`
-	ProductID     uint           `gorm:"not null" json:"product_id"`
+	ProductID     uuid.UUID      `gorm:"type:uuid;not null" json:"product_id"`
 	Quantity      int            `gorm:"not null" json:"quantity"`
 	UnitPrice     float64        `gorm:"type:decimal(10,2);not null" json:"unit_price"`
 	TotalPrice    float64        `gorm:"type:decimal(10,2);not null" json:"total_price"`

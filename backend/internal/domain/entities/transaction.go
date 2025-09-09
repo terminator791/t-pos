@@ -20,7 +20,7 @@ const (
 // Transaction represents a sales transaction header
 type Transaction struct {
 	ID                    uuid.UUID         `gorm:"type:uuid;primary_key;default:uuid_generate_v4()" json:"id"`
-	ShopID                uint              `gorm:"not null" json:"shop_id"`
+	ShopID                uuid.UUID         `gorm:"type:uuid;not null" json:"shop_id"`
 	CashierID             uuid.UUID         `gorm:"type:uuid;not null" json:"cashier_id"`
 	UserID                *uuid.UUID        `gorm:"type:uuid" json:"user_id"` // customer_user_id
 	Discount              float64           `gorm:"type:decimal(10,2);default:0" json:"discount"`

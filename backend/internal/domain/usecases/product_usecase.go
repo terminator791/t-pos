@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/google/uuid"
 	"github.com/terminator791/t-pos/internal/domain/entities"
 	"github.com/terminator791/t-pos/internal/domain/repositories"
 )
@@ -57,7 +58,7 @@ func (uc *ProductUseCase) CreateProduct(ctx context.Context, product *entities.P
 }
 
 // GetProduct retrieves a product by ID
-func (uc *ProductUseCase) GetProduct(ctx context.Context, id uint) (*entities.Product, error) {
+func (uc *ProductUseCase) GetProduct(ctx context.Context, id uuid.UUID) (*entities.Product, error) {
 	return uc.productRepo.GetByID(ctx, id)
 }
 
@@ -67,13 +68,13 @@ func (uc *ProductUseCase) GetProductByBarcode(ctx context.Context, barcode strin
 }
 
 // GetProductsByShop retrieves products by shop ID
-func (uc *ProductUseCase) GetProductsByShop(ctx context.Context, shopID uint) ([]*entities.Product, error) {
+func (uc *ProductUseCase) GetProductsByShop(ctx context.Context, shopID uuid.UUID) ([]*entities.Product, error) {
 	return uc.productRepo.GetByShopID(ctx, shopID)
 }
 
 // UpdateProduct updates an existing product
 func (uc *ProductUseCase) UpdateProduct(ctx context.Context, product *entities.Product) error {
-	if product.ID == 0 {
+	if product.ID == uuid.Nil {
 		return errors.New("product ID is required")
 	}
 
@@ -92,7 +93,7 @@ func (uc *ProductUseCase) UpdateProduct(ctx context.Context, product *entities.P
 }
 
 // UpdateProductStock updates product stock
-func (uc *ProductUseCase) UpdateProductStock(ctx context.Context, productID uint, quantity int) error {
+func (uc *ProductUseCase) UpdateProductStock(ctx context.Context, productID uuid.UUID, quantity int) error {
 	existing, err := uc.productRepo.GetByID(ctx, productID)
 	if err != nil {
 		return err
@@ -105,7 +106,7 @@ func (uc *ProductUseCase) UpdateProductStock(ctx context.Context, productID uint
 }
 
 // DeleteProduct deletes a product
-func (uc *ProductUseCase) DeleteProduct(ctx context.Context, id uint) error {
+func (uc *ProductUseCase) DeleteProduct(ctx context.Context, id uuid.UUID) error {
 	existing, err := uc.productRepo.GetByID(ctx, id)
 	if err != nil {
 		return err
@@ -123,11 +124,11 @@ func (uc *ProductUseCase) ListProducts(ctx context.Context, limit, offset int) (
 }
 
 // GetLowStockProducts retrieves products with low stock
-func (uc *ProductUseCase) GetLowStockProducts(ctx context.Context, shopID uint) ([]*entities.Product, error) {
+func (uc *ProductUseCase) GetLowStockProducts(ctx context.Context, shopID uuid.UUID) ([]*entities.Product, error) {
 	return uc.productRepo.GetLowStockProducts(ctx, shopID)
 }
 
 // SearchProducts searches for products by name or barcode within a shop
-func (uc *ProductUseCase) SearchProducts(ctx context.Context, query string, shopID uint) ([]*entities.Product, error) {
+func (uc *ProductUseCase) SearchProducts(ctx context.Context, query string, shopID uuid.UUID) ([]*entities.Product, error) {
 	return uc.productRepo.Search(ctx, query, shopID)
 }

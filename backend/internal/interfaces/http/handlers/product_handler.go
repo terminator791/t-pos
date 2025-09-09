@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/terminator791/t-pos/internal/domain/entities"
 	"github.com/terminator791/t-pos/internal/domain/usecases"
 )
@@ -41,13 +42,13 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 // GetProduct retrieves a product by ID
 func (h *ProductHandler) GetProduct(c *gin.Context) {
 	idParam := c.Param("id")
-	id, err := strconv.ParseUint(idParam, 10, 32)
+	id, err := uuid.Parse(idParam)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID"})
 		return
 	}
 
-	product, err := h.productUseCase.GetProduct(c.Request.Context(), uint(id))
+	product, err := h.productUseCase.GetProduct(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Product not found"})
 		return
@@ -76,7 +77,7 @@ func (h *ProductHandler) GetProductByBarcode(c *gin.Context) {
 // UpdateProduct updates an existing product
 func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 	idParam := c.Param("id")
-	id, err := strconv.ParseUint(idParam, 10, 32)
+	id, err := uuid.Parse(idParam)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID"})
 		return
@@ -88,7 +89,7 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 		return
 	}
 
-	product.ID = uint(id)
+	product.ID = id
 	err = h.productUseCase.UpdateProduct(c.Request.Context(), &product)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -101,13 +102,13 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 // DeleteProduct deletes a product
 func (h *ProductHandler) DeleteProduct(c *gin.Context) {
 	idParam := c.Param("id")
-	id, err := strconv.ParseUint(idParam, 10, 32)
+	id, err := uuid.Parse(idParam)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID"})
 		return
 	}
 
-	err = h.productUseCase.DeleteProduct(c.Request.Context(), uint(id))
+	err = h.productUseCase.DeleteProduct(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -153,13 +154,13 @@ func (h *ProductHandler) SearchProducts(c *gin.Context) {
 		return
 	}
 
-	shopID, err := strconv.ParseUint(shopIDParam, 10, 32)
+	shopID, err := uuid.Parse(shopIDParam)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid shop ID"})
 		return
 	}
 
-	products, err := h.productUseCase.SearchProducts(c.Request.Context(), query, uint(shopID))
+	products, err := h.productUseCase.SearchProducts(c.Request.Context(), query, shopID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -176,13 +177,13 @@ func (h *ProductHandler) GetLowStockProducts(c *gin.Context) {
 		return
 	}
 
-	shopID, err := strconv.ParseUint(shopIDParam, 10, 32)
+	shopID, err := uuid.Parse(shopIDParam)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid shop ID"})
 		return
 	}
 
-	products, err := h.productUseCase.GetLowStockProducts(c.Request.Context(), uint(shopID))
+	products, err := h.productUseCase.GetLowStockProducts(c.Request.Context(), shopID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

@@ -9,9 +9,9 @@ import (
 
 // Cart represents a user shopping cart (pre-transaction basket)
 type Cart struct {
-	ID        uint           `gorm:"primaryKey" json:"id"`
-	ShopID    uint           `gorm:"not null" json:"shop_id"`
-	ProductID uint           `gorm:"not null" json:"product_id"`
+	ID        uuid.UUID      `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	ShopID    uuid.UUID      `gorm:"type:uuid;not null" json:"shop_id"`
+	ProductID uuid.UUID      `gorm:"type:uuid;not null" json:"product_id"`
 	UserID    uuid.UUID      `gorm:"type:uuid;not null" json:"user_id"`
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`

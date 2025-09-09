@@ -3,6 +3,7 @@ package repositories
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/terminator791/t-pos/internal/domain/entities"
 	"gorm.io/gorm"
 )
@@ -23,7 +24,7 @@ func (r *CategoryRepositoryImpl) Create(ctx context.Context, category *entities.
 }
 
 // GetByID retrieves a category by ID
-func (r *CategoryRepositoryImpl) GetByID(ctx context.Context, id uint) (*entities.Category, error) {
+func (r *CategoryRepositoryImpl) GetByID(ctx context.Context, id uuid.UUID) (*entities.Category, error) {
 	var category entities.Category
 	err := r.db.WithContext(ctx).First(&category, id).Error
 	if err != nil {
@@ -33,14 +34,14 @@ func (r *CategoryRepositoryImpl) GetByID(ctx context.Context, id uint) (*entitie
 }
 
 // GetByShopID retrieves categories by shop ID
-func (r *CategoryRepositoryImpl) GetByShopID(ctx context.Context, shopID uint) ([]*entities.Category, error) {
+func (r *CategoryRepositoryImpl) GetByShopID(ctx context.Context, shopID uuid.UUID) ([]*entities.Category, error) {
 	var categories []*entities.Category
 	err := r.db.WithContext(ctx).Where("shop_id = ?", shopID).Find(&categories).Error
 	return categories, err
 }
 
 // GetByName retrieves a category by name within a shop
-func (r *CategoryRepositoryImpl) GetByName(ctx context.Context, name string, shopID uint) (*entities.Category, error) {
+func (r *CategoryRepositoryImpl) GetByName(ctx context.Context, name string, shopID uuid.UUID) (*entities.Category, error) {
 	var category entities.Category
 	err := r.db.WithContext(ctx).Where("name = ? AND shop_id = ?", name, shopID).First(&category).Error
 	if err != nil {
@@ -55,7 +56,7 @@ func (r *CategoryRepositoryImpl) Update(ctx context.Context, category *entities.
 }
 
 // Delete deletes a category (soft delete)
-func (r *CategoryRepositoryImpl) Delete(ctx context.Context, id uint) error {
+func (r *CategoryRepositoryImpl) Delete(ctx context.Context, id uuid.UUID) error {
 	return r.db.WithContext(ctx).Delete(&entities.Category{}, id).Error
 }
 

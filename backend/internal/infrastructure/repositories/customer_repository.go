@@ -3,6 +3,7 @@ package repositories
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/terminator791/t-pos/internal/domain/entities"
 	"gorm.io/gorm"
 )
@@ -23,7 +24,7 @@ func (r *CustomerRepositoryImpl) Create(ctx context.Context, customer *entities.
 }
 
 // GetByID retrieves a customer by ID
-func (r *CustomerRepositoryImpl) GetByID(ctx context.Context, id uint) (*entities.Customer, error) {
+func (r *CustomerRepositoryImpl) GetByID(ctx context.Context, id uuid.UUID) (*entities.Customer, error) {
 	var customer entities.Customer
 	err := r.db.WithContext(ctx).First(&customer, id).Error
 	if err != nil {
@@ -48,7 +49,7 @@ func (r *CustomerRepositoryImpl) Update(ctx context.Context, customer *entities.
 }
 
 // Delete deletes a customer (soft delete)
-func (r *CustomerRepositoryImpl) Delete(ctx context.Context, id uint) error {
+func (r *CustomerRepositoryImpl) Delete(ctx context.Context, id uuid.UUID) error {
 	return r.db.WithContext(ctx).Delete(&entities.Customer{}, id).Error
 }
 

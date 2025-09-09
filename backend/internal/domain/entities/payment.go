@@ -19,8 +19,8 @@ const (
 
 // Payment represents payments linked to a transaction
 type Payment struct {
-	ID            uint           `gorm:"primaryKey" json:"id"`
-	ShopID        uint           `gorm:"not null" json:"shop_id"`
+	ID            uuid.UUID      `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	ShopID        uuid.UUID      `gorm:"type:uuid;not null" json:"shop_id"`
 	UserID        *uuid.UUID     `gorm:"type:uuid" json:"user_id"`
 	TransactionID uuid.UUID      `gorm:"type:uuid;not null" json:"transaction_id"`
 	Status        PaymentStatus  `gorm:"default:pending" json:"status"`

@@ -3,14 +3,15 @@ package entities
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
 // Receipt represents a receipt record pointing to a payment
 type Receipt struct {
-	ID         uint           `gorm:"primaryKey" json:"id"`
-	ShopID     uint           `gorm:"not null" json:"shop_id"`
-	PaymentsID uint           `gorm:"not null" json:"payments_id"`
+	ID         uuid.UUID      `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	ShopID     uuid.UUID      `gorm:"type:uuid;not null" json:"shop_id"`
+	PaymentsID uuid.UUID      `gorm:"type:uuid;not null" json:"payments_id"`
 	CreatedAt  time.Time      `json:"created_at"`
 	UpdatedAt  time.Time      `json:"updated_at"`
 	DeletedAt  gorm.DeletedAt `gorm:"index" json:"-"`

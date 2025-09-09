@@ -9,7 +9,7 @@ import (
 
 // Shop represents a merchant shop operating under a license
 type Shop struct {
-	ID               uint           `gorm:"primaryKey" json:"id"`
+	ID               uuid.UUID      `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
 	LicenseID        uuid.UUID      `gorm:"type:uuid;not null" json:"license_id"`
 	UserID           uuid.UUID      `gorm:"type:uuid;not null" json:"user_id"` // owner_user_id
 	Name             string         `gorm:"size:255;not null" json:"name"`

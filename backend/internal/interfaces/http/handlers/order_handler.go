@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/terminator791/t-pos/internal/domain/usecases"
 )
 
@@ -40,13 +41,13 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 // GetOrder retrieves an order by ID
 func (h *OrderHandler) GetOrder(c *gin.Context) {
 	idParam := c.Param("id")
-	id, err := strconv.ParseUint(idParam, 10, 32)
+	id, err := uuid.Parse(idParam)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid order ID"})
 		return
 	}
 
-	order, err := h.orderUseCase.GetOrder(c.Request.Context(), uint(id))
+	order, err := h.orderUseCase.GetOrder(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
 		return
