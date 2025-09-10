@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/terminator791/t-pos/internal/domain/dto"
 	"github.com/terminator791/t-pos/internal/domain/entities"
+	"gorm.io/gorm"
 )
 
 // Mock repository for testing
@@ -124,4 +125,242 @@ func TestConflictResolution(t *testing.T) {
 	assert.Equal(t, "cart", conflict.EntityType)
 	assert.Equal(t, existingCart.ID, conflict.EntityID)
 	assert.Equal(t, "client_wins", conflict.Resolution) // incoming cart is newer
+}
+
+// Test Product sync helper methods
+func TestSyncService_ProductConflictResolution(t *testing.T) {
+	syncService := &SyncService{
+		conflictStrategy: dto.LastWriteWins,
+	}
+
+	now := time.Now()
+	olderTime := now.Add(-1 * time.Hour)
+	
+	existingProduct := entities.Product{
+		ID:        uuid.New(),
+		UpdatedAt: now,
+		Name:      "Product A",
+		Sale:      100.0,
+	}
+	
+	incomingProduct := entities.Product{
+		ID:        existingProduct.ID,
+		UpdatedAt: olderTime,
+		Name:      "Product A Updated",
+		Sale:      150.0,
+	}
+
+	// Test conflict resolution
+	conflict := syncService.resolveProductConflict(existingProduct, incomingProduct)
+	
+	assert.NotNil(t, conflict)
+	assert.Equal(t, "product", conflict.EntityType)
+	assert.Equal(t, "server_wins", conflict.Resolution)
+	assert.Equal(t, existingProduct, conflict.ServerData)
+	assert.Equal(t, incomingProduct, conflict.ClientData)
+}
+
+func TestSyncService_ProductConflictResolution_ClientWins(t *testing.T) {
+	syncService := &SyncService{
+		conflictStrategy: dto.LastWriteWins,
+	}
+
+	now := time.Now()
+	newerTime := now.Add(1 * time.Hour)
+	
+	existingProduct := entities.Product{
+		ID:        uuid.New(),
+		UpdatedAt: now,
+		Name:      "Product A",
+	}
+	
+	incomingProduct := entities.Product{
+		ID:        existingProduct.ID,
+		UpdatedAt: newerTime,
+		Name:      "Product A Updated",
+	}
+
+	conflict := syncService.resolveProductConflict(existingProduct, incomingProduct)
+	
+	assert.NotNil(t, conflict)
+	assert.Equal(t, "client_wins", conflict.Resolution)
+	assert.Equal(t, "Client version is newer", conflict.Details)
+}
+
+func TestSyncService_ProductConflictResolution_NoConflict(t *testing.T) {
+	syncService := &SyncService{
+		conflictStrategy: dto.LastWriteWins,
+	}
+
+	now := time.Now()
+	
+	existingProduct := entities.Product{
+		ID:        uuid.New(),
+		UpdatedAt: now,
+	}
+	
+	incomingProduct := entities.Product{
+		ID:        existingProduct.ID,
+		UpdatedAt: now,
+	}
+
+	conflict := syncService.resolveProductConflict(existingProduct, incomingProduct)
+	
+	assert.Nil(t, conflict, "Should not detect conflict when timestamps are equal")
+}
+
+// Test Transaction sync helper methods
+func TestSyncService_TransactionConflictResolution(t *testing.T) {
+	syncService := &SyncService{
+		conflictStrategy: dto.ServerWins,
+	}
+
+	now := time.Now()
+	newerTime := now.Add(1 * time.Hour)
+	
+	existingTransaction := entities.Transaction{
+		ID:         uuid.New(),
+		UpdatedAt:  now,
+		TotalPrice: 100.0,
+		Status:     entities.TransactionStatusCompleted,
+	}
+	
+	incomingTransaction := entities.Transaction{
+		ID:         existingTransaction.ID,
+		UpdatedAt:  newerTime,
+		TotalPrice: 150.0,
+		Status:     entities.TransactionStatusPending,
+	}
+
+	conflict := syncService.resolveTransactionConflict(existingTransaction, incomingTransaction)
+	
+	assert.NotNil(t, conflict)
+	assert.Equal(t, "transaction", conflict.EntityType)
+	assert.Equal(t, "server_wins", conflict.Resolution, "Server should always win with ServerWins strategy")
+	assert.Equal(t, "Server version always wins", conflict.Details)
+}
+
+// Test Expense sync helper methods
+func TestSyncService_ExpenseConflictResolution(t *testing.T) {
+	syncService := &SyncService{
+		conflictStrategy: dto.ClientWins,
+	}
+
+	now := time.Now()
+	olderTime := now.Add(-1 * time.Hour)
+	
+	existingExpense := entities.Expense{
+		ID:        uuid.New(),
+		UpdatedAt: now,
+		Nominal:   100.0,
+		Status:    entities.ExpenseStatusCompleted,
+	}
+	
+	incomingExpense := entities.Expense{
+		ID:        existingExpense.ID,
+		UpdatedAt: olderTime,
+		Nominal:   150.0,
+		Status:    entities.ExpenseStatusPending,
+	}
+
+	conflict := syncService.resolveExpenseConflict(existingExpense, incomingExpense)
+	
+	assert.NotNil(t, conflict)
+	assert.Equal(t, "expense", conflict.EntityType)
+	assert.Equal(t, "client_wins", conflict.Resolution, "Client should always win with ClientWins strategy")
+	assert.Equal(t, "Client version always wins", conflict.Details)
+}
+
+// Test Payment sync helper methods
+func TestSyncService_PaymentConflictResolution(t *testing.T) {
+	syncService := &SyncService{
+		conflictStrategy: dto.LastWriteWins,
+	}
+
+	now := time.Now()
+	newerTime := now.Add(2 * time.Hour)
+	
+	existingPayment := entities.Payment{
+		ID:        uuid.New(),
+		UpdatedAt: now,
+		Total:     100.0,
+		Status:    entities.PaymentStatusCompleted,
+	}
+	
+	incomingPayment := entities.Payment{
+		ID:        existingPayment.ID,
+		UpdatedAt: newerTime,
+		Total:     150.0,
+		Status:    entities.PaymentStatusPending,
+	}
+
+	conflict := syncService.resolvePaymentConflict(existingPayment, incomingPayment)
+	
+	assert.NotNil(t, conflict)
+	assert.Equal(t, "payment", conflict.EntityType)
+	assert.Equal(t, "client_wins", conflict.Resolution)
+	assert.Contains(t, conflict.Details, "Client version is newer")
+}
+
+// Test Syncable interface implementations
+func TestSyncableInterface_Product(t *testing.T) {
+	now := time.Now()
+	product := entities.Product{
+		ID:        uuid.New(),
+		CreatedAt: now,
+		UpdatedAt: now,
+		DeletedAt: gorm.DeletedAt{},
+	}
+
+	assert.Equal(t, product.ID, product.GetID())
+	assert.Equal(t, product.CreatedAt, product.GetCreatedAt())
+	assert.Equal(t, product.UpdatedAt, product.GetUpdatedAt())
+	assert.Nil(t, product.GetDeletedAt())
+}
+
+func TestSyncableInterface_Transaction(t *testing.T) {
+	now := time.Now()
+	deletedTime := now.Add(1 * time.Hour)
+	transaction := entities.Transaction{
+		ID:        uuid.New(),
+		CreatedAt: now,
+		UpdatedAt: now,
+		DeletedAt: gorm.DeletedAt{Time: deletedTime, Valid: true},
+	}
+
+	assert.Equal(t, transaction.ID, transaction.GetID())
+	assert.Equal(t, transaction.CreatedAt, transaction.GetCreatedAt())
+	assert.Equal(t, transaction.UpdatedAt, transaction.GetUpdatedAt())
+	assert.NotNil(t, transaction.GetDeletedAt())
+	assert.Equal(t, deletedTime, *transaction.GetDeletedAt())
+}
+
+func TestSyncableInterface_Expense(t *testing.T) {
+	now := time.Now()
+	expense := entities.Expense{
+		ID:        uuid.New(),
+		CreatedAt: now,
+		UpdatedAt: now,
+		DeletedAt: gorm.DeletedAt{},
+	}
+
+	assert.Equal(t, expense.ID, expense.GetID())
+	assert.Equal(t, expense.CreatedAt, expense.GetCreatedAt())
+	assert.Equal(t, expense.UpdatedAt, expense.GetUpdatedAt())
+	assert.Nil(t, expense.GetDeletedAt())
+}
+
+func TestSyncableInterface_Payment(t *testing.T) {
+	now := time.Now()
+	payment := entities.Payment{
+		ID:        uuid.New(),
+		CreatedAt: now,
+		UpdatedAt: now,
+		DeletedAt: gorm.DeletedAt{},
+	}
+
+	assert.Equal(t, payment.ID, payment.GetID())
+	assert.Equal(t, payment.CreatedAt, payment.GetCreatedAt())
+	assert.Equal(t, payment.UpdatedAt, payment.GetUpdatedAt())
+	assert.Nil(t, payment.GetDeletedAt())
 }

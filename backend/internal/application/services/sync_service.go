@@ -139,8 +139,16 @@ func (s *SyncService) pushChanges(ctx context.Context, tx *gorm.DB, req dto.Sync
 		return fmt.Errorf("failed to push transactions: %w", err)
 	}
 
+	if err := s.pushExpenses(ctx, tx, req.Expenses, licenseID, response); err != nil {
+		return fmt.Errorf("failed to push expenses: %w", err)
+	}
+
+	if err := s.pushPayments(ctx, tx, req.Payments, licenseID, response); err != nil {
+		return fmt.Errorf("failed to push payments: %w", err)
+	}
+
 	// Continue with other entity types...
-	// For now, implementing core entities (carts, categories, products, transactions)
+	// For now, implementing core entities (carts, categories, products, transactions, expenses, payments)
 
 	return nil
 }
@@ -169,6 +177,14 @@ func (s *SyncService) pullChanges(ctx context.Context, tx *gorm.DB, lastSync *ti
 
 	if err := s.pullTransactions(ctx, tx, *lastSync, licenseID, response); err != nil {
 		return fmt.Errorf("failed to pull transactions: %w", err)
+	}
+
+	if err := s.pullExpenses(ctx, tx, *lastSync, licenseID, response); err != nil {
+		return fmt.Errorf("failed to pull expenses: %w", err)
+	}
+
+	if err := s.pullPayments(ctx, tx, *lastSync, licenseID, response); err != nil {
+		return fmt.Errorf("failed to pull payments: %w", err)
 	}
 
 	return nil
@@ -428,27 +444,501 @@ func (s *SyncService) pullCategories(ctx context.Context, tx *gorm.DB, lastSync 
 }
 
 func (s *SyncService) pushProducts(ctx context.Context, tx *gorm.DB, products []entities.Product, licenseID uuid.UUID, response *dto.SyncResponse) error {
-	// Similar implementation to pushCarts
-	// TODO: Implement product sync logic
+	for _, product := range products {
+		// Validate product belongs to license
+		if !s.validateProductLicense(ctx, product, licenseID) {
+			s.addError(response, "products", product.ID, "unauthorized", "Product does not belong to license")
+			continue
+		}
+
+		// Check if product exists
+		existingProduct, err := s.findProductByID(ctx, tx, product.ID)
+		if err != nil && err != gorm.ErrRecordNotFound {
+			s.addError(response, "products", product.ID, "database_error", err.Error())
+			continue
+		}
+
+		if existingProduct == nil {
+			// Create new product
+			if err := s.createProduct(ctx, tx, product); err != nil {
+				s.addError(response, "products", product.ID, "create_failed", err.Error())
+				continue
+			}
+			s.incrementStat(response.Stats.CreatedEntities, "products")
+		} else {
+			// Handle potential conflict
+			if conflict := s.resolveProductConflict(*existingProduct, product); conflict != nil {
+				response.Conflicts = append(response.Conflicts, *conflict)
+				// Use server version in case of conflict (for LastWriteWins strategy)
+				if existingProduct.UpdatedAt.After(product.UpdatedAt) {
+					continue // Skip update, server version is newer
+				}
+			}
+
+			// Update existing product
+			if err := s.updateProduct(ctx, tx, product); err != nil {
+				s.addError(response, "products", product.ID, "update_failed", err.Error())
+				continue
+			}
+			s.incrementStat(response.Stats.UpdatedEntities, "products")
+		}
+
+		s.incrementStat(response.Stats.ProcessedEntities, "products")
+	}
+
 	return nil
 }
 
 func (s *SyncService) pullProducts(ctx context.Context, tx *gorm.DB, lastSync time.Time, licenseID uuid.UUID, response *dto.SyncResponse) error {
-	// Similar implementation to pullCarts
-	// TODO: Implement product pull logic
+	// Get all products for the license that were updated after lastSync
+	var products []entities.Product
+	err := tx.WithContext(ctx).
+		Joins("JOIN shops ON products.shop_id = shops.id").
+		Where("shops.license_id = ? AND products.updated_at > ?", licenseID, lastSync).
+		Find(&products).Error
+
+	if err != nil {
+		return fmt.Errorf("failed to query products: %w", err)
+	}
+
+	response.Products = products
 	return nil
 }
 
+// Helper methods for product operations
+func (s *SyncService) validateProductLicense(ctx context.Context, product entities.Product, licenseID uuid.UUID) bool {
+	// Validate that the product's shop belongs to the license
+	var count int64
+	s.db.Model(&entities.Shop{}).Where("id = ? AND license_id = ?", product.ShopID, licenseID).Count(&count)
+	return count > 0
+}
+
+func (s *SyncService) findProductByID(ctx context.Context, tx *gorm.DB, id uuid.UUID) (*entities.Product, error) {
+	var product entities.Product
+	err := tx.WithContext(ctx).Where("id = ?", id).First(&product).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &product, nil
+}
+
+func (s *SyncService) createProduct(ctx context.Context, tx *gorm.DB, product entities.Product) error {
+	return tx.WithContext(ctx).Create(&product).Error
+}
+
+func (s *SyncService) updateProduct(ctx context.Context, tx *gorm.DB, product entities.Product) error {
+	return tx.WithContext(ctx).Save(&product).Error
+}
+
+func (s *SyncService) resolveProductConflict(existing, incoming entities.Product) *dto.ConflictInfo {
+	if existing.UpdatedAt.Equal(incoming.UpdatedAt) {
+		return nil // No conflict
+	}
+
+	conflict := &dto.ConflictInfo{
+		EntityType:   "product",
+		EntityID:     existing.ID,
+		ConflictType: "timestamp_mismatch",
+		ServerData:   existing,
+		ClientData:   incoming,
+	}
+
+	// Apply conflict resolution strategy
+	switch s.conflictStrategy {
+	case dto.LastWriteWins:
+		if existing.UpdatedAt.After(incoming.UpdatedAt) {
+			conflict.Resolution = "server_wins"
+			conflict.Details = "Server version is newer"
+		} else {
+			conflict.Resolution = "client_wins"
+			conflict.Details = "Client version is newer"
+		}
+	case dto.ServerWins:
+		conflict.Resolution = "server_wins"
+		conflict.Details = "Server version always wins"
+	case dto.ClientWins:
+		conflict.Resolution = "client_wins"
+		conflict.Details = "Client version always wins"
+	}
+
+	return conflict
+}
+
 func (s *SyncService) pushTransactions(ctx context.Context, tx *gorm.DB, transactions []entities.Transaction, licenseID uuid.UUID, response *dto.SyncResponse) error {
-	// Similar implementation to pushCarts
-	// TODO: Implement transaction sync logic
+	for _, transaction := range transactions {
+		// Validate transaction belongs to license
+		if !s.validateTransactionLicense(ctx, transaction, licenseID) {
+			s.addError(response, "transactions", transaction.ID, "unauthorized", "Transaction does not belong to license")
+			continue
+		}
+
+		// Check if transaction exists
+		existingTransaction, err := s.findTransactionByID(ctx, tx, transaction.ID)
+		if err != nil && err != gorm.ErrRecordNotFound {
+			s.addError(response, "transactions", transaction.ID, "database_error", err.Error())
+			continue
+		}
+
+		if existingTransaction == nil {
+			// Create new transaction
+			if err := s.createTransaction(ctx, tx, transaction); err != nil {
+				s.addError(response, "transactions", transaction.ID, "create_failed", err.Error())
+				continue
+			}
+			s.incrementStat(response.Stats.CreatedEntities, "transactions")
+		} else {
+			// Handle potential conflict
+			if conflict := s.resolveTransactionConflict(*existingTransaction, transaction); conflict != nil {
+				response.Conflicts = append(response.Conflicts, *conflict)
+				// Use server version in case of conflict (for LastWriteWins strategy)
+				if existingTransaction.UpdatedAt.After(transaction.UpdatedAt) {
+					continue // Skip update, server version is newer
+				}
+			}
+
+			// Update existing transaction
+			if err := s.updateTransaction(ctx, tx, transaction); err != nil {
+				s.addError(response, "transactions", transaction.ID, "update_failed", err.Error())
+				continue
+			}
+			s.incrementStat(response.Stats.UpdatedEntities, "transactions")
+		}
+
+		s.incrementStat(response.Stats.ProcessedEntities, "transactions")
+	}
+
 	return nil
 }
 
 func (s *SyncService) pullTransactions(ctx context.Context, tx *gorm.DB, lastSync time.Time, licenseID uuid.UUID, response *dto.SyncResponse) error {
-	// Similar implementation to pullCarts
-	// TODO: Implement transaction pull logic
+	// Get all transactions for the license that were updated after lastSync
+	var transactions []entities.Transaction
+	err := tx.WithContext(ctx).
+		Joins("JOIN shops ON transactions.shop_id = shops.id").
+		Where("shops.license_id = ? AND transactions.updated_at > ?", licenseID, lastSync).
+		Find(&transactions).Error
+
+	if err != nil {
+		return fmt.Errorf("failed to query transactions: %w", err)
+	}
+
+	response.Transactions = transactions
 	return nil
+}
+
+// Helper methods for transaction operations
+func (s *SyncService) validateTransactionLicense(ctx context.Context, transaction entities.Transaction, licenseID uuid.UUID) bool {
+	// Validate that the transaction's shop belongs to the license
+	var count int64
+	s.db.Model(&entities.Shop{}).Where("id = ? AND license_id = ?", transaction.ShopID, licenseID).Count(&count)
+	return count > 0
+}
+
+func (s *SyncService) findTransactionByID(ctx context.Context, tx *gorm.DB, id uuid.UUID) (*entities.Transaction, error) {
+	var transaction entities.Transaction
+	err := tx.WithContext(ctx).Where("id = ?", id).First(&transaction).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &transaction, nil
+}
+
+func (s *SyncService) createTransaction(ctx context.Context, tx *gorm.DB, transaction entities.Transaction) error {
+	return tx.WithContext(ctx).Create(&transaction).Error
+}
+
+func (s *SyncService) updateTransaction(ctx context.Context, tx *gorm.DB, transaction entities.Transaction) error {
+	return tx.WithContext(ctx).Save(&transaction).Error
+}
+
+func (s *SyncService) resolveTransactionConflict(existing, incoming entities.Transaction) *dto.ConflictInfo {
+	if existing.UpdatedAt.Equal(incoming.UpdatedAt) {
+		return nil // No conflict
+	}
+
+	conflict := &dto.ConflictInfo{
+		EntityType:   "transaction",
+		EntityID:     existing.ID,
+		ConflictType: "timestamp_mismatch",
+		ServerData:   existing,
+		ClientData:   incoming,
+	}
+
+	// Apply conflict resolution strategy
+	switch s.conflictStrategy {
+	case dto.LastWriteWins:
+		if existing.UpdatedAt.After(incoming.UpdatedAt) {
+			conflict.Resolution = "server_wins"
+			conflict.Details = "Server version is newer"
+		} else {
+			conflict.Resolution = "client_wins"
+			conflict.Details = "Client version is newer"
+		}
+	case dto.ServerWins:
+		conflict.Resolution = "server_wins"
+		conflict.Details = "Server version always wins"
+	case dto.ClientWins:
+		conflict.Resolution = "client_wins"
+		conflict.Details = "Client version always wins"
+	}
+
+	return conflict
+}
+
+// pushExpenses handles expense synchronization
+func (s *SyncService) pushExpenses(ctx context.Context, tx *gorm.DB, expenses []entities.Expense, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	for _, expense := range expenses {
+		// Validate expense belongs to license
+		if !s.validateExpenseLicense(ctx, expense, licenseID) {
+			s.addError(response, "expenses", expense.ID, "unauthorized", "Expense does not belong to license")
+			continue
+		}
+
+		// Check if expense exists
+		existingExpense, err := s.findExpenseByID(ctx, tx, expense.ID)
+		if err != nil && err != gorm.ErrRecordNotFound {
+			s.addError(response, "expenses", expense.ID, "database_error", err.Error())
+			continue
+		}
+
+		if existingExpense == nil {
+			// Create new expense
+			if err := s.createExpense(ctx, tx, expense); err != nil {
+				s.addError(response, "expenses", expense.ID, "create_failed", err.Error())
+				continue
+			}
+			s.incrementStat(response.Stats.CreatedEntities, "expenses")
+		} else {
+			// Handle potential conflict
+			if conflict := s.resolveExpenseConflict(*existingExpense, expense); conflict != nil {
+				response.Conflicts = append(response.Conflicts, *conflict)
+				// Use server version in case of conflict (for LastWriteWins strategy)
+				if existingExpense.UpdatedAt.After(expense.UpdatedAt) {
+					continue // Skip update, server version is newer
+				}
+			}
+
+			// Update existing expense
+			if err := s.updateExpense(ctx, tx, expense); err != nil {
+				s.addError(response, "expenses", expense.ID, "update_failed", err.Error())
+				continue
+			}
+			s.incrementStat(response.Stats.UpdatedEntities, "expenses")
+		}
+
+		s.incrementStat(response.Stats.ProcessedEntities, "expenses")
+	}
+
+	return nil
+}
+
+func (s *SyncService) pullExpenses(ctx context.Context, tx *gorm.DB, lastSync time.Time, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	// Get all expenses for the license that were updated after lastSync
+	var expenses []entities.Expense
+	err := tx.WithContext(ctx).
+		Joins("JOIN shops ON expenses.shop_id = shops.id").
+		Where("shops.license_id = ? AND expenses.updated_at > ?", licenseID, lastSync).
+		Find(&expenses).Error
+
+	if err != nil {
+		return fmt.Errorf("failed to query expenses: %w", err)
+	}
+
+	response.Expenses = expenses
+	return nil
+}
+
+// Helper methods for expense operations
+func (s *SyncService) validateExpenseLicense(ctx context.Context, expense entities.Expense, licenseID uuid.UUID) bool {
+	// Validate that the expense's shop belongs to the license
+	var count int64
+	s.db.Model(&entities.Shop{}).Where("id = ? AND license_id = ?", expense.ShopID, licenseID).Count(&count)
+	return count > 0
+}
+
+func (s *SyncService) findExpenseByID(ctx context.Context, tx *gorm.DB, id uuid.UUID) (*entities.Expense, error) {
+	var expense entities.Expense
+	err := tx.WithContext(ctx).Where("id = ?", id).First(&expense).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &expense, nil
+}
+
+func (s *SyncService) createExpense(ctx context.Context, tx *gorm.DB, expense entities.Expense) error {
+	return tx.WithContext(ctx).Create(&expense).Error
+}
+
+func (s *SyncService) updateExpense(ctx context.Context, tx *gorm.DB, expense entities.Expense) error {
+	return tx.WithContext(ctx).Save(&expense).Error
+}
+
+func (s *SyncService) resolveExpenseConflict(existing, incoming entities.Expense) *dto.ConflictInfo {
+	if existing.UpdatedAt.Equal(incoming.UpdatedAt) {
+		return nil // No conflict
+	}
+
+	conflict := &dto.ConflictInfo{
+		EntityType:   "expense",
+		EntityID:     existing.ID,
+		ConflictType: "timestamp_mismatch",
+		ServerData:   existing,
+		ClientData:   incoming,
+	}
+
+	// Apply conflict resolution strategy
+	switch s.conflictStrategy {
+	case dto.LastWriteWins:
+		if existing.UpdatedAt.After(incoming.UpdatedAt) {
+			conflict.Resolution = "server_wins"
+			conflict.Details = "Server version is newer"
+		} else {
+			conflict.Resolution = "client_wins"
+			conflict.Details = "Client version is newer"
+		}
+	case dto.ServerWins:
+		conflict.Resolution = "server_wins"
+		conflict.Details = "Server version always wins"
+	case dto.ClientWins:
+		conflict.Resolution = "client_wins"
+		conflict.Details = "Client version always wins"
+	}
+
+	return conflict
+}
+
+// pushPayments handles payment synchronization
+func (s *SyncService) pushPayments(ctx context.Context, tx *gorm.DB, payments []entities.Payment, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	for _, payment := range payments {
+		// Validate payment belongs to license
+		if !s.validatePaymentLicense(ctx, payment, licenseID) {
+			s.addError(response, "payments", payment.ID, "unauthorized", "Payment does not belong to license")
+			continue
+		}
+
+		// Check if payment exists
+		existingPayment, err := s.findPaymentByID(ctx, tx, payment.ID)
+		if err != nil && err != gorm.ErrRecordNotFound {
+			s.addError(response, "payments", payment.ID, "database_error", err.Error())
+			continue
+		}
+
+		if existingPayment == nil {
+			// Create new payment
+			if err := s.createPayment(ctx, tx, payment); err != nil {
+				s.addError(response, "payments", payment.ID, "create_failed", err.Error())
+				continue
+			}
+			s.incrementStat(response.Stats.CreatedEntities, "payments")
+		} else {
+			// Handle potential conflict
+			if conflict := s.resolvePaymentConflict(*existingPayment, payment); conflict != nil {
+				response.Conflicts = append(response.Conflicts, *conflict)
+				// Use server version in case of conflict (for LastWriteWins strategy)
+				if existingPayment.UpdatedAt.After(payment.UpdatedAt) {
+					continue // Skip update, server version is newer
+				}
+			}
+
+			// Update existing payment
+			if err := s.updatePayment(ctx, tx, payment); err != nil {
+				s.addError(response, "payments", payment.ID, "update_failed", err.Error())
+				continue
+			}
+			s.incrementStat(response.Stats.UpdatedEntities, "payments")
+		}
+
+		s.incrementStat(response.Stats.ProcessedEntities, "payments")
+	}
+
+	return nil
+}
+
+func (s *SyncService) pullPayments(ctx context.Context, tx *gorm.DB, lastSync time.Time, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	// Get all payments for the license that were updated after lastSync
+	var payments []entities.Payment
+	err := tx.WithContext(ctx).
+		Joins("JOIN shops ON payments.shop_id = shops.id").
+		Where("shops.license_id = ? AND payments.updated_at > ?", licenseID, lastSync).
+		Find(&payments).Error
+
+	if err != nil {
+		return fmt.Errorf("failed to query payments: %w", err)
+	}
+
+	response.Payments = payments
+	return nil
+}
+
+// Helper methods for payment operations
+func (s *SyncService) validatePaymentLicense(ctx context.Context, payment entities.Payment, licenseID uuid.UUID) bool {
+	// Validate that the payment's shop belongs to the license
+	var count int64
+	s.db.Model(&entities.Shop{}).Where("id = ? AND license_id = ?", payment.ShopID, licenseID).Count(&count)
+	return count > 0
+}
+
+func (s *SyncService) findPaymentByID(ctx context.Context, tx *gorm.DB, id uuid.UUID) (*entities.Payment, error) {
+	var payment entities.Payment
+	err := tx.WithContext(ctx).Where("id = ?", id).First(&payment).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &payment, nil
+}
+
+func (s *SyncService) createPayment(ctx context.Context, tx *gorm.DB, payment entities.Payment) error {
+	return tx.WithContext(ctx).Create(&payment).Error
+}
+
+func (s *SyncService) updatePayment(ctx context.Context, tx *gorm.DB, payment entities.Payment) error {
+	return tx.WithContext(ctx).Save(&payment).Error
+}
+
+func (s *SyncService) resolvePaymentConflict(existing, incoming entities.Payment) *dto.ConflictInfo {
+	if existing.UpdatedAt.Equal(incoming.UpdatedAt) {
+		return nil // No conflict
+	}
+
+	conflict := &dto.ConflictInfo{
+		EntityType:   "payment",
+		EntityID:     existing.ID,
+		ConflictType: "timestamp_mismatch",
+		ServerData:   existing,
+		ClientData:   incoming,
+	}
+
+	// Apply conflict resolution strategy
+	switch s.conflictStrategy {
+	case dto.LastWriteWins:
+		if existing.UpdatedAt.After(incoming.UpdatedAt) {
+			conflict.Resolution = "server_wins"
+			conflict.Details = "Server version is newer"
+		} else {
+			conflict.Resolution = "client_wins"
+			conflict.Details = "Client version is newer"
+		}
+	case dto.ServerWins:
+		conflict.Resolution = "server_wins"
+		conflict.Details = "Server version always wins"
+	case dto.ClientWins:
+		conflict.Resolution = "client_wins"
+		conflict.Details = "Client version always wins"
+	}
+
+	return conflict
 }
 
 // Utility methods
