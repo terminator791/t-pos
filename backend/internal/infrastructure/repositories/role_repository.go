@@ -43,6 +43,13 @@ func (r *RoleRepositoryImpl) GetByName(ctx context.Context, name string) (*entit
 	return &role, nil
 }
 
+// GetAll retrieves all roles
+func (r *RoleRepositoryImpl) GetAll(ctx context.Context) ([]*entities.Role, error) {
+	var roles []*entities.Role
+	err := r.db.WithContext(ctx).Find(&roles).Error
+	return roles, err
+}
+
 // List retrieves a list of roles with pagination
 func (r *RoleRepositoryImpl) List(ctx context.Context, limit, offset int) ([]*entities.Role, error) {
 	var roles []*entities.Role

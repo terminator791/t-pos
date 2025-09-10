@@ -25,6 +25,7 @@ func SetupRoutes(
 	historyHandler *handlers.HistoryHandler,
 	receiptHandler *handlers.ReceiptHandler,
 	transactionProductHandler *handlers.TransactionProductHandler,
+	aclHandler *handlers.ACLHandler,
 	authMiddleware *auth.AuthMiddleware,
 	authzMiddleware *casbin.AuthzMiddleware,
 ) {
@@ -193,6 +194,28 @@ func SetupRoutes(
 				roles.GET("", roleHandler.GetAllRoles)
 				roles.GET("/:id", roleHandler.GetRole)
 				roles.GET("/name/:name", roleHandler.GetRoleByName)
+			}
+
+			// ACL Management routes (super_admin only)
+			acl := protected.Group("/acl")
+			{
+				// Policy management
+				acl.GET("/policies", aclHandler.GetAllPolicies)
+				acl.POST("/policies", aclHandler.AddPolicy)
+				acl.DELETE("/policies", aclHandler.RemovePolicy)
+				acl.GET("/policies/system", aclHandler.GetSystemPolicies)
+
+				// Role assignment management  
+				acl.GET("/roles", aclHandler.GetAllRoles)
+				acl.GET("/roles/system", aclHandler.GetSystemRoles)
+				acl.GET("/users/:userId/roles", aclHandler.GetUserRoles)
+				acl.GET("/roles/:role/users", aclHandler.GetRoleUsers)
+				acl.POST("/users/roles", aclHandler.AddRoleForUser)
+				acl.DELETE("/users/roles", aclHandler.RemoveRoleForUser)
+
+				// Permission checking
+				acl.POST("/check", aclHandler.CheckPermission)
+				acl.POST("/reload", aclHandler.ReloadPolicies)
 			}
 		}
 	}

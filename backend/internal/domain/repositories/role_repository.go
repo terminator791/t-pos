@@ -12,6 +12,7 @@ type RoleRepository interface {
 	Create(ctx context.Context, role *entities.Role) error
 	GetByID(ctx context.Context, id uuid.UUID) (*entities.Role, error)
 	GetByName(ctx context.Context, name string) (*entities.Role, error)
+	GetAll(ctx context.Context) ([]*entities.Role, error)
 	List(ctx context.Context, limit, offset int) ([]*entities.Role, error)
 	Update(ctx context.Context, role *entities.Role) error
 	Delete(ctx context.Context, id uuid.UUID) error
@@ -22,6 +23,7 @@ type RoleRepository interface {
 type PolicyRepository interface {
 	Create(ctx context.Context, policy *entities.Policy) error
 	GetByID(ctx context.Context, id uuid.UUID) (*entities.Policy, error)
+	GetAll(ctx context.Context) ([]*entities.Policy, error)
 	List(ctx context.Context, limit, offset int) ([]*entities.Policy, error)
 	GetByRole(ctx context.Context, roleID uuid.UUID) ([]*entities.Policy, error)
 	GetByDomain(ctx context.Context, domain string) ([]*entities.Policy, error)
