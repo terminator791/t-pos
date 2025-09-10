@@ -2,62 +2,81 @@ import React, { useState } from "react";
 import Card from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import Button from "@/components/ui/Button";
-
-const usersData = [
-  {
-    id: 1,
-    name: "Admin User",
-    email: "admin@tpos.com",
-    role: "Administrator",
-    department: "IT",
-    status: "Active",
-    lastLogin: "2024-01-15 14:30",
-    permissions: ["Read", "Write", "Delete", "Admin"],
-  },
-  {
-    id: 2,
-    name: "Sales Manager",
-    email: "sales@tpos.com",
-    role: "Manager",
-    department: "Sales",
-    status: "Active",
-    lastLogin: "2024-01-15 09:15",
-    permissions: ["Read", "Write"],
-  },
-  {
-    id: 3,
-    name: "Support Agent",
-    email: "support@tpos.com",
-    role: "Agent",
-    department: "Support",
-    status: "Active",
-    lastLogin: "2024-01-15 11:45",
-    permissions: ["Read"],
-  },
-  {
-    id: 4,
-    name: "Marketing Lead",
-    email: "marketing@tpos.com",
-    role: "Lead",
-    department: "Marketing",
-    status: "Inactive",
-    lastLogin: "2024-01-10 16:20",
-    permissions: ["Read", "Write"],
-  },
-  {
-    id: 5,
-    name: "Finance Officer",
-    email: "finance@tpos.com",
-    role: "Officer",
-    department: "Finance",
-    status: "Active",
-    lastLogin: "2024-01-15 08:00",
-    permissions: ["Read", "Write"],
-  },
-];
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import ErrorDisplay from "@/components/ui/ErrorDisplay";
+import UserModal from "@/components/modals/UserModal";
+import DeleteConfirmModal from "@/components/ui/DeleteConfirmModal";
+import { useUsers, useDeleteUser } from "@/services/api";
 
 const UsersPage = () => {
-  const [users, setUsers] = useState(usersData);
+  const [showModal, setShowModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedRole, setSelectedRole] = useState("");
+
+  // API hooks
+  const { data: usersData, isLoading, error, refetch } = useUsers();
+  const deleteUser = useDeleteUser();
+
+  const users = usersData?.data?.users || [];
+  const totalUsers = usersData?.data?.count || 0;
+
+  // Filter users based on search term and role
+  const filteredUsers = users.filter(user => {
+    const matchesSearch = user.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         user.email?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesRole = !selectedRole || user.role_id === selectedRole;
+    return matchesSearch && matchesRole;
+  });
+
+  const handleAddUser = () => {
+    setSelectedUser(null);
+    setIsEditing(false);
+    setShowModal(true);
+  };
+
+  const handleEditUser = (user) => {
+    setSelectedUser(user);
+    setIsEditing(true);
+    setShowModal(true);
+  };
+
+  const handleDeleteUser = (user) => {
+    setSelectedUser(user);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (selectedUser) {
+      try {
+        await deleteUser.mutateAsync(selectedUser.id);
+        setShowDeleteModal(false);
+        setSelectedUser(null);
+      } catch (error) {
+        console.error("Delete failed:", error);
+      }
+    }
+  };
+
+  if (isLoading) {
+    return <LoadingSpinner message="Loading users..." />;
+  }
+
+  if (error) {
+    return (
+      <ErrorDisplay
+        message="Failed to load users. Please try again."
+        onRetry={refetch}
+      />
+    );
+  }
+
+  // Calculate stats
+  const activeUsers = users.length; // Assuming all fetched users are active
+  const adminUsers = users.filter(u => u.role_id === "admin").length;
+  const superAdminUsers = users.filter(u => u.role_id === "super_admin").length;
 
   return (
     <div className="space-y-5">
@@ -75,7 +94,7 @@ const UsersPage = () => {
             </div>
             <div>
               <span className="text-2xl font-medium text-gray-800 dark:text-white">
-                {users.length}
+                {totalUsers}
               </span>
               <span className="space-x-2 block mt-4">
                 <span className="badge bg-indigo-500/10 text-indigo-500">
@@ -101,11 +120,11 @@ const UsersPage = () => {
             </div>
             <div>
               <span className="text-2xl font-medium text-gray-800 dark:text-white">
-                {users.filter(u => u.status === "Active").length}
+                {activeUsers}
               </span>
               <span className="space-x-2 block mt-4">
                 <span className="badge bg-green-500/10 text-green-500">
-                  80%
+                  100%
                 </span>
                 <span className="text-sm text-gray-500 dark:text-gray-400">
                   Activity rate
@@ -127,14 +146,14 @@ const UsersPage = () => {
             </div>
             <div>
               <span className="text-2xl font-medium text-gray-800 dark:text-white">
-                {users.filter(u => u.role === "Administrator").length}
+                {adminUsers}
               </span>
               <span className="space-x-2 block mt-4">
                 <span className="badge bg-purple-500/10 text-purple-500">
                   Admin
                 </span>
                 <span className="text-sm text-gray-500 dark:text-gray-400">
-                  Super users
+                  Regular admins
                 </span>
               </span>
             </div>
@@ -144,23 +163,23 @@ const UsersPage = () => {
         <Card>
           <div>
             <div className="flex">
-              <div className="flex-1 text-base font-medium">Departments</div>
+              <div className="flex-1 text-base font-medium">Super Admins</div>
               <div className="flex-none">
-                <div className="h-10 w-10 rounded-full bg-yellow-500 text-white text-2xl flex items-center justify-center">
-                  <Icon icon="ph:buildings" />
+                <div className="h-10 w-10 rounded-full bg-red-500 text-white text-2xl flex items-center justify-center">
+                  <Icon icon="ph:shield-check" />
                 </div>
               </div>
             </div>
             <div>
               <span className="text-2xl font-medium text-gray-800 dark:text-white">
-                {new Set(users.map(u => u.department)).size}
+                {superAdminUsers}
               </span>
               <span className="space-x-2 block mt-4">
-                <span className="badge bg-yellow-500/10 text-yellow-500">
-                  5
+                <span className="badge bg-red-500/10 text-red-500">
+                  Critical
                 </span>
                 <span className="text-sm text-gray-500 dark:text-gray-400">
-                  Active departments
+                  System admins
                 </span>
               </span>
             </div>
@@ -175,6 +194,7 @@ const UsersPage = () => {
             <Button 
               icon="ph:plus" 
               className="btn-primary"
+              onClick={handleAddUser}
             >
               Add User
             </Button>
@@ -192,18 +212,21 @@ const UsersPage = () => {
             </Button>
           </div>
           <div className="flex items-center space-x-2">
-            <select className="form-control">
-              <option value="">All Departments</option>
-              <option value="IT">IT</option>
-              <option value="Sales">Sales</option>
-              <option value="Support">Support</option>
-              <option value="Marketing">Marketing</option>
-              <option value="Finance">Finance</option>
+            <select 
+              className="form-control"
+              value={selectedRole}
+              onChange={(e) => setSelectedRole(e.target.value)}
+            >
+              <option value="">All Roles</option>
+              <option value="admin">Admin</option>
+              <option value="super_admin">Super Admin</option>
             </select>
             <input
               type="text"
               placeholder="Search users..."
               className="form-control"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
         </div>
@@ -216,13 +239,13 @@ const UsersPage = () => {
                   User
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Role & Department
+                  Role
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Permissions
+                  License
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Last Login
+                  Created Date
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Status
@@ -233,7 +256,7 @@ const UsersPage = () => {
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-              {users.map((user) => (
+              {filteredUsers.map((user) => (
                 <tr key={user.id}>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
@@ -244,7 +267,7 @@ const UsersPage = () => {
                       </div>
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900 dark:text-white">
-                          {user.name}
+                          {user.username}
                         </div>
                         <div className="text-sm text-gray-500 dark:text-gray-400">
                           {user.email}
@@ -253,57 +276,41 @@ const UsersPage = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900 dark:text-white">
-                      {user.role}
-                    </div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">
-                      {user.department}
-                    </div>
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                      user.role_id === "super_admin" 
+                        ? "bg-red-100 text-red-800" 
+                        : "bg-purple-100 text-purple-800"
+                    }`}>
+                      {user.role_id === "super_admin" ? "Super Admin" : "Admin"}
+                    </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex flex-wrap gap-1">
-                      {user.permissions.map((permission, index) => (
-                        <span 
-                          key={index}
-                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            permission === "Admin" 
-                              ? "bg-purple-100 text-purple-800"
-                              : permission === "Delete"
-                              ? "bg-red-100 text-red-800"
-                              : permission === "Write"
-                              ? "bg-blue-100 text-blue-800"
-                              : "bg-green-100 text-green-800"
-                          }`}
-                        >
-                          {permission}
-                        </span>
-                      ))}
+                    <div className="text-sm font-mono text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-center">
+                      {user.serial_number}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                    {user.lastLogin}
+                    {new Date(user.created_at).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      user.status === "Active" 
-                        ? "bg-green-100 text-green-800" 
-                        : "bg-red-100 text-red-800"
-                    }`}>
-                      {user.status}
+                    <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                      Active
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
-                      <Button size="sm" className="btn-secondary">
-                        <Icon icon="ph:eye" />
-                      </Button>
-                      <Button size="sm" className="btn-secondary">
+                      <Button 
+                        size="sm" 
+                        className="btn-secondary"
+                        onClick={() => handleEditUser(user)}
+                      >
                         <Icon icon="ph:pencil" />
                       </Button>
-                      <Button size="sm" className="btn-warning">
-                        <Icon icon="ph:lock" />
-                      </Button>
-                      <Button size="sm" className="btn-danger">
+                      <Button 
+                        size="sm" 
+                        className="btn-danger"
+                        onClick={() => handleDeleteUser(user)}
+                      >
                         <Icon icon="ph:trash" />
                       </Button>
                     </div>
@@ -312,8 +319,35 @@ const UsersPage = () => {
               ))}
             </tbody>
           </table>
+          
+          {filteredUsers.length === 0 && (
+            <div className="text-center py-8">
+              <p className="text-gray-500 dark:text-gray-400">
+                {searchTerm || selectedRole ? "No users found matching your criteria." : "No users available."}
+              </p>
+            </div>
+          )}
         </div>
       </Card>
+
+      {/* User Modal */}
+      <UserModal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        user={selectedUser}
+        isEditing={isEditing}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={confirmDelete}
+        title="Delete User"
+        message="Are you sure you want to delete this user? This action cannot be undone and may affect system access."
+        itemName={selectedUser?.username}
+        isLoading={deleteUser.isPending}
+      />
     </div>
   );
 };

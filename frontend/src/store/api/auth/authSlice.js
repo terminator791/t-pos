@@ -1,25 +1,49 @@
 import { createSlice } from "@reduxjs/toolkit";
-import { v4 as uuidv4 } from "uuid";
 
 const storedUser = JSON.parse(localStorage.getItem("user"));
+const storedToken = localStorage.getItem("auth_token");
+const storedDomain = localStorage.getItem("domain");
 
 export const authSlice = createSlice({
   name: "auth",
   initialState: {
     user: storedUser || null,
-    isAuth: !!storedUser,
+    token: storedToken || null,
+    domain: storedDomain || null,
+    roles: [],
+    permissions: [],
+    isAuth: !!(storedUser && storedToken),
   },
   reducers: {
     setUser: (state, action) => {
-      state.user = action.payload;
+      state.user = action.payload.user;
+      state.token = action.payload.token;
+      state.domain = action.payload.domain;
+      state.roles = action.payload.roles || [];
+      state.permissions = action.payload.permissions || [];
       state.isAuth = true;
     },
-    logOut: (state, action) => {
+    setPermissions: (state, action) => {
+      state.permissions = action.payload;
+    },
+    logOut: (state) => {
       state.user = null;
+      state.token = null;
+      state.domain = null;
+      state.roles = [];
+      state.permissions = [];
       state.isAuth = false;
+      // Clear localStorage
+      localStorage.removeItem("user");
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("domain");
+    },
+    updateUser: (state, action) => {
+      state.user = { ...state.user, ...action.payload };
+      localStorage.setItem("user", JSON.stringify(state.user));
     },
   },
 });
 
-export const { setUser, logOut } = authSlice.actions;
+export const { setUser, setPermissions, logOut, updateUser } = authSlice.actions;
 export default authSlice.reducer;
