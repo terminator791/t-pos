@@ -52,6 +52,10 @@ func main() {
 	shopRepo := repositories.NewShopRepository(db)
 	transactionRepo := repositories.NewTransactionRepository(db)
 	paymentRepo := repositories.NewPaymentRepository(db)
+	cartRepo := repositories.NewCartRepository(db)
+	expenseRepo := repositories.NewExpenseRepository(db)
+	historyRepo := repositories.NewHistoryRepository(db)
+	receiptRepo := repositories.NewReceiptRepository(db)
 	licenseRepo := repositories.NewLicenseRepository(db)
 	licenseLogRepo := repositories.NewLicenseLogRepository(db)
 
@@ -93,6 +97,9 @@ func main() {
 	// Initialize use cases
 	productUseCase := usecases.NewProductUseCase(productRepo, categoryRepo, shopRepo)
 	checkoutUseCase := usecases.NewCheckoutUseCase(transactionRepo, productRepo, shopRepo, userRepo, paymentRepo)
+	categoryUseCase := usecases.NewCategoryUseCase(db, categoryRepo, shopRepo)
+	cartUseCase := usecases.NewCartUseCase(db, cartRepo, productRepo, userRepo, shopRepo)
+	transactionUseCase := usecases.NewTransactionUseCase(db, transactionRepo, productRepo, shopRepo, userRepo, paymentRepo, expenseRepo, historyRepo, receiptRepo)
 
 	// Initialize services
 	licenseService := services.NewLicenseService(licenseRepo, licenseLogRepo, userRepo, db)
@@ -103,6 +110,9 @@ func main() {
 	authHandler := handlers.NewAuthHandler(userRepo, userDomainRepo, roleRepo, licenseRepo, shopRepo, jwtService, passwordService, enforcerService)
 	productHandler := handlers.NewProductHandler(productUseCase)
 	checkoutHandler := handlers.NewCheckoutHandler(checkoutUseCase)
+	categoryHandler := handlers.NewCategoryHandler(categoryUseCase)
+	cartHandler := handlers.NewCartHandler(cartUseCase)
+	transactionHandler := handlers.NewTransactionHandler(transactionUseCase)
 	licenseHandler := handlers.NewLicenseHandler(licenseService)
 	customerHandler := handlers.NewCustomerHandler(customerService)
 	userManagementHandler := handlers.NewUserManagementHandler(userManagementService)
@@ -126,7 +136,7 @@ func main() {
 	})
 
 	// Setup routes
-	routes.SetupRoutes(router, productHandler, checkoutHandler, authHandler, licenseHandler, customerHandler, userManagementHandler, roleHandler, authMiddleware, authzMiddleware)
+	routes.SetupRoutes(router, productHandler, checkoutHandler, authHandler, licenseHandler, customerHandler, userManagementHandler, roleHandler, categoryHandler, cartHandler, transactionHandler, authMiddleware, authzMiddleware)
 
 	// Start server
 	serverAddr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
