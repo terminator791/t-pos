@@ -92,11 +92,80 @@ export const UpdateUserSchema = UserSchema.partial().omit({
   updated_at: true,
 });
 
-// Role schema
+// Role schema (Casbin RBAC with domain support)
 export const RoleSchema = z.object({
-  id: z.string(),
-  name: z.string(),
+  id: z.string().uuid().optional(),
+  name: z.string().min(1, 'Role name is required').max(100, 'Role name too long'),
   description: z.string().optional(),
+  domain: z.string().min(1, 'Domain is required'),
+  created_at: z.string().optional(),
+  updated_at: z.string().optional(),
+});
+
+export const CreateRoleSchema = RoleSchema.omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export const UpdateRoleSchema = RoleSchema.partial().omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+// Permission schema (Casbin policy: sub, dom, obj, act)
+export const PermissionSchema = z.object({
+  id: z.string().uuid().optional(),
+  subject: z.string().min(1, 'Subject is required'), // role or user
+  domain: z.string().min(1, 'Domain is required'),
+  object: z.string().min(1, 'Object is required'), // resource like users, products, etc.
+  action: z.string().min(1, 'Action is required'), // read, write, delete, etc.
+  created_at: z.string().optional(),
+  updated_at: z.string().optional(),
+});
+
+export const CreatePermissionSchema = PermissionSchema.omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export const UpdatePermissionSchema = PermissionSchema.partial().omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+// Role assignment schema (Casbin grouping: user, role, domain)
+export const RoleAssignmentSchema = z.object({
+  id: z.string().uuid().optional(),
+  user_id: z.string().uuid('Invalid user ID'),
+  role_name: z.string().min(1, 'Role name is required'),
+  domain: z.string().min(1, 'Domain is required'),
+  created_at: z.string().optional(),
+  updated_at: z.string().optional(),
+});
+
+export const CreateRoleAssignmentSchema = RoleAssignmentSchema.omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+// Domain schema
+export const DomainSchema = z.object({
+  id: z.string().uuid().optional(),
+  name: z.string().min(1, 'Domain name is required').max(100, 'Domain name too long'),
+  description: z.string().optional(),
+  created_at: z.string().optional(),
+  updated_at: z.string().optional(),
+});
+
+export const CreateDomainSchema = DomainSchema.omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
 });
 
 // Auth schemas

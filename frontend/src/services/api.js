@@ -290,3 +290,270 @@ export const useDeleteUser = () => {
     },
   });
 };
+
+// Roles API (Casbin RBAC with domain support)
+export const useRoles = (params = {}) => {
+  return useQuery({
+    queryKey: ['roles', params],
+    queryFn: async () => {
+      const response = await api.get('/roles', { params });
+      return response.data;
+    },
+  });
+};
+
+export const useRole = (id) => {
+  return useQuery({
+    queryKey: ['roles', id],
+    queryFn: async () => {
+      const response = await api.get(`/roles/${id}`);
+      return response.data;
+    },
+    enabled: !!id,
+  });
+};
+
+export const useCreateRole = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (roleData) => {
+      const response = await api.post('/roles', roleData);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['roles'] });
+      queryClient.invalidateQueries({ queryKey: ['permissions'] });
+      toast.success('Role created successfully');
+    },
+    onError: (error) => {
+      const message = error.response?.data?.message || 'Failed to create role';
+      toast.error(message);
+    },
+  });
+};
+
+export const useUpdateRole = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...roleData }) => {
+      const response = await api.put(`/roles/${id}`, roleData);
+      return response.data;
+    },
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['roles'] });
+      queryClient.invalidateQueries({ queryKey: ['roles', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['permissions'] });
+      toast.success('Role updated successfully');
+    },
+    onError: (error) => {
+      const message = error.response?.data?.message || 'Failed to update role';
+      toast.error(message);
+    },
+  });
+};
+
+export const useDeleteRole = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id) => {
+      const response = await api.delete(`/roles/${id}`);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['roles'] });
+      queryClient.invalidateQueries({ queryKey: ['permissions'] });
+      queryClient.invalidateQueries({ queryKey: ['role-assignments'] });
+      toast.success('Role deleted successfully');
+    },
+    onError: (error) => {
+      const message = error.response?.data?.message || 'Failed to delete role';
+      toast.error(message);
+    },
+  });
+};
+
+// Permissions API (Casbin policies)
+export const usePermissions = (params = {}) => {
+  return useQuery({
+    queryKey: ['permissions', params],
+    queryFn: async () => {
+      const response = await api.get('/permissions', { params });
+      return response.data;
+    },
+  });
+};
+
+export const useRolePermissions = (roleId, domain) => {
+  return useQuery({
+    queryKey: ['permissions', 'role', roleId, domain],
+    queryFn: async () => {
+      const response = await api.get(`/permissions/role/${roleId}`, {
+        params: { domain }
+      });
+      return response.data;
+    },
+    enabled: !!roleId && !!domain,
+  });
+};
+
+export const useCreatePermission = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (permissionData) => {
+      const response = await api.post('/permissions', permissionData);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['permissions'] });
+      toast.success('Permission granted successfully');
+    },
+    onError: (error) => {
+      const message = error.response?.data?.message || 'Failed to grant permission';
+      toast.error(message);
+    },
+  });
+};
+
+export const useDeletePermission = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id) => {
+      const response = await api.delete(`/permissions/${id}`);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['permissions'] });
+      toast.success('Permission revoked successfully');
+    },
+    onError: (error) => {
+      const message = error.response?.data?.message || 'Failed to revoke permission';
+      toast.error(message);
+    },
+  });
+};
+
+export const useBulkUpdatePermissions = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ subject, domain, permissions }) => {
+      const response = await api.put('/permissions/bulk', {
+        subject,
+        domain,
+        permissions
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['permissions'] });
+      toast.success('Permissions updated successfully');
+    },
+    onError: (error) => {
+      const message = error.response?.data?.message || 'Failed to update permissions';
+      toast.error(message);
+    },
+  });
+};
+
+// Role Assignments API (Casbin grouping)
+export const useRoleAssignments = (params = {}) => {
+  return useQuery({
+    queryKey: ['role-assignments', params],
+    queryFn: async () => {
+      const response = await api.get('/role-assignments', { params });
+      return response.data;
+    },
+  });
+};
+
+export const useUserRoles = (userId, domain) => {
+  return useQuery({
+    queryKey: ['role-assignments', 'user', userId, domain],
+    queryFn: async () => {
+      const response = await api.get(`/role-assignments/user/${userId}`, {
+        params: { domain }
+      });
+      return response.data;
+    },
+    enabled: !!userId && !!domain,
+  });
+};
+
+export const useAssignRole = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (assignmentData) => {
+      const response = await api.post('/role-assignments', assignmentData);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['role-assignments'] });
+      toast.success('Role assigned successfully');
+    },
+    onError: (error) => {
+      const message = error.response?.data?.message || 'Failed to assign role';
+      toast.error(message);
+    },
+  });
+};
+
+export const useUnassignRole = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id) => {
+      const response = await api.delete(`/role-assignments/${id}`);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['role-assignments'] });
+      toast.success('Role unassigned successfully');
+    },
+    onError: (error) => {
+      const message = error.response?.data?.message || 'Failed to unassign role';
+      toast.error(message);
+    },
+  });
+};
+
+// Domains API
+export const useDomains = (params = {}) => {
+  return useQuery({
+    queryKey: ['domains', params],
+    queryFn: async () => {
+      const response = await api.get('/domains', { params });
+      return response.data;
+    },
+  });
+};
+
+export const useCreateDomain = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (domainData) => {
+      const response = await api.post('/domains', domainData);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['domains'] });
+      toast.success('Domain created successfully');
+    },
+    onError: (error) => {
+      const message = error.response?.data?.message || 'Failed to create domain';
+      toast.error(message);
+    },
+  });
+};
+
+// Permission check API (for UI authorization)
+export const useHasPermission = (object, action, domain) => {
+  return useQuery({
+    queryKey: ['permission-check', object, action, domain],
+    queryFn: async () => {
+      const response = await api.get('/permissions/check', {
+        params: { object, action, domain }
+      });
+      return response.data?.allowed || false;
+    },
+    enabled: !!object && !!action && !!domain,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+};
