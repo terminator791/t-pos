@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/terminator791/t-pos/internal/domain/entities"
 	"github.com/terminator791/t-pos/internal/domain/repositories"
 	"github.com/terminator791/t-pos/internal/infrastructure/auth"
@@ -176,7 +177,13 @@ func (h *AuthHandler) Login(c *gin.Context) {
         email = *user.Email
     }
     
-    token, err := h.jwtService.GenerateToken(user.ID, email, username, user.Name, domain)
+    // Get shop_id if user is a cashier
+    var shopID *uuid.UUID
+    if role.Name == "cashier" && user.ShopID != nil {
+        shopID = user.ShopID
+    }
+    
+    token, err := h.jwtService.GenerateToken(user.ID, email, username, user.Name, domain, shopID)
     if err != nil {
         response.ErrorInternalServer(c, "Failed to generate token", err.Error())
         return
@@ -268,7 +275,10 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		name = user.Name
 	}
 
-	token, err := h.jwtService.GenerateToken(user.ID, email, username, name, domain)
+	// New users typically don't have shop_id assigned yet during registration
+	var shopID *uuid.UUID = nil
+
+	token, err := h.jwtService.GenerateToken(user.ID, email, username, name, domain, shopID)
     if err != nil {
         response.ErrorInternalServer(c, "Failed to generate token", err.Error())
         return

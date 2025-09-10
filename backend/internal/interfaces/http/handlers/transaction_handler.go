@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/terminator791/t-pos/internal/domain/usecases"
+	"github.com/terminator791/t-pos/internal/infrastructure/auth"
 	"github.com/terminator791/t-pos/pkg/response"
 )
 
@@ -21,7 +22,6 @@ func NewTransactionHandler(transactionUseCase *usecases.TransactionUseCase) *Tra
 
 // CreateTransactionRequest represents the request structure for creating a transaction
 type CreateTransactionRequest struct {
-	ShopID       uuid.UUID                     `json:"shop_id" binding:"required"`
 	CustomerName string                        `json:"customer_name" binding:"required"`
 	Items        []CreateTransactionItemRequest `json:"items" binding:"required"`
 	Discount     float64                       `json:"discount,omitempty"`
@@ -59,8 +59,19 @@ func (h *TransactionHandler) CreateTransaction(c *gin.Context) {
 		return
 	}
 
+	// Get shop ID from user context or derive it based on user role
+	// For cashiers: use their assigned shop_id (required)
+	// For owner business: could access multiple shops, would need shop selection logic
+	shopID, exists := auth.GetUserShopIDFromContext(c)
+	if !exists || shopID == nil {
+		// For now, require all users to have shop context
+		// TODO: For owner business, implement shop selection mechanism
+		response.ErrorBadRequest(c, "Shop context not available. Users must be assigned to a shop or implement shop selection.", nil)
+		return
+	}
+
 	transaction, err := h.transactionUseCase.CreateTransaction(c.Request.Context(), &usecases.CreateTransactionRequest{
-		ShopID:       req.ShopID,
+		ShopID:       *shopID,
 		CashierID:    cashierID,
 		CustomerName: req.CustomerName,
 		Items:        convertToUseCaseItems(req.Items),

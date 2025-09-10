@@ -38,10 +38,10 @@ func (r *UserRepositoryImpl) DeletePin(ctx context.Context, id uuid.UUID) error 
 	return r.db.WithContext(ctx).Model(&entities.User{}).Where("id = ?", id).Update("pin", nil).Error
 }
 
-// GetByID retrieves a user by ID
+// GetByID retrieves a user by ID with role and assigned shop
 func (r *UserRepositoryImpl) GetByID(ctx context.Context, id uuid.UUID) (*entities.User, error) {
 	var user entities.User
-	err := r.db.WithContext(ctx).First(&user, "id = ?", id).Error
+	err := r.db.WithContext(ctx).Preload("Role").Preload("AssignedShop").First(&user, "id = ?", id).Error
 	if err != nil {
 		return nil, err
 	}
@@ -58,10 +58,10 @@ func (r *UserRepositoryImpl) GetByEmail(ctx context.Context, email string) (*ent
 	return &user, nil
 }
 
-// GetByUsername retrieves a user by username
+// GetByUsername retrieves a user by username with role and assigned shop
 func (r *UserRepositoryImpl) GetByUsername(ctx context.Context, username string) (*entities.User, error) {
 	var user entities.User
-	err := r.db.WithContext(ctx).Where("username = ?", username).First(&user).Error
+	err := r.db.WithContext(ctx).Preload("Role").Preload("AssignedShop").Where("username = ?", username).First(&user).Error
 	if err != nil {
 		return nil, err
 	}
