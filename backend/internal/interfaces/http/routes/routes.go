@@ -98,14 +98,14 @@ func SetupRoutes(
 				transactions.GET("/shop/:shopId/today", checkoutHandler.GetTodaysTransactions)
 			}
 
-			// Checkout and transaction routes (existing)
-			checkout := protected.Group("/checkout")
-			{
-				checkout.POST("", checkoutHandler.ProcessCheckout)
-				checkout.POST("/:transactionId/complete", checkoutHandler.CompletePayment)
-				checkout.POST("/:transactionId/cancel", checkoutHandler.CancelTransaction)
-				checkout.GET("/:transactionId", checkoutHandler.GetTransactionDetails)
-			}
+			// Checkout and transaction routes (existing, deprecated)
+			// checkout := protected.Group("/checkout")
+			// {
+			// 	checkout.POST("", checkoutHandler.ProcessCheckout)
+			// 	checkout.POST("/:transactionId/complete", checkoutHandler.CompletePayment)
+			// 	checkout.POST("/:transactionId/cancel", checkoutHandler.CancelTransaction)
+			// 	checkout.GET("/:transactionId", checkoutHandler.GetTransactionDetails)
+			// }
 
 			// License routes
 			licenses := protected.Group("/licenses")

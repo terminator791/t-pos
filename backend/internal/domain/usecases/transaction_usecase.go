@@ -204,10 +204,28 @@ func (uc *TransactionUseCase) CreateTransaction(ctx context.Context, req *Create
 		return nil, err
 	}
 
+	// Fetch the complete transaction with all relationships for response
+	createdTransaction, err := uc.transactionRepo.GetByID(ctx, transaction.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Fetch the complete payment with relationships
+	createdPayment, err := uc.paymentRepo.GetByID(ctx, payment.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Fetch the complete expense with relationships
+	createdExpense, err := uc.expenseRepo.GetByID(ctx, expense.ID)
+	if err != nil {
+		return nil, err
+	}
+
 	return &CreateTransactionResponse{
-		Transaction: transaction,
-		Payment:     payment,
-		Expense:     expense,
+		Transaction: createdTransaction,
+		Payment:     createdPayment,
+		Expense:     createdExpense,
 	}, nil
 }
 
@@ -318,9 +336,21 @@ func (uc *TransactionUseCase) PayTransaction(ctx context.Context, transactionID 
 		return nil, err
 	}
 
+	// Fetch the complete transaction with all relationships for response
+	completedTransaction, err := uc.transactionRepo.GetByID(ctx, transactionID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Fetch the complete payment with relationships
+	completedPayment, err := uc.paymentRepo.GetByID(ctx, payment.ID)
+	if err != nil {
+		return nil, err
+	}
+
 	return &PayTransactionResponse{
-		Transaction: &transaction,
-		Payment:     &payment,
+		Transaction: completedTransaction,
+		Payment:     completedPayment,
 		Change:      change,
 		Success:     true,
 	}, nil

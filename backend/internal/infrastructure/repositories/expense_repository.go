@@ -26,7 +26,11 @@ func (r *ExpenseRepositoryImpl) Create(ctx context.Context, expense *entities.Ex
 // GetByID retrieves an expense by ID
 func (r *ExpenseRepositoryImpl) GetByID(ctx context.Context, id uuid.UUID) (*entities.Expense, error) {
 	var expense entities.Expense
-	err := r.db.WithContext(ctx).Preload("Shop").First(&expense, id).Error
+	err := r.db.WithContext(ctx).
+		Preload("Shop").
+		Preload("Shop.License").
+		Preload("Shop.Owner").
+		First(&expense, id).Error
 	if err != nil {
 		return nil, err
 	}

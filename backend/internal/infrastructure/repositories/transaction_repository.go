@@ -27,7 +27,16 @@ func (r *TransactionRepositoryImpl) Create(ctx context.Context, transaction *ent
 // GetByID retrieves a transaction by ID
 func (r *TransactionRepositoryImpl) GetByID(ctx context.Context, id uuid.UUID) (*entities.Transaction, error) {
 	var transaction entities.Transaction
-	err := r.db.WithContext(ctx).Preload("TransactionProducts").Preload("Payments").First(&transaction, "id = ?", id).Error
+	err := r.db.WithContext(ctx).
+		Preload("Shop").
+		Preload("Shop.License").
+		Preload("Shop.Owner").
+		Preload("Cashier").
+		// Preload("TransactionProducts").
+		// Preload("TransactionProducts.Product").
+		// Preload("Payments").
+		// Preload("Payments.Shop").
+		First(&transaction, "id = ?", id).Error
 	if err != nil {
 		return nil, err
 	}
