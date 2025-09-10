@@ -27,6 +27,7 @@ func SetupRoutes(
 	transactionProductHandler *handlers.TransactionProductHandler,
 	aclHandler *handlers.ACLHandler,
 	shopHandler *handlers.ShopHandler,
+	syncHandler *handlers.SyncHandler,
 	authMiddleware *auth.AuthMiddleware,
 	authzMiddleware *casbin.AuthzMiddleware,
 ) {
@@ -229,6 +230,16 @@ func SetupRoutes(
 				// Permission checking
 				acl.POST("/check", aclHandler.CheckPermission)
 				acl.POST("/reload", aclHandler.ReloadPolicies)
+			}
+
+			// Data Synchronization routes
+			sync := protected.Group("/sync")
+			{
+				sync.POST("/push", syncHandler.PushSync)
+				sync.GET("/pull", syncHandler.PullSync)
+				sync.POST("/full", syncHandler.FullSync)
+				sync.GET("/status", syncHandler.GetSyncStatus)
+				sync.POST("/validate", syncHandler.ValidateSyncData)
 			}
 		}
 	}
