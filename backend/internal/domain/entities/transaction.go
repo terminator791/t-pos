@@ -30,6 +30,7 @@ type Transaction struct {
 	TotalPrice            float64           `gorm:"type:decimal(10,2);not null" json:"total_price"`
 	ProfitTransaction     *float64          `gorm:"type:decimal(10,2)" json:"profit_transaction"`
 	CashierName           *string           `gorm:"size:255" json:"cashier_name"`
+	CustomerName          *string           `gorm:"size:255" json:"customer_name"`
 	Change                *float64          `gorm:"type:decimal(10,2)" json:"change"`
 	Amount                int64             `gorm:"default:0" json:"amount"` // amount_paid
 	InitialPaymentStatus  *string           `gorm:"size:255" json:"initial_payment_status"`

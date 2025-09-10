@@ -17,6 +17,9 @@ func SetupRoutes(
 	customerHandler *handlers.CustomerHandler,
 	userManagementHandler *handlers.UserManagementHandler,
 	roleHandler *handlers.RoleHandler,
+	categoryHandler *handlers.CategoryHandler,
+	cartHandler *handlers.CartHandler,
+	transactionHandler *handlers.TransactionHandler,
 	authMiddleware *auth.AuthMiddleware,
 	authzMiddleware *casbin.AuthzMiddleware,
 ) {
@@ -61,7 +64,38 @@ func SetupRoutes(
 				products.DELETE("/:id", productHandler.DeleteProduct)
 			}
 
-			// Checkout and transaction routes
+			// Category routes
+			categories := protected.Group("/categories")
+			{
+				categories.POST("", categoryHandler.CreateCategory)
+				categories.GET("", categoryHandler.ListCategories)
+				categories.GET("/:id", categoryHandler.GetCategory)
+				categories.PUT("/:id", categoryHandler.UpdateCategory)
+				categories.DELETE("/:id", categoryHandler.DeleteCategory)
+			}
+
+			// Cart routes
+			carts := protected.Group("/carts")
+			{
+				carts.POST("", cartHandler.AddToCart)
+				carts.GET("", cartHandler.GetUserCart)
+				carts.GET("/all", cartHandler.ListAllCarts)
+				carts.GET("/:id", cartHandler.GetCartItem)
+				carts.PUT("/:id", cartHandler.UpdateCartQuantity)
+				carts.DELETE("/:id", cartHandler.RemoveFromCart)
+				carts.DELETE("", cartHandler.ClearCart)
+			}
+
+			// Transaction routes (new flow)
+			transactions := protected.Group("/transactions")
+			{
+				transactions.POST("", transactionHandler.CreateTransaction)
+				transactions.GET("/:id", transactionHandler.GetTransaction)
+				transactions.POST("/:id/pay", transactionHandler.PayTransaction)
+				transactions.POST("/:id/cancel", transactionHandler.CancelTransaction)
+			}
+
+			// Checkout and transaction routes (existing)
 			checkout := protected.Group("/checkout")
 			{
 				checkout.POST("", checkoutHandler.ProcessCheckout)
@@ -69,11 +103,11 @@ func SetupRoutes(
 				checkout.POST("/:transactionId/cancel", checkoutHandler.CancelTransaction)
 			}
 
-			// Transaction routes
-			transactions := protected.Group("/transactions")
+			// Legacy transaction routes
+			legacyTransactions := protected.Group("/transactions")
 			{
-				transactions.GET("/:transactionId", checkoutHandler.GetTransactionDetails)
-				transactions.GET("/shop/:shopId/today", checkoutHandler.GetTodaysTransactions)
+				legacyTransactions.GET("/:transactionId", checkoutHandler.GetTransactionDetails)
+				legacyTransactions.GET("/shop/:shopId/today", checkoutHandler.GetTodaysTransactions)
 			}
 
 			// License routes

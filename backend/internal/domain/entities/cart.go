@@ -13,6 +13,7 @@ type Cart struct {
 	ShopID    uuid.UUID      `gorm:"type:uuid;not null" json:"shop_id"`
 	ProductID uuid.UUID      `gorm:"type:uuid;not null" json:"product_id"`
 	UserID    uuid.UUID      `gorm:"type:uuid;not null" json:"user_id"`
+	Quantity  int            `gorm:"not null;default:1" json:"quantity"`
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
