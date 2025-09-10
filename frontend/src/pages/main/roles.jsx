@@ -7,12 +7,12 @@ import PermissionModal from "@/components/modals/PermissionModal";
 import PermissionMatrix from "@/components/PermissionMatrix";
 import DeleteConfirmModal from "@/components/ui/DeleteConfirmModal";
 import { PermissionGate } from "@/hooks/usePermissionCheck";
-import { 
-  useRoles, 
-  useDeleteRole, 
-  usePermissions, 
+import {
+  useRoles,
+  useDeleteRole,
+  usePermissions,
   useDomains,
-  useRoleAssignments 
+  useRoleAssignments,
 } from "@/services/api";
 
 const RolesPage = () => {
@@ -33,19 +33,38 @@ const RolesPage = () => {
   const deleteRole = useDeleteRole();
 
   // Safely extract data arrays
-  const roles = Array.isArray(rolesData?.data) ? rolesData.data : Array.isArray(rolesData) ? rolesData : [];
-  const permissions = Array.isArray(permissionsData?.data) ? permissionsData.data : Array.isArray(permissionsData) ? permissionsData : [];
-  const domains = Array.isArray(domainsData?.data) ? domainsData.data : Array.isArray(domainsData) ? domainsData : [];
-  const roleAssignments = Array.isArray(roleAssignmentsData?.data) ? roleAssignmentsData.data : Array.isArray(roleAssignmentsData) ? roleAssignmentsData : [];
+  const roles = Array.isArray(rolesData?.data)
+    ? rolesData.data
+    : Array.isArray(rolesData)
+    ? rolesData
+    : [];
+  const permissions = Array.isArray(permissionsData?.data)
+    ? permissionsData.data
+    : Array.isArray(permissionsData)
+    ? permissionsData
+    : [];
+  const domains = Array.isArray(domainsData?.data)
+    ? domainsData.data
+    : Array.isArray(domainsData)
+    ? domainsData
+    : [];
+  const roleAssignments = Array.isArray(roleAssignmentsData?.data)
+    ? roleAssignmentsData.data
+    : Array.isArray(roleAssignmentsData)
+    ? roleAssignmentsData
+    : [];
 
   // Filter roles based on search term and domain
   const filteredRoles = useMemo(() => {
     if (!Array.isArray(roles)) return [];
-    return roles.filter(role => {
+    return roles.filter((role) => {
       if (!role || !role.name) return false;
-      const matchesSearch = role.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           (role.description && role.description.toLowerCase().includes(searchTerm.toLowerCase()));
-      const matchesDomain = selectedDomain === "*" || role.domain === selectedDomain;
+      const matchesSearch =
+        role.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (role.description &&
+          role.description.toLowerCase().includes(searchTerm.toLowerCase()));
+      const matchesDomain =
+        selectedDomain === "*" || role.domain === selectedDomain;
       return matchesSearch && matchesDomain;
     });
   }, [roles, searchTerm, selectedDomain]);
@@ -53,7 +72,7 @@ const RolesPage = () => {
   // Get statistics
   const stats = useMemo(() => {
     const totalRoles = roles.length;
-    const activeRoles = roles.filter(r => r.status !== 'inactive').length;
+    const activeRoles = roles.filter((r) => r.status !== "inactive").length;
     const totalUsers = roleAssignments.length;
     const totalPermissions = permissions.length;
 
@@ -61,23 +80,25 @@ const RolesPage = () => {
       totalRoles,
       activeRoles,
       totalUsers,
-      totalPermissions
+      totalPermissions,
     };
   }, [roles, roleAssignments, permissions]);
 
   // Get role assignment count
   const getRoleUserCount = (roleName, domain) => {
-    return roleAssignments.filter(assignment => 
-      assignment.role_name === roleName && 
-      (domain === "*" || assignment.domain === domain)
+    return roleAssignments.filter(
+      (assignment) =>
+        assignment.role_name === roleName &&
+        (domain === "*" || assignment.domain === domain)
     ).length;
   };
 
   // Get role permission count
   const getRolePermissionCount = (roleName, domain) => {
-    return permissions.filter(permission => 
-      permission.subject === roleName && 
-      (domain === "*" || permission.domain === domain)
+    return permissions.filter(
+      (permission) =>
+        permission.subject === roleName &&
+        (domain === "*" || permission.domain === domain)
     ).length;
   };
 
@@ -120,7 +141,10 @@ const RolesPage = () => {
         fallback={
           <Card>
             <div className="text-center py-8">
-              <Icon icon="ph:shield-warning" className="mx-auto h-12 w-12 text-red-400" />
+              <Icon
+                icon="ph:shield-warning"
+                className="mx-auto h-12 w-12 text-red-400"
+              />
               <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
                 Access Restricted
               </h3>
@@ -158,7 +182,7 @@ const RolesPage = () => {
               </div>
             </div>
           </Card>
-          
+
           <Card>
             <div>
               <div className="flex">
@@ -175,7 +199,10 @@ const RolesPage = () => {
                 </span>
                 <span className="space-x-2 block mt-4">
                   <span className="badge bg-green-500/10 text-green-500">
-                    {stats.totalRoles > 0 ? Math.round((stats.activeRoles / stats.totalRoles) * 100) : 0}%
+                    {stats.totalRoles > 0
+                      ? Math.round((stats.activeRoles / stats.totalRoles) * 100)
+                      : 0}
+                    %
                   </span>
                   <span className="text-sm text-gray-500 dark:text-gray-400">
                     Operational
@@ -188,7 +215,9 @@ const RolesPage = () => {
           <Card>
             <div>
               <div className="flex">
-                <div className="flex-1 text-base font-medium">Role Assignments</div>
+                <div className="flex-1 text-base font-medium">
+                  Role Assignments
+                </div>
                 <div className="flex-none">
                   <div className="h-10 w-10 rounded-full bg-yellow-500 text-white text-2xl flex items-center justify-center">
                     <Icon icon="ph:users" />
@@ -245,8 +274,8 @@ const RolesPage = () => {
             <div className="flex justify-between items-center mb-4">
               <div className="flex space-x-2">
                 <PermissionGate object="roles" action="write">
-                  <Button 
-                    icon="ph:plus" 
+                  <Button
+                    icon="ph:plus"
                     className="btn-primary"
                     onClick={() => setIsRoleModalOpen(true)}
                   >
@@ -254,8 +283,8 @@ const RolesPage = () => {
                   </Button>
                 </PermissionGate>
                 <PermissionGate object="permissions" action="write">
-                  <Button 
-                    icon="ph:shield-plus" 
+                  <Button
+                    icon="ph:shield-plus"
                     className="btn-secondary"
                     onClick={() => setIsPermissionModalOpen(true)}
                     disabled={!selectedRole}
@@ -281,40 +310,45 @@ const RolesPage = () => {
                 className="form-control w-40"
               >
                 <option value="*">All Domains</option>
-                {domains.map(domain => (
+                {domains.map((domain) => (
                   <option key={domain.id} value={domain.name}>
                     {domain.name}
                   </option>
                 ))}
               </select>
             </div>
-            
+
             <div className="space-y-4 max-h-96 overflow-y-auto">
               {rolesLoading ? (
                 <div className="flex items-center justify-center py-8">
-                  <Icon icon="ph:spinner" className="animate-spin h-6 w-6 text-gray-400" />
+                  <Icon
+                    icon="ph:spinner"
+                    className="animate-spin h-6 w-6 text-gray-400"
+                  />
                   <span className="ml-2 text-gray-500">Loading roles...</span>
                 </div>
               ) : filteredRoles.length === 0 ? (
                 <div className="text-center py-8">
-                  <Icon icon="ph:lock-key" className="mx-auto h-12 w-12 text-gray-400" />
+                  <Icon
+                    icon="ph:lock-key"
+                    className="mx-auto h-12 w-12 text-gray-400"
+                  />
                   <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
                     No roles found
                   </h3>
                   <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    {searchTerm || selectedDomain !== "*" 
-                      ? "Try adjusting your search or filter." 
-                      : "Get started by creating a new role."
-                    }
+                    {searchTerm || selectedDomain !== "*"
+                      ? "Try adjusting your search or filter."
+                      : "Get started by creating a new role."}
                   </p>
                 </div>
               ) : (
                 filteredRoles.map((role) => (
-                  <div 
-                    key={role.id} 
+                  <div
+                    key={role.id}
                     className={`p-4 border rounded-lg cursor-pointer transition-all ${
-                      selectedRole?.id === role.id 
-                        ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20" 
+                      selectedRole?.id === role.id
+                        ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20"
                         : "border-gray-200 dark:border-gray-700 hover:border-gray-300"
                     }`}
                     onClick={() => setSelectedRole(role)}
@@ -329,14 +363,15 @@ const RolesPage = () => {
                             {role.name}
                           </h3>
                           <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {getRoleUserCount(role.name, role.domain)} users • {role.domain === "*" ? "All domains" : role.domain}
+                            {getRoleUserCount(role.name, role.domain)} users •{" "}
+                            {role.domain === "*" ? "All domains" : role.domain}
                           </p>
                         </div>
                       </div>
                       <div className="flex space-x-2">
                         <PermissionGate object="roles" action="write">
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             className="btn-secondary"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -347,8 +382,8 @@ const RolesPage = () => {
                           </Button>
                         </PermissionGate>
                         <PermissionGate object="roles" action="delete">
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             className="btn-danger"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -368,7 +403,8 @@ const RolesPage = () => {
                         Active
                       </span>
                       <span className="text-xs text-gray-500 dark:text-gray-400">
-                        {getRolePermissionCount(role.name, role.domain)} permissions
+                        {getRolePermissionCount(role.name, role.domain)}{" "}
+                        permissions
                       </span>
                     </div>
                   </div>
@@ -378,7 +414,13 @@ const RolesPage = () => {
           </Card>
 
           {/* Permission Matrix */}
-          <Card title={selectedRole ? `${selectedRole.name} Permissions` : "Select a Role"}>
+          <Card
+            title={
+              selectedRole
+                ? `${selectedRole.name} Permissions`
+                : "Select a Role"
+            }
+          >
             {selectedRole ? (
               <div>
                 <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
@@ -390,24 +432,36 @@ const RolesPage = () => {
                   </p>
                   <div className="flex items-center space-x-4 text-xs text-gray-500 dark:text-gray-400">
                     <span>Domain: {selectedRole.domain}</span>
-                    <span>Users: {getRoleUserCount(selectedRole.name, selectedRole.domain)}</span>
-                    <span>Permissions: {getRolePermissionCount(selectedRole.name, selectedRole.domain)}</span>
+                    <span>
+                      Users:{" "}
+                      {getRoleUserCount(selectedRole.name, selectedRole.domain)}
+                    </span>
+                    <span>
+                      Permissions:{" "}
+                      {getRolePermissionCount(
+                        selectedRole.name,
+                        selectedRole.domain
+                      )}
+                    </span>
                   </div>
                 </div>
 
-                <PermissionGate 
-                  object="permissions" 
+                <PermissionGate
+                  object="permissions"
                   action="read"
                   fallback={
                     <div className="text-center py-8">
-                      <Icon icon="ph:shield-warning" className="mx-auto h-8 w-8 text-orange-400" />
+                      <Icon
+                        icon="ph:shield-warning"
+                        className="mx-auto h-8 w-8 text-orange-400"
+                      />
                       <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
                         No permission to view role permissions
                       </p>
                     </div>
                   }
                 >
-                  <PermissionMatrix 
+                  <PermissionMatrix
                     subject={selectedRole.name}
                     domain={selectedRole.domain}
                     isEditable={true}
@@ -416,12 +470,16 @@ const RolesPage = () => {
               </div>
             ) : (
               <div className="text-center py-12">
-                <Icon icon="ph:lock-key" className="mx-auto h-12 w-12 text-gray-400" />
+                <Icon
+                  icon="ph:lock-key"
+                  className="mx-auto h-12 w-12 text-gray-400"
+                />
                 <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
                   No role selected
                 </h3>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  Select a role from the list to view and manage its permissions.
+                  Select a role from the list to view and manage its
+                  permissions.
                 </p>
               </div>
             )}
@@ -437,14 +495,34 @@ const RolesPage = () => {
               </h4>
               <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 font-mono text-xs">
                 <div className="space-y-1 text-gray-600 dark:text-gray-400">
-                  <div><span className="text-blue-600 dark:text-blue-400">[request_definition]</span></div>
+                  <div>
+                    <span className="text-blue-600 dark:text-blue-400">
+                      [request_definition]
+                    </span>
+                  </div>
                   <div>r = sub, dom, obj, act</div>
-                  <div className="mt-2"><span className="text-green-600 dark:text-green-400">[policy_definition]</span></div>
+                  <div className="mt-2">
+                    <span className="text-green-600 dark:text-green-400">
+                      [policy_definition]
+                    </span>
+                  </div>
                   <div>p = sub, dom, obj, act</div>
-                  <div className="mt-2"><span className="text-purple-600 dark:text-purple-400">[role_definition]</span></div>
+                  <div className="mt-2">
+                    <span className="text-purple-600 dark:text-purple-400">
+                      [role_definition]
+                    </span>
+                  </div>
                   <div>g = _, _, _</div>
-                  <div className="mt-2"><span className="text-orange-600 dark:text-orange-400">[matchers]</span></div>
-                  <div>m = g(r.sub, p.sub, r.dom) && (r.dom == p.dom || p.dom == "*") && keyMatch2(r.obj, p.obj) && (r.act == p.act || regexMatch(r.act, p.act))</div>
+                  <div className="mt-2">
+                    <span className="text-orange-600 dark:text-orange-400">
+                      [matchers]
+                    </span>
+                  </div>
+                  <div>
+                    m = g(r.sub, p.sub, r.dom) && (r.dom == p.dom || p.dom ==
+                    "*") && keyMatch2(r.obj, p.obj) && (r.act == p.act ||
+                    regexMatch(r.act, p.act))
+                  </div>
                 </div>
               </div>
             </div>
@@ -454,21 +532,28 @@ const RolesPage = () => {
               </h4>
               <div className="space-y-3 text-sm text-gray-600 dark:text-gray-400">
                 <div>
-                  <span className="font-medium text-gray-900 dark:text-white">Request:</span>
+                  <span className="font-medium text-gray-900 dark:text-white">
+                    Request:
+                  </span>
                   <span className="ml-2">subject, domain, object, action</span>
                 </div>
                 <div>
-                  <span className="font-medium text-gray-900 dark:text-white">Policy:</span>
+                  <span className="font-medium text-gray-900 dark:text-white">
+                    Policy:
+                  </span>
                   <span className="ml-2">subject, domain, object, action</span>
                 </div>
                 <div>
-                  <span className="font-medium text-gray-900 dark:text-white">Grouping:</span>
+                  <span className="font-medium text-gray-900 dark:text-white">
+                    Grouping:
+                  </span>
                   <span className="ml-2">user, role, domain</span>
                 </div>
                 <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
                   <p className="text-xs">
-                    This configuration supports multi-tenant RBAC with domain isolation, 
-                    wildcard permissions, and flexible object/action matching.
+                    This configuration supports multi-tenant RBAC with domain
+                    isolation, wildcard permissions, and flexible object/action
+                    matching.
                   </p>
                 </div>
               </div>

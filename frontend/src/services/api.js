@@ -523,7 +523,9 @@ export const useRoleAssignments = (params = {}) => {
       } catch (error) {
         // Return fallback data if endpoint doesn't exist
         if (error.response?.status === 404) {
-          console.warn("Role assignments endpoint not found, using fallback data");
+          console.warn(
+            "Role assignments endpoint not found, using fallback data"
+          );
           return { data: [] };
         }
         throw error;
@@ -643,7 +645,9 @@ export const useHasPermission = (object, action, domain) => {
       } catch (error) {
         // Return fallback permission for development
         if (error.response?.status === 404) {
-          console.warn("Permission check endpoint not found, allowing access for development");
+          console.warn(
+            "Permission check endpoint not found, allowing access for development"
+          );
           return true;
         }
         throw error;
@@ -698,7 +702,8 @@ export const useRemovePolicy = () => {
       toast.success("Policy removed successfully");
     },
     onError: (error) => {
-      const message = error.response?.data?.message || "Failed to remove policy";
+      const message =
+        error.response?.data?.message || "Failed to remove policy";
       toast.error(message);
     },
   });
@@ -816,7 +821,8 @@ export const useReloadPolicies = () => {
       toast.success("Policies reloaded successfully");
     },
     onError: (error) => {
-      const message = error.response?.data?.message || "Failed to reload policies";
+      const message =
+        error.response?.data?.message || "Failed to reload policies";
       toast.error(message);
     },
   });

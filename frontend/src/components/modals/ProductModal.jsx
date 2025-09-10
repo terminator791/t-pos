@@ -26,7 +26,8 @@ const ProductModal = ({
   const createProductWithFile = useCreateProductWithFile();
 
   // Get categories and shops for dropdowns
-  const { data: categoriesData, isLoading: categoriesLoading } = useCategories();
+  const { data: categoriesData, isLoading: categoriesLoading } =
+    useCategories();
   const { data: shopsData, isLoading: shopsLoading } = useShops();
 
   const categories = categoriesData?.data?.categories || [];

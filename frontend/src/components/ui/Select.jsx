@@ -32,14 +32,18 @@ const Select = ({
   const renderOptions = () => {
     return safeOptions.map((option, i) => {
       if (!option) return null;
-      
-      if (typeof option === 'object' && option.value !== undefined && option.label !== undefined) {
+
+      if (
+        typeof option === "object" &&
+        option.value !== undefined &&
+        option.label !== undefined
+      ) {
         return (
           <option key={i} value={option.value}>
             {option.label}
           </option>
         );
-      } else if (typeof option === 'string' || typeof option === 'number') {
+      } else if (typeof option === "string" || typeof option === "number") {
         return (
           <option key={i} value={option}>
             {option}
