@@ -44,8 +44,8 @@ export const LicenseSchema = z.object({
   id: z.string().uuid().optional(),
   serial_number: z
     .string()
-    .min(1, "Serial number is required")
-    .max(255, "Serial number too long"),
+    .min(10, "Serial number must be exactly 10 characters")
+    .max(10, "Serial number must be exactly 10 characters"),
   created_at: z.string().optional(),
   updated_at: z.string().optional(),
 });
