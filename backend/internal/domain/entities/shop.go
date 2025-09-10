@@ -55,3 +55,23 @@ func (s *Shop) BeforeCreate(tx *gorm.DB) error {
 func (s *Shop) DomainName() string {
 	return "shop-" + s.ID.String()
 }
+
+// Syncable interface implementation
+func (s Shop) GetID() uuid.UUID {
+	return s.ID
+}
+
+func (s Shop) GetCreatedAt() time.Time {
+	return s.CreatedAt
+}
+
+func (s Shop) GetUpdatedAt() time.Time {
+	return s.UpdatedAt
+}
+
+func (s Shop) GetDeletedAt() *time.Time {
+	if s.DeletedAt.Valid {
+		return &s.DeletedAt.Time
+	}
+	return nil
+}

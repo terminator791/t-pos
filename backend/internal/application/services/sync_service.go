@@ -147,8 +147,29 @@ func (s *SyncService) pushChanges(ctx context.Context, tx *gorm.DB, req dto.Sync
 		return fmt.Errorf("failed to push payments: %w", err)
 	}
 
-	// Continue with other entity types...
-	// For now, implementing core entities (carts, categories, products, transactions, expenses, payments)
+	if err := s.pushReceipts(ctx, tx, req.Receipts, licenseID, response); err != nil {
+		return fmt.Errorf("failed to push receipts: %w", err)
+	}
+
+	if err := s.pushHistories(ctx, tx, req.Histories, licenseID, response); err != nil {
+		return fmt.Errorf("failed to push histories: %w", err)
+	}
+
+	if err := s.pushShops(ctx, tx, req.Shops, licenseID, response); err != nil {
+		return fmt.Errorf("failed to push shops: %w", err)
+	}
+
+	if err := s.pushStockHistories(ctx, tx, req.StockHistories, licenseID, response); err != nil {
+		return fmt.Errorf("failed to push stock histories: %w", err)
+	}
+
+	if err := s.pushTransactionProducts(ctx, tx, req.TransactionProducts, licenseID, response); err != nil {
+		return fmt.Errorf("failed to push transaction products: %w", err)
+	}
+
+	if err := s.pushUsers(ctx, tx, req.Users, licenseID, response); err != nil {
+		return fmt.Errorf("failed to push users: %w", err)
+	}
 
 	return nil
 }
@@ -185,6 +206,30 @@ func (s *SyncService) pullChanges(ctx context.Context, tx *gorm.DB, lastSync *ti
 
 	if err := s.pullPayments(ctx, tx, *lastSync, licenseID, response); err != nil {
 		return fmt.Errorf("failed to pull payments: %w", err)
+	}
+
+	if err := s.pullReceipts(ctx, tx, *lastSync, licenseID, response); err != nil {
+		return fmt.Errorf("failed to pull receipts: %w", err)
+	}
+
+	if err := s.pullHistories(ctx, tx, *lastSync, licenseID, response); err != nil {
+		return fmt.Errorf("failed to pull histories: %w", err)
+	}
+
+	if err := s.pullShops(ctx, tx, *lastSync, licenseID, response); err != nil {
+		return fmt.Errorf("failed to pull shops: %w", err)
+	}
+
+	if err := s.pullStockHistories(ctx, tx, *lastSync, licenseID, response); err != nil {
+		return fmt.Errorf("failed to pull stock histories: %w", err)
+	}
+
+	if err := s.pullTransactionProducts(ctx, tx, *lastSync, licenseID, response); err != nil {
+		return fmt.Errorf("failed to pull transaction products: %w", err)
+	}
+
+	if err := s.pullUsers(ctx, tx, *lastSync, licenseID, response); err != nil {
+		return fmt.Errorf("failed to pull users: %w", err)
 	}
 
 	return nil
@@ -956,4 +1001,706 @@ func (s *SyncService) incrementStat(stats map[string]int, entityType string) {
 		stats = make(map[string]int)
 	}
 	stats[entityType]++
+}
+
+// Receipt sync implementation
+func (s *SyncService) pushReceipts(ctx context.Context, tx *gorm.DB, receipts []entities.Receipt, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	for _, receipt := range receipts {
+		// Validate receipt belongs to license
+		if !s.validateReceiptLicense(ctx, receipt, licenseID) {
+			s.addError(response, "receipts", receipt.ID, "unauthorized", "Receipt does not belong to license")
+			continue
+		}
+
+		// Check if receipt already exists
+		existing, err := s.findReceiptByID(ctx, tx, receipt.ID)
+		if err != nil {
+			s.addError(response, "receipts", receipt.ID, "database_error", fmt.Sprintf("Failed to find receipt: %v", err))
+			continue
+		}
+
+		s.incrementStat(response.Stats.ProcessedEntities, "receipts")
+
+		if existing == nil {
+			// Create new receipt
+			if err := s.createReceipt(ctx, tx, receipt); err != nil {
+				s.addError(response, "receipts", receipt.ID, "create_failed", fmt.Sprintf("Failed to create receipt: %v", err))
+				continue
+			}
+			s.incrementStat(response.Stats.CreatedEntities, "receipts")
+		} else {
+			// Check for conflicts and resolve
+			if conflict := s.resolveReceiptConflict(*existing, receipt); conflict != nil {
+				response.Conflicts = append(response.Conflicts, *conflict)
+			}
+
+			// Update receipt
+			if err := s.updateReceipt(ctx, tx, receipt); err != nil {
+				s.addError(response, "receipts", receipt.ID, "update_failed", fmt.Sprintf("Failed to update receipt: %v", err))
+				continue
+			}
+			s.incrementStat(response.Stats.UpdatedEntities, "receipts")
+		}
+	}
+	return nil
+}
+
+func (s *SyncService) pullReceipts(ctx context.Context, tx *gorm.DB, lastSync time.Time, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	var receipts []entities.Receipt
+	err := tx.Joins("JOIN shops ON receipts.shop_id = shops.id").
+		Where("shops.license_id = ? AND receipts.updated_at > ?", licenseID, lastSync).
+		Find(&receipts).Error
+	if err != nil {
+		return fmt.Errorf("failed to fetch receipts: %w", err)
+	}
+
+	response.Receipts = receipts
+	return nil
+}
+
+func (s *SyncService) validateReceiptLicense(ctx context.Context, receipt entities.Receipt, licenseID uuid.UUID) bool {
+	var count int64
+	err := s.db.Model(&entities.Shop{}).
+		Where("id = ? AND license_id = ?", receipt.ShopID, licenseID).
+		Count(&count).Error
+	return err == nil && count > 0
+}
+
+func (s *SyncService) findReceiptByID(ctx context.Context, tx *gorm.DB, id uuid.UUID) (*entities.Receipt, error) {
+	var receipt entities.Receipt
+	err := tx.First(&receipt, "id = ?", id).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &receipt, nil
+}
+
+func (s *SyncService) createReceipt(ctx context.Context, tx *gorm.DB, receipt entities.Receipt) error {
+	return tx.Create(&receipt).Error
+}
+
+func (s *SyncService) updateReceipt(ctx context.Context, tx *gorm.DB, receipt entities.Receipt) error {
+	return tx.Save(&receipt).Error
+}
+
+func (s *SyncService) resolveReceiptConflict(existing, incoming entities.Receipt) *dto.ConflictInfo {
+	// Check if there's actually a conflict (different updated_at times)
+	if existing.UpdatedAt.Equal(incoming.UpdatedAt) {
+		return nil // No conflict
+	}
+
+	conflict := &dto.ConflictInfo{
+		EntityType:   "receipt",
+		EntityID:     existing.ID,
+		ConflictType: "timestamp_mismatch",
+		ServerData:   existing,
+		ClientData:   incoming,
+	}
+
+	// Apply conflict resolution strategy
+	switch s.conflictStrategy {
+	case dto.LastWriteWins:
+		if incoming.UpdatedAt.After(existing.UpdatedAt) {
+			conflict.Resolution = "client_wins"
+			conflict.Details = fmt.Sprintf("Client version is newer (%s vs %s)", incoming.UpdatedAt, existing.UpdatedAt)
+		} else {
+			conflict.Resolution = "server_wins"
+			conflict.Details = fmt.Sprintf("Server version is newer (%s vs %s)", existing.UpdatedAt, incoming.UpdatedAt)
+		}
+	case dto.ServerWins:
+		conflict.Resolution = "server_wins"
+		conflict.Details = "Server always wins conflict resolution strategy"
+	case dto.ClientWins:
+		conflict.Resolution = "client_wins"
+		conflict.Details = "Client always wins conflict resolution strategy"
+	}
+
+	return conflict
+}
+
+// History sync implementation
+func (s *SyncService) pushHistories(ctx context.Context, tx *gorm.DB, histories []entities.History, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	for _, history := range histories {
+		// Validate history belongs to license
+		if !s.validateHistoryLicense(ctx, history, licenseID) {
+			s.addError(response, "histories", history.ID, "unauthorized", "History does not belong to license")
+			continue
+		}
+
+		// Check if history already exists
+		existing, err := s.findHistoryByID(ctx, tx, history.ID)
+		if err != nil {
+			s.addError(response, "histories", history.ID, "database_error", fmt.Sprintf("Failed to find history: %v", err))
+			continue
+		}
+
+		s.incrementStat(response.Stats.ProcessedEntities, "histories")
+
+		if existing == nil {
+			// Create new history
+			if err := s.createHistory(ctx, tx, history); err != nil {
+				s.addError(response, "histories", history.ID, "create_failed", fmt.Sprintf("Failed to create history: %v", err))
+				continue
+			}
+			s.incrementStat(response.Stats.CreatedEntities, "histories")
+		} else {
+			// Check for conflicts and resolve
+			if conflict := s.resolveHistoryConflict(*existing, history); conflict != nil {
+				response.Conflicts = append(response.Conflicts, *conflict)
+			}
+
+			// Update history
+			if err := s.updateHistory(ctx, tx, history); err != nil {
+				s.addError(response, "histories", history.ID, "update_failed", fmt.Sprintf("Failed to update history: %v", err))
+				continue
+			}
+			s.incrementStat(response.Stats.UpdatedEntities, "histories")
+		}
+	}
+	return nil
+}
+
+func (s *SyncService) pullHistories(ctx context.Context, tx *gorm.DB, lastSync time.Time, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	var histories []entities.History
+	err := tx.Joins("JOIN shops ON histories.shop_id = shops.id").
+		Where("shops.license_id = ? AND histories.updated_at > ?", licenseID, lastSync).
+		Find(&histories).Error
+	if err != nil {
+		return fmt.Errorf("failed to fetch histories: %w", err)
+	}
+
+	response.Histories = histories
+	return nil
+}
+
+func (s *SyncService) validateHistoryLicense(ctx context.Context, history entities.History, licenseID uuid.UUID) bool {
+	var count int64
+	err := s.db.Model(&entities.Shop{}).
+		Where("id = ? AND license_id = ?", history.ShopID, licenseID).
+		Count(&count).Error
+	return err == nil && count > 0
+}
+
+func (s *SyncService) findHistoryByID(ctx context.Context, tx *gorm.DB, id uuid.UUID) (*entities.History, error) {
+	var history entities.History
+	err := tx.First(&history, "id = ?", id).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &history, nil
+}
+
+func (s *SyncService) createHistory(ctx context.Context, tx *gorm.DB, history entities.History) error {
+	return tx.Create(&history).Error
+}
+
+func (s *SyncService) updateHistory(ctx context.Context, tx *gorm.DB, history entities.History) error {
+	return tx.Save(&history).Error
+}
+
+func (s *SyncService) resolveHistoryConflict(existing, incoming entities.History) *dto.ConflictInfo {
+	// Check if there's actually a conflict (different updated_at times)
+	if existing.UpdatedAt.Equal(incoming.UpdatedAt) {
+		return nil // No conflict
+	}
+
+	conflict := &dto.ConflictInfo{
+		EntityType:   "history",
+		EntityID:     existing.ID,
+		ConflictType: "timestamp_mismatch",
+		ServerData:   existing,
+		ClientData:   incoming,
+	}
+
+	// Apply conflict resolution strategy
+	switch s.conflictStrategy {
+	case dto.LastWriteWins:
+		if incoming.UpdatedAt.After(existing.UpdatedAt) {
+			conflict.Resolution = "client_wins"
+			conflict.Details = fmt.Sprintf("Client version is newer (%s vs %s)", incoming.UpdatedAt, existing.UpdatedAt)
+		} else {
+			conflict.Resolution = "server_wins"
+			conflict.Details = fmt.Sprintf("Server version is newer (%s vs %s)", existing.UpdatedAt, incoming.UpdatedAt)
+		}
+	case dto.ServerWins:
+		conflict.Resolution = "server_wins"
+		conflict.Details = "Server always wins conflict resolution strategy"
+	case dto.ClientWins:
+		conflict.Resolution = "client_wins"
+		conflict.Details = "Client always wins conflict resolution strategy"
+	}
+
+	return conflict
+}
+
+// Shop sync implementation
+func (s *SyncService) pushShops(ctx context.Context, tx *gorm.DB, shops []entities.Shop, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	for _, shop := range shops {
+		// Validate shop belongs to license
+		if !s.validateShopLicense(ctx, shop, licenseID) {
+			s.addError(response, "shops", shop.ID, "unauthorized", "Shop does not belong to license")
+			continue
+		}
+
+		// Check if shop already exists
+		existing, err := s.findShopByID(ctx, tx, shop.ID)
+		if err != nil {
+			s.addError(response, "shops", shop.ID, "database_error", fmt.Sprintf("Failed to find shop: %v", err))
+			continue
+		}
+
+		s.incrementStat(response.Stats.ProcessedEntities, "shops")
+
+		if existing == nil {
+			// Create new shop
+			if err := s.createShop(ctx, tx, shop); err != nil {
+				s.addError(response, "shops", shop.ID, "create_failed", fmt.Sprintf("Failed to create shop: %v", err))
+				continue
+			}
+			s.incrementStat(response.Stats.CreatedEntities, "shops")
+		} else {
+			// Check for conflicts and resolve
+			if conflict := s.resolveShopConflict(*existing, shop); conflict != nil {
+				response.Conflicts = append(response.Conflicts, *conflict)
+			}
+
+			// Update shop
+			if err := s.updateShop(ctx, tx, shop); err != nil {
+				s.addError(response, "shops", shop.ID, "update_failed", fmt.Sprintf("Failed to update shop: %v", err))
+				continue
+			}
+			s.incrementStat(response.Stats.UpdatedEntities, "shops")
+		}
+	}
+	return nil
+}
+
+func (s *SyncService) pullShops(ctx context.Context, tx *gorm.DB, lastSync time.Time, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	var shops []entities.Shop
+	err := tx.Where("license_id = ? AND updated_at > ?", licenseID, lastSync).
+		Find(&shops).Error
+	if err != nil {
+		return fmt.Errorf("failed to fetch shops: %w", err)
+	}
+
+	response.Shops = shops
+	return nil
+}
+
+func (s *SyncService) validateShopLicense(ctx context.Context, shop entities.Shop, licenseID uuid.UUID) bool {
+	return shop.LicenseID == licenseID
+}
+
+func (s *SyncService) findShopByID(ctx context.Context, tx *gorm.DB, id uuid.UUID) (*entities.Shop, error) {
+	var shop entities.Shop
+	err := tx.First(&shop, "id = ?", id).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &shop, nil
+}
+
+func (s *SyncService) createShop(ctx context.Context, tx *gorm.DB, shop entities.Shop) error {
+	return tx.Create(&shop).Error
+}
+
+func (s *SyncService) updateShop(ctx context.Context, tx *gorm.DB, shop entities.Shop) error {
+	return tx.Save(&shop).Error
+}
+
+func (s *SyncService) resolveShopConflict(existing, incoming entities.Shop) *dto.ConflictInfo {
+	// Check if there's actually a conflict (different updated_at times)
+	if existing.UpdatedAt.Equal(incoming.UpdatedAt) {
+		return nil // No conflict
+	}
+
+	conflict := &dto.ConflictInfo{
+		EntityType:   "shop",
+		EntityID:     existing.ID,
+		ConflictType: "timestamp_mismatch",
+		ServerData:   existing,
+		ClientData:   incoming,
+	}
+
+	// Apply conflict resolution strategy
+	switch s.conflictStrategy {
+	case dto.LastWriteWins:
+		if incoming.UpdatedAt.After(existing.UpdatedAt) {
+			conflict.Resolution = "client_wins"
+			conflict.Details = fmt.Sprintf("Client version is newer (%s vs %s)", incoming.UpdatedAt, existing.UpdatedAt)
+		} else {
+			conflict.Resolution = "server_wins"
+			conflict.Details = fmt.Sprintf("Server version is newer (%s vs %s)", existing.UpdatedAt, incoming.UpdatedAt)
+		}
+	case dto.ServerWins:
+		conflict.Resolution = "server_wins"
+		conflict.Details = "Server always wins conflict resolution strategy"
+	case dto.ClientWins:
+		conflict.Resolution = "client_wins"
+		conflict.Details = "Client always wins conflict resolution strategy"
+	}
+
+	return conflict
+}
+
+// StockHistory sync implementation
+func (s *SyncService) pushStockHistories(ctx context.Context, tx *gorm.DB, stockHistories []entities.StockHistory, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	for _, stockHistory := range stockHistories {
+		// Validate stock history belongs to license
+		if !s.validateStockHistoryLicense(ctx, stockHistory, licenseID) {
+			s.addError(response, "stock_histories", stockHistory.ID, "unauthorized", "Stock history does not belong to license")
+			continue
+		}
+
+		// Check if stock history already exists
+		existing, err := s.findStockHistoryByID(ctx, tx, stockHistory.ID)
+		if err != nil {
+			s.addError(response, "stock_histories", stockHistory.ID, "database_error", fmt.Sprintf("Failed to find stock history: %v", err))
+			continue
+		}
+
+		s.incrementStat(response.Stats.ProcessedEntities, "stock_histories")
+
+		if existing == nil {
+			// Create new stock history
+			if err := s.createStockHistory(ctx, tx, stockHistory); err != nil {
+				s.addError(response, "stock_histories", stockHistory.ID, "create_failed", fmt.Sprintf("Failed to create stock history: %v", err))
+				continue
+			}
+			s.incrementStat(response.Stats.CreatedEntities, "stock_histories")
+		} else {
+			// Check for conflicts and resolve
+			if conflict := s.resolveStockHistoryConflict(*existing, stockHistory); conflict != nil {
+				response.Conflicts = append(response.Conflicts, *conflict)
+			}
+
+			// Update stock history
+			if err := s.updateStockHistory(ctx, tx, stockHistory); err != nil {
+				s.addError(response, "stock_histories", stockHistory.ID, "update_failed", fmt.Sprintf("Failed to update stock history: %v", err))
+				continue
+			}
+			s.incrementStat(response.Stats.UpdatedEntities, "stock_histories")
+		}
+	}
+	return nil
+}
+
+func (s *SyncService) pullStockHistories(ctx context.Context, tx *gorm.DB, lastSync time.Time, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	var stockHistories []entities.StockHistory
+	err := tx.Joins("JOIN products ON stock_histories.product_id = products.id").
+		Joins("JOIN shops ON products.shop_id = shops.id").
+		Where("shops.license_id = ? AND stock_histories.updated_at > ?", licenseID, lastSync).
+		Find(&stockHistories).Error
+	if err != nil {
+		return fmt.Errorf("failed to fetch stock histories: %w", err)
+	}
+
+	response.StockHistories = stockHistories
+	return nil
+}
+
+func (s *SyncService) validateStockHistoryLicense(ctx context.Context, stockHistory entities.StockHistory, licenseID uuid.UUID) bool {
+	var count int64
+	err := s.db.Model(&entities.Product{}).
+		Joins("JOIN shops ON products.shop_id = shops.id").
+		Where("products.id = ? AND shops.license_id = ?", stockHistory.ProductID, licenseID).
+		Count(&count).Error
+	return err == nil && count > 0
+}
+
+func (s *SyncService) findStockHistoryByID(ctx context.Context, tx *gorm.DB, id uuid.UUID) (*entities.StockHistory, error) {
+	var stockHistory entities.StockHistory
+	err := tx.First(&stockHistory, "id = ?", id).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &stockHistory, nil
+}
+
+func (s *SyncService) createStockHistory(ctx context.Context, tx *gorm.DB, stockHistory entities.StockHistory) error {
+	return tx.Create(&stockHistory).Error
+}
+
+func (s *SyncService) updateStockHistory(ctx context.Context, tx *gorm.DB, stockHistory entities.StockHistory) error {
+	return tx.Save(&stockHistory).Error
+}
+
+func (s *SyncService) resolveStockHistoryConflict(existing, incoming entities.StockHistory) *dto.ConflictInfo {
+	// Check if there's actually a conflict (different updated_at times)
+	if existing.UpdatedAt.Equal(incoming.UpdatedAt) {
+		return nil // No conflict
+	}
+
+	conflict := &dto.ConflictInfo{
+		EntityType:   "stock_history",
+		EntityID:     existing.ID,
+		ConflictType: "timestamp_mismatch",
+		ServerData:   existing,
+		ClientData:   incoming,
+	}
+
+	// Apply conflict resolution strategy
+	switch s.conflictStrategy {
+	case dto.LastWriteWins:
+		if incoming.UpdatedAt.After(existing.UpdatedAt) {
+			conflict.Resolution = "client_wins"
+			conflict.Details = fmt.Sprintf("Client version is newer (%s vs %s)", incoming.UpdatedAt, existing.UpdatedAt)
+		} else {
+			conflict.Resolution = "server_wins"
+			conflict.Details = fmt.Sprintf("Server version is newer (%s vs %s)", existing.UpdatedAt, incoming.UpdatedAt)
+		}
+	case dto.ServerWins:
+		conflict.Resolution = "server_wins"
+		conflict.Details = "Server always wins conflict resolution strategy"
+	case dto.ClientWins:
+		conflict.Resolution = "client_wins"
+		conflict.Details = "Client always wins conflict resolution strategy"
+	}
+
+	return conflict
+}
+
+// TransactionProduct sync implementation
+func (s *SyncService) pushTransactionProducts(ctx context.Context, tx *gorm.DB, transactionProducts []entities.TransactionProduct, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	for _, transactionProduct := range transactionProducts {
+		// Validate transaction product belongs to license
+		if !s.validateTransactionProductLicense(ctx, transactionProduct, licenseID) {
+			s.addError(response, "transaction_products", transactionProduct.ID, "unauthorized", "Transaction product does not belong to license")
+			continue
+		}
+
+		// Check if transaction product already exists
+		existing, err := s.findTransactionProductByID(ctx, tx, transactionProduct.ID)
+		if err != nil {
+			s.addError(response, "transaction_products", transactionProduct.ID, "database_error", fmt.Sprintf("Failed to find transaction product: %v", err))
+			continue
+		}
+
+		s.incrementStat(response.Stats.ProcessedEntities, "transaction_products")
+
+		if existing == nil {
+			// Create new transaction product
+			if err := s.createTransactionProduct(ctx, tx, transactionProduct); err != nil {
+				s.addError(response, "transaction_products", transactionProduct.ID, "create_failed", fmt.Sprintf("Failed to create transaction product: %v", err))
+				continue
+			}
+			s.incrementStat(response.Stats.CreatedEntities, "transaction_products")
+		} else {
+			// Check for conflicts and resolve
+			if conflict := s.resolveTransactionProductConflict(*existing, transactionProduct); conflict != nil {
+				response.Conflicts = append(response.Conflicts, *conflict)
+			}
+
+			// Update transaction product
+			if err := s.updateTransactionProduct(ctx, tx, transactionProduct); err != nil {
+				s.addError(response, "transaction_products", transactionProduct.ID, "update_failed", fmt.Sprintf("Failed to update transaction product: %v", err))
+				continue
+			}
+			s.incrementStat(response.Stats.UpdatedEntities, "transaction_products")
+		}
+	}
+	return nil
+}
+
+func (s *SyncService) pullTransactionProducts(ctx context.Context, tx *gorm.DB, lastSync time.Time, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	var transactionProducts []entities.TransactionProduct
+	err := tx.Joins("JOIN transactions ON transaction_products.transaction_id = transactions.id").
+		Joins("JOIN shops ON transactions.shop_id = shops.id").
+		Where("shops.license_id = ? AND transaction_products.updated_at > ?", licenseID, lastSync).
+		Find(&transactionProducts).Error
+	if err != nil {
+		return fmt.Errorf("failed to fetch transaction products: %w", err)
+	}
+
+	response.TransactionProducts = transactionProducts
+	return nil
+}
+
+func (s *SyncService) validateTransactionProductLicense(ctx context.Context, transactionProduct entities.TransactionProduct, licenseID uuid.UUID) bool {
+	var count int64
+	err := s.db.Model(&entities.Transaction{}).
+		Joins("JOIN shops ON transactions.shop_id = shops.id").
+		Where("transactions.id = ? AND shops.license_id = ?", transactionProduct.TransactionID, licenseID).
+		Count(&count).Error
+	return err == nil && count > 0
+}
+
+func (s *SyncService) findTransactionProductByID(ctx context.Context, tx *gorm.DB, id uuid.UUID) (*entities.TransactionProduct, error) {
+	var transactionProduct entities.TransactionProduct
+	err := tx.First(&transactionProduct, "id = ?", id).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &transactionProduct, nil
+}
+
+func (s *SyncService) createTransactionProduct(ctx context.Context, tx *gorm.DB, transactionProduct entities.TransactionProduct) error {
+	return tx.Create(&transactionProduct).Error
+}
+
+func (s *SyncService) updateTransactionProduct(ctx context.Context, tx *gorm.DB, transactionProduct entities.TransactionProduct) error {
+	return tx.Save(&transactionProduct).Error
+}
+
+func (s *SyncService) resolveTransactionProductConflict(existing, incoming entities.TransactionProduct) *dto.ConflictInfo {
+	// Check if there's actually a conflict (different updated_at times)
+	if existing.UpdatedAt.Equal(incoming.UpdatedAt) {
+		return nil // No conflict
+	}
+
+	conflict := &dto.ConflictInfo{
+		EntityType:   "transaction_product",
+		EntityID:     existing.ID,
+		ConflictType: "timestamp_mismatch",
+		ServerData:   existing,
+		ClientData:   incoming,
+	}
+
+	// Apply conflict resolution strategy
+	switch s.conflictStrategy {
+	case dto.LastWriteWins:
+		if incoming.UpdatedAt.After(existing.UpdatedAt) {
+			conflict.Resolution = "client_wins"
+			conflict.Details = fmt.Sprintf("Client version is newer (%s vs %s)", incoming.UpdatedAt, existing.UpdatedAt)
+		} else {
+			conflict.Resolution = "server_wins"
+			conflict.Details = fmt.Sprintf("Server version is newer (%s vs %s)", existing.UpdatedAt, incoming.UpdatedAt)
+		}
+	case dto.ServerWins:
+		conflict.Resolution = "server_wins"
+		conflict.Details = "Server always wins conflict resolution strategy"
+	case dto.ClientWins:
+		conflict.Resolution = "client_wins"
+		conflict.Details = "Client always wins conflict resolution strategy"
+	}
+
+	return conflict
+}
+
+// User sync implementation
+func (s *SyncService) pushUsers(ctx context.Context, tx *gorm.DB, users []entities.User, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	for _, user := range users {
+		// Validate user belongs to license
+		if !s.validateUserLicense(ctx, user, licenseID) {
+			s.addError(response, "users", user.ID, "unauthorized", "User does not belong to license")
+			continue
+		}
+
+		// Check if user already exists
+		existing, err := s.findUserByID(ctx, tx, user.ID)
+		if err != nil {
+			s.addError(response, "users", user.ID, "database_error", fmt.Sprintf("Failed to find user: %v", err))
+			continue
+		}
+
+		s.incrementStat(response.Stats.ProcessedEntities, "users")
+
+		if existing == nil {
+			// Create new user
+			if err := s.createUser(ctx, tx, user); err != nil {
+				s.addError(response, "users", user.ID, "create_failed", fmt.Sprintf("Failed to create user: %v", err))
+				continue
+			}
+			s.incrementStat(response.Stats.CreatedEntities, "users")
+		} else {
+			// Check for conflicts and resolve
+			if conflict := s.resolveUserConflict(*existing, user); conflict != nil {
+				response.Conflicts = append(response.Conflicts, *conflict)
+			}
+
+			// Update user (be careful with sensitive fields like password)
+			if err := s.updateUser(ctx, tx, user); err != nil {
+				s.addError(response, "users", user.ID, "update_failed", fmt.Sprintf("Failed to update user: %v", err))
+				continue
+			}
+			s.incrementStat(response.Stats.UpdatedEntities, "users")
+		}
+	}
+	return nil
+}
+
+func (s *SyncService) pullUsers(ctx context.Context, tx *gorm.DB, lastSync time.Time, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	var users []entities.User
+	err := tx.Where("license_id = ? AND updated_at > ?", licenseID, lastSync).
+		Find(&users).Error
+	if err != nil {
+		return fmt.Errorf("failed to fetch users: %w", err)
+	}
+
+	response.Users = users
+	return nil
+}
+
+func (s *SyncService) validateUserLicense(ctx context.Context, user entities.User, licenseID uuid.UUID) bool {
+	return user.LicenseID != nil && *user.LicenseID == licenseID
+}
+
+func (s *SyncService) findUserByID(ctx context.Context, tx *gorm.DB, id uuid.UUID) (*entities.User, error) {
+	var user entities.User
+	err := tx.First(&user, "id = ?", id).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (s *SyncService) createUser(ctx context.Context, tx *gorm.DB, user entities.User) error {
+	return tx.Create(&user).Error
+}
+
+func (s *SyncService) updateUser(ctx context.Context, tx *gorm.DB, user entities.User) error {
+	return tx.Save(&user).Error
+}
+
+func (s *SyncService) resolveUserConflict(existing, incoming entities.User) *dto.ConflictInfo {
+	// Check if there's actually a conflict (different updated_at times)
+	if existing.UpdatedAt.Equal(incoming.UpdatedAt) {
+		return nil // No conflict
+	}
+
+	conflict := &dto.ConflictInfo{
+		EntityType:   "user",
+		EntityID:     existing.ID,
+		ConflictType: "timestamp_mismatch",
+		ServerData:   existing,
+		ClientData:   incoming,
+	}
+
+	// Apply conflict resolution strategy
+	switch s.conflictStrategy {
+	case dto.LastWriteWins:
+		if incoming.UpdatedAt.After(existing.UpdatedAt) {
+			conflict.Resolution = "client_wins"
+			conflict.Details = fmt.Sprintf("Client version is newer (%s vs %s)", incoming.UpdatedAt, existing.UpdatedAt)
+		} else {
+			conflict.Resolution = "server_wins"
+			conflict.Details = fmt.Sprintf("Server version is newer (%s vs %s)", existing.UpdatedAt, incoming.UpdatedAt)
+		}
+	case dto.ServerWins:
+		conflict.Resolution = "server_wins"
+		conflict.Details = "Server always wins conflict resolution strategy"
+	case dto.ClientWins:
+		conflict.Resolution = "client_wins"
+		conflict.Details = "Client always wins conflict resolution strategy"
+	}
+
+	return conflict
 }

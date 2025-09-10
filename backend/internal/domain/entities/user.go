@@ -71,3 +71,23 @@ func (u *User) IsCashier() bool {
 func (u *User) IsOwnerBusiness() bool {
 	return u.Role != nil && u.Role.Name == "owner_business"
 }
+
+// Syncable interface implementation
+func (u User) GetID() uuid.UUID {
+	return u.ID
+}
+
+func (u User) GetCreatedAt() time.Time {
+	return u.CreatedAt
+}
+
+func (u User) GetUpdatedAt() time.Time {
+	return u.UpdatedAt
+}
+
+func (u User) GetDeletedAt() *time.Time {
+	if u.DeletedAt.Valid {
+		return &u.DeletedAt.Time
+	}
+	return nil
+}

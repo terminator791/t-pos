@@ -25,3 +25,23 @@ type Receipt struct {
 func (Receipt) TableName() string {
 	return "receipts"
 }
+
+// Syncable interface implementation
+func (r Receipt) GetID() uuid.UUID {
+	return r.ID
+}
+
+func (r Receipt) GetCreatedAt() time.Time {
+	return r.CreatedAt
+}
+
+func (r Receipt) GetUpdatedAt() time.Time {
+	return r.UpdatedAt
+}
+
+func (r Receipt) GetDeletedAt() *time.Time {
+	if r.DeletedAt.Valid {
+		return &r.DeletedAt.Time
+	}
+	return nil
+}

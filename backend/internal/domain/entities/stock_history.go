@@ -41,3 +41,23 @@ func (sh *StockHistory) IsStockIncrease() bool {
 func (sh *StockHistory) IsStockDecrease() bool {
 	return sh.Stock < sh.LastStock
 }
+
+// Syncable interface implementation
+func (sh StockHistory) GetID() uuid.UUID {
+	return sh.ID
+}
+
+func (sh StockHistory) GetCreatedAt() time.Time {
+	return sh.CreatedAt
+}
+
+func (sh StockHistory) GetUpdatedAt() time.Time {
+	return sh.UpdatedAt
+}
+
+func (sh StockHistory) GetDeletedAt() *time.Time {
+	if sh.DeletedAt.Valid {
+		return &sh.DeletedAt.Time
+	}
+	return nil
+}
