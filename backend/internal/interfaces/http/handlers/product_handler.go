@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -80,24 +79,24 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID"})
+		response.ErrorBadRequest(c, "Invalid product ID", err.Error())
 		return
 	}
 
 	var product entities.Product
 	if err := c.ShouldBindJSON(&product); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.ErrorBadRequest(c, "Invalid request data", err.Error())
 		return
 	}
 
 	product.ID = id
 	err = h.productUseCase.UpdateProduct(c.Request.Context(), &product)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.ErrorBadRequest(c, "Failed to update product", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, product)
+	response.SuccessOK(c, "Product updated successfully", product)
 }
 
 // DeleteProduct deletes a product
@@ -105,17 +104,17 @@ func (h *ProductHandler) DeleteProduct(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID"})
+		response.ErrorBadRequest(c, "Invalid product ID", err.Error())
 		return
 	}
 
 	err = h.productUseCase.DeleteProduct(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.ErrorBadRequest(c, "Failed to delete product", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Product deleted successfully"})
+	response.SuccessOK(c, "Product deleted successfully", nil)
 }
 
 // ListProducts retrieves a list of products
@@ -135,11 +134,17 @@ func (h *ProductHandler) ListProducts(c *gin.Context) {
 
 	products, err := h.productUseCase.ListProducts(c.Request.Context(), limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		response.ErrorInternalServer(c, "Failed to retrieve products", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"products": products})
+	data := gin.H{
+		"products": products,
+		"count":    len(products),
+		"limit":    limit,
+		"offset":   offset,
+	}
+	response.SuccessOK(c, "Products retrieved successfully", data)
 }
 
 // SearchProducts searches for products
@@ -147,48 +152,57 @@ func (h *ProductHandler) SearchProducts(c *gin.Context) {
 	query := c.Query("q")
 	shopIDParam := c.Query("shop_id")
 	if query == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Search query is required"})
+		response.ErrorBadRequest(c, "Search query is required", nil)
 		return
 	}
 	if shopIDParam == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Shop ID is required"})
+		response.ErrorBadRequest(c, "Shop ID is required", nil)
 		return
 	}
 
 	shopID, err := uuid.Parse(shopIDParam)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid shop ID"})
+		response.ErrorBadRequest(c, "Invalid shop ID", err.Error())
 		return
 	}
 
 	products, err := h.productUseCase.SearchProducts(c.Request.Context(), query, shopID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		response.ErrorInternalServer(c, "Failed to search products", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"products": products})
+	data := gin.H{
+		"products": products,
+		"count":    len(products),
+		"query":    query,
+	}
+	response.SuccessOK(c, "Products searched successfully", data)
 }
 
 // GetLowStockProducts retrieves products with low stock
 func (h *ProductHandler) GetLowStockProducts(c *gin.Context) {
 	shopIDParam := c.Query("shop_id")
 	if shopIDParam == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Shop ID is required"})
+		response.ErrorBadRequest(c, "Shop ID is required", nil)
 		return
 	}
 
 	shopID, err := uuid.Parse(shopIDParam)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid shop ID"})
+		response.ErrorBadRequest(c, "Invalid shop ID", err.Error())
 		return
 	}
 
 	products, err := h.productUseCase.GetLowStockProducts(c.Request.Context(), shopID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		response.ErrorInternalServer(c, "Failed to get low stock products", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"products": products})
+	data := gin.H{
+		"products": products,
+		"count":    len(products),
+	}
+	response.SuccessOK(c, "Low stock products retrieved successfully", data)
 }

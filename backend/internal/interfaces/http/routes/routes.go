@@ -16,6 +16,7 @@ func SetupRoutes(
 	licenseHandler *handlers.LicenseHandler,
 	customerHandler *handlers.CustomerHandler,
 	userManagementHandler *handlers.UserManagementHandler,
+	roleHandler *handlers.RoleHandler,
 	authMiddleware *auth.AuthMiddleware,
 	authzMiddleware *casbin.AuthzMiddleware,
 ) {
@@ -101,6 +102,14 @@ func SetupRoutes(
 				users.POST("", userManagementHandler.CreateUser)
 				users.PUT("/:id", userManagementHandler.UpdateUserPassword)
 				users.DELETE("/:id", userManagementHandler.DeleteUser)
+			}
+
+			// Role routes
+			roles := protected.Group("/roles")
+			{
+				roles.GET("", roleHandler.GetAllRoles)
+				roles.GET("/:id", roleHandler.GetRole)
+				roles.GET("/name/:name", roleHandler.GetRoleByName)
 			}
 		}
 	}

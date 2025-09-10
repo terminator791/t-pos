@@ -1,13 +1,13 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import api from '../lib/api';
-import { toast } from 'react-toastify';
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import api from "../lib/api";
+import { toast } from "react-toastify";
 
 // Products API
 export const useProducts = (params = {}) => {
   return useQuery({
-    queryKey: ['products', params],
+    queryKey: ["products", params],
     queryFn: async () => {
-      const response = await api.get('/products', { params });
+      const response = await api.get("/products", { params });
       return response.data;
     },
   });
@@ -15,7 +15,7 @@ export const useProducts = (params = {}) => {
 
 export const useProduct = (id) => {
   return useQuery({
-    queryKey: ['products', id],
+    queryKey: ["products", id],
     queryFn: async () => {
       const response = await api.get(`/products/${id}`);
       return response.data;
@@ -28,15 +28,16 @@ export const useCreateProduct = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (productData) => {
-      const response = await api.post('/products', productData);
+      const response = await api.post("/products", productData);
       return response.data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['products'] });
-      toast.success('Product created successfully');
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      toast.success("Product created successfully");
     },
     onError: (error) => {
-      const message = error.response?.data?.message || 'Failed to create product';
+      const message =
+        error.response?.data?.message || "Failed to create product";
       toast.error(message);
     },
   });
@@ -50,12 +51,13 @@ export const useUpdateProduct = () => {
       return response.data;
     },
     onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['products'] });
-      queryClient.invalidateQueries({ queryKey: ['products', variables.id] });
-      toast.success('Product updated successfully');
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["products", variables.id] });
+      toast.success("Product updated successfully");
     },
     onError: (error) => {
-      const message = error.response?.data?.message || 'Failed to update product';
+      const message =
+        error.response?.data?.message || "Failed to update product";
       toast.error(message);
     },
   });
@@ -69,11 +71,12 @@ export const useDeleteProduct = () => {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products'] });
-      toast.success('Product deleted successfully');
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      toast.success("Product deleted successfully");
     },
     onError: (error) => {
-      const message = error.response?.data?.message || 'Failed to delete product';
+      const message =
+        error.response?.data?.message || "Failed to delete product";
       toast.error(message);
     },
   });
@@ -82,9 +85,9 @@ export const useDeleteProduct = () => {
 // Licenses API
 export const useLicenses = (params = {}) => {
   return useQuery({
-    queryKey: ['licenses', params],
+    queryKey: ["licenses", params],
     queryFn: async () => {
-      const response = await api.get('/licenses', { params });
+      const response = await api.get("/licenses", { params });
       return response.data;
     },
   });
@@ -92,7 +95,7 @@ export const useLicenses = (params = {}) => {
 
 export const useLicense = (id) => {
   return useQuery({
-    queryKey: ['licenses', id],
+    queryKey: ["licenses", id],
     queryFn: async () => {
       const response = await api.get(`/licenses/${id}`);
       return response.data;
@@ -105,15 +108,16 @@ export const useCreateLicense = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (licenseData) => {
-      const response = await api.post('/licenses', licenseData);
+      const response = await api.post("/licenses", licenseData);
       return response.data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['licenses'] });
-      toast.success('License created successfully');
+      queryClient.invalidateQueries({ queryKey: ["licenses"] });
+      toast.success("License created successfully");
     },
     onError: (error) => {
-      const message = error.response?.data?.message || 'Failed to create license';
+      const message =
+        error.response?.data?.message || "Failed to create license";
       toast.error(message);
     },
   });
@@ -127,11 +131,12 @@ export const useDeleteLicense = () => {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['licenses'] });
-      toast.success('License deleted successfully');
+      queryClient.invalidateQueries({ queryKey: ["licenses"] });
+      toast.success("License deleted successfully");
     },
     onError: (error) => {
-      const message = error.response?.data?.message || 'Failed to delete license';
+      const message =
+        error.response?.data?.message || "Failed to delete license";
       toast.error(message);
     },
   });
@@ -140,9 +145,9 @@ export const useDeleteLicense = () => {
 // Customers API
 export const useCustomers = (params = {}) => {
   return useQuery({
-    queryKey: ['customers', params],
+    queryKey: ["customers", params],
     queryFn: async () => {
-      const response = await api.get('/customers', { params });
+      const response = await api.get("/customers", { params });
       return response.data;
     },
   });
@@ -150,7 +155,7 @@ export const useCustomers = (params = {}) => {
 
 export const useCustomer = (id) => {
   return useQuery({
-    queryKey: ['customers', id],
+    queryKey: ["customers", id],
     queryFn: async () => {
       const response = await api.get(`/customers/${id}`);
       return response.data;
@@ -163,15 +168,16 @@ export const useCreateCustomer = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (customerData) => {
-      const response = await api.post('/customers', customerData);
+      const response = await api.post("/customers", customerData);
       return response.data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['customers'] });
-      toast.success('Customer created successfully');
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      toast.success("Customer created successfully");
     },
     onError: (error) => {
-      const message = error.response?.data?.message || 'Failed to create customer';
+      const message =
+        error.response?.data?.message || "Failed to create customer";
       toast.error(message);
     },
   });
@@ -185,12 +191,13 @@ export const useUpdateCustomer = () => {
       return response.data;
     },
     onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['customers'] });
-      queryClient.invalidateQueries({ queryKey: ['customers', variables.id] });
-      toast.success('Customer updated successfully');
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["customers", variables.id] });
+      toast.success("Customer updated successfully");
     },
     onError: (error) => {
-      const message = error.response?.data?.message || 'Failed to update customer';
+      const message =
+        error.response?.data?.message || "Failed to update customer";
       toast.error(message);
     },
   });
@@ -204,11 +211,12 @@ export const useDeleteCustomer = () => {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['customers'] });
-      toast.success('Customer deleted successfully');
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      toast.success("Customer deleted successfully");
     },
     onError: (error) => {
-      const message = error.response?.data?.message || 'Failed to delete customer';
+      const message =
+        error.response?.data?.message || "Failed to delete customer";
       toast.error(message);
     },
   });
@@ -217,9 +225,9 @@ export const useDeleteCustomer = () => {
 // Users API
 export const useUsers = (params = {}) => {
   return useQuery({
-    queryKey: ['users', params],
+    queryKey: ["users", params],
     queryFn: async () => {
-      const response = await api.get('/users', { params });
+      const response = await api.get("/users", { params });
       return response.data;
     },
   });
@@ -227,7 +235,7 @@ export const useUsers = (params = {}) => {
 
 export const useUser = (id) => {
   return useQuery({
-    queryKey: ['users', id],
+    queryKey: ["users", id],
     queryFn: async () => {
       const response = await api.get(`/users/${id}`);
       return response.data;
@@ -240,15 +248,15 @@ export const useCreateUser = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (userData) => {
-      const response = await api.post('/users', userData);
+      const response = await api.post("/users", userData);
       return response.data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-      toast.success('User created successfully');
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      toast.success("User created successfully");
     },
     onError: (error) => {
-      const message = error.response?.data?.message || 'Failed to create user';
+      const message = error.response?.data?.message || "Failed to create user";
       toast.error(message);
     },
   });
@@ -262,12 +270,12 @@ export const useUpdateUser = () => {
       return response.data;
     },
     onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-      queryClient.invalidateQueries({ queryKey: ['users', variables.id] });
-      toast.success('User updated successfully');
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      queryClient.invalidateQueries({ queryKey: ["users", variables.id] });
+      toast.success("User updated successfully");
     },
     onError: (error) => {
-      const message = error.response?.data?.message || 'Failed to update user';
+      const message = error.response?.data?.message || "Failed to update user";
       toast.error(message);
     },
   });
@@ -281,22 +289,22 @@ export const useDeleteUser = () => {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-      toast.success('User deleted successfully');
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      toast.success("User deleted successfully");
     },
     onError: (error) => {
-      const message = error.response?.data?.message || 'Failed to delete user';
+      const message = error.response?.data?.message || "Failed to delete user";
       toast.error(message);
     },
   });
 };
 
-// Roles API (Casbin RBAC with domain support)
+// Roles API
 export const useRoles = (params = {}) => {
   return useQuery({
-    queryKey: ['roles', params],
+    queryKey: ["roles", params],
     queryFn: async () => {
-      const response = await api.get('/roles', { params });
+      const response = await api.get("/roles", { params });
       return response.data;
     },
   });
@@ -304,7 +312,7 @@ export const useRoles = (params = {}) => {
 
 export const useRole = (id) => {
   return useQuery({
-    queryKey: ['roles', id],
+    queryKey: ["roles", id],
     queryFn: async () => {
       const response = await api.get(`/roles/${id}`);
       return response.data;
@@ -313,71 +321,23 @@ export const useRole = (id) => {
   });
 };
 
-export const useCreateRole = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (roleData) => {
-      const response = await api.post('/roles', roleData);
+export const useRoleByName = (name) => {
+  return useQuery({
+    queryKey: ["roles", "name", name],
+    queryFn: async () => {
+      const response = await api.get(`/roles/name/${name}`);
       return response.data;
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['roles'] });
-      queryClient.invalidateQueries({ queryKey: ['permissions'] });
-      toast.success('Role created successfully');
-    },
-    onError: (error) => {
-      const message = error.response?.data?.message || 'Failed to create role';
-      toast.error(message);
-    },
-  });
-};
-
-export const useUpdateRole = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, ...roleData }) => {
-      const response = await api.put(`/roles/${id}`, roleData);
-      return response.data;
-    },
-    onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['roles'] });
-      queryClient.invalidateQueries({ queryKey: ['roles', variables.id] });
-      queryClient.invalidateQueries({ queryKey: ['permissions'] });
-      toast.success('Role updated successfully');
-    },
-    onError: (error) => {
-      const message = error.response?.data?.message || 'Failed to update role';
-      toast.error(message);
-    },
-  });
-};
-
-export const useDeleteRole = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (id) => {
-      const response = await api.delete(`/roles/${id}`);
-      return response.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['roles'] });
-      queryClient.invalidateQueries({ queryKey: ['permissions'] });
-      queryClient.invalidateQueries({ queryKey: ['role-assignments'] });
-      toast.success('Role deleted successfully');
-    },
-    onError: (error) => {
-      const message = error.response?.data?.message || 'Failed to delete role';
-      toast.error(message);
-    },
+    enabled: !!name,
   });
 };
 
 // Permissions API (Casbin policies)
 export const usePermissions = (params = {}) => {
   return useQuery({
-    queryKey: ['permissions', params],
+    queryKey: ["permissions", params],
     queryFn: async () => {
-      const response = await api.get('/permissions', { params });
+      const response = await api.get("/permissions", { params });
       return response.data;
     },
   });
@@ -385,10 +345,10 @@ export const usePermissions = (params = {}) => {
 
 export const useRolePermissions = (roleId, domain) => {
   return useQuery({
-    queryKey: ['permissions', 'role', roleId, domain],
+    queryKey: ["permissions", "role", roleId, domain],
     queryFn: async () => {
       const response = await api.get(`/permissions/role/${roleId}`, {
-        params: { domain }
+        params: { domain },
       });
       return response.data;
     },
@@ -400,15 +360,16 @@ export const useCreatePermission = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (permissionData) => {
-      const response = await api.post('/permissions', permissionData);
+      const response = await api.post("/permissions", permissionData);
       return response.data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['permissions'] });
-      toast.success('Permission granted successfully');
+      queryClient.invalidateQueries({ queryKey: ["permissions"] });
+      toast.success("Permission granted successfully");
     },
     onError: (error) => {
-      const message = error.response?.data?.message || 'Failed to grant permission';
+      const message =
+        error.response?.data?.message || "Failed to grant permission";
       toast.error(message);
     },
   });
@@ -422,11 +383,12 @@ export const useDeletePermission = () => {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['permissions'] });
-      toast.success('Permission revoked successfully');
+      queryClient.invalidateQueries({ queryKey: ["permissions"] });
+      toast.success("Permission revoked successfully");
     },
     onError: (error) => {
-      const message = error.response?.data?.message || 'Failed to revoke permission';
+      const message =
+        error.response?.data?.message || "Failed to revoke permission";
       toast.error(message);
     },
   });
@@ -436,19 +398,20 @@ export const useBulkUpdatePermissions = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ subject, domain, permissions }) => {
-      const response = await api.put('/permissions/bulk', {
+      const response = await api.put("/permissions/bulk", {
         subject,
         domain,
-        permissions
+        permissions,
       });
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['permissions'] });
-      toast.success('Permissions updated successfully');
+      queryClient.invalidateQueries({ queryKey: ["permissions"] });
+      toast.success("Permissions updated successfully");
     },
     onError: (error) => {
-      const message = error.response?.data?.message || 'Failed to update permissions';
+      const message =
+        error.response?.data?.message || "Failed to update permissions";
       toast.error(message);
     },
   });
@@ -457,9 +420,9 @@ export const useBulkUpdatePermissions = () => {
 // Role Assignments API (Casbin grouping)
 export const useRoleAssignments = (params = {}) => {
   return useQuery({
-    queryKey: ['role-assignments', params],
+    queryKey: ["role-assignments", params],
     queryFn: async () => {
-      const response = await api.get('/role-assignments', { params });
+      const response = await api.get("/role-assignments", { params });
       return response.data;
     },
   });
@@ -467,10 +430,10 @@ export const useRoleAssignments = (params = {}) => {
 
 export const useUserRoles = (userId, domain) => {
   return useQuery({
-    queryKey: ['role-assignments', 'user', userId, domain],
+    queryKey: ["role-assignments", "user", userId, domain],
     queryFn: async () => {
       const response = await api.get(`/role-assignments/user/${userId}`, {
-        params: { domain }
+        params: { domain },
       });
       return response.data;
     },
@@ -482,15 +445,15 @@ export const useAssignRole = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (assignmentData) => {
-      const response = await api.post('/role-assignments', assignmentData);
+      const response = await api.post("/role-assignments", assignmentData);
       return response.data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['role-assignments'] });
-      toast.success('Role assigned successfully');
+      queryClient.invalidateQueries({ queryKey: ["role-assignments"] });
+      toast.success("Role assigned successfully");
     },
     onError: (error) => {
-      const message = error.response?.data?.message || 'Failed to assign role';
+      const message = error.response?.data?.message || "Failed to assign role";
       toast.error(message);
     },
   });
@@ -504,11 +467,12 @@ export const useUnassignRole = () => {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['role-assignments'] });
-      toast.success('Role unassigned successfully');
+      queryClient.invalidateQueries({ queryKey: ["role-assignments"] });
+      toast.success("Role unassigned successfully");
     },
     onError: (error) => {
-      const message = error.response?.data?.message || 'Failed to unassign role';
+      const message =
+        error.response?.data?.message || "Failed to unassign role";
       toast.error(message);
     },
   });
@@ -517,9 +481,9 @@ export const useUnassignRole = () => {
 // Domains API
 export const useDomains = (params = {}) => {
   return useQuery({
-    queryKey: ['domains', params],
+    queryKey: ["domains", params],
     queryFn: async () => {
-      const response = await api.get('/domains', { params });
+      const response = await api.get("/domains", { params });
       return response.data;
     },
   });
@@ -529,15 +493,16 @@ export const useCreateDomain = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (domainData) => {
-      const response = await api.post('/domains', domainData);
+      const response = await api.post("/domains", domainData);
       return response.data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['domains'] });
-      toast.success('Domain created successfully');
+      queryClient.invalidateQueries({ queryKey: ["domains"] });
+      toast.success("Domain created successfully");
     },
     onError: (error) => {
-      const message = error.response?.data?.message || 'Failed to create domain';
+      const message =
+        error.response?.data?.message || "Failed to create domain";
       toast.error(message);
     },
   });
@@ -546,10 +511,10 @@ export const useCreateDomain = () => {
 // Permission check API (for UI authorization)
 export const useHasPermission = (object, action, domain) => {
   return useQuery({
-    queryKey: ['permission-check', object, action, domain],
+    queryKey: ["permission-check", object, action, domain],
     queryFn: async () => {
-      const response = await api.get('/permissions/check', {
-        params: { object, action, domain }
+      const response = await api.get("/permissions/check", {
+        params: { object, action, domain },
       });
       return response.data?.allowed || false;
     },

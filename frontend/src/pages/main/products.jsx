@@ -23,9 +23,10 @@ const ProductsPage = () => {
   const totalProducts = productsData?.data?.count || 0;
 
   // Filter products based on search term
-  const filteredProducts = products.filter(product =>
-    product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.sku?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredProducts = products.filter(
+    (product) =>
+      product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.barcode?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleAddProduct = () => {
@@ -71,9 +72,11 @@ const ProductsPage = () => {
   }
 
   // Calculate stats
-  const activeProducts = products.filter(p => p.status === "active").length;
-  const outOfStockProducts = products.filter(p => p.stock_quantity === 0).length;
-  const totalValue = products.reduce((sum, p) => sum + (p.price * p.stock_quantity), 0);
+  const activeProducts = products.filter(
+    (p) => p.status === "active" || !p.status
+  ).length; // default to active if no status
+  const outOfStockProducts = products.filter((p) => p.stock === 0).length; // use 'stock' instead of 'stock_quantity'
+  const totalValue = products.reduce((sum, p) => sum + p.sale * p.stock, 0); // use 'sale' instead of 'price'
 
   return (
     <div className="space-y-5">
@@ -104,11 +107,13 @@ const ProductsPage = () => {
             </div>
           </div>
         </Card>
-        
+
         <Card>
           <div>
             <div className="flex">
-              <div className="flex-1 text-base font-medium">Active Products</div>
+              <div className="flex-1 text-base font-medium">
+                Active Products
+              </div>
               <div className="flex-none">
                 <div className="h-10 w-10 rounded-full bg-green-500 text-white text-2xl flex items-center justify-center">
                   <Icon icon="ph:check-circle" />
@@ -146,9 +151,7 @@ const ProductsPage = () => {
                 {outOfStockProducts}
               </span>
               <span className="space-x-2 block mt-4">
-                <span className="badge bg-red-500/10 text-red-500">
-                  -2%
-                </span>
+                <span className="badge bg-red-500/10 text-red-500">-2%</span>
                 <span className="text-sm text-gray-500 dark:text-gray-400">
                   Since yesterday
                 </span>
@@ -188,17 +191,14 @@ const ProductsPage = () => {
       <Card title="Product Management">
         <div className="flex justify-between items-center mb-4">
           <div className="flex space-x-2">
-            <Button 
-              icon="ph:plus" 
+            <Button
+              icon="ph:plus"
               className="btn-primary"
               onClick={handleAddProduct}
             >
               Add Product
             </Button>
-            <Button 
-              icon="ph:funnel" 
-              className="btn-secondary"
-            >
+            <Button icon="ph:funnel" className="btn-secondary">
               Filter
             </Button>
           </div>
@@ -212,7 +212,7 @@ const ProductsPage = () => {
             />
           </div>
         </div>
-        
+
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-800">
@@ -221,7 +221,7 @@ const ProductsPage = () => {
                   Product
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  SKU
+                  Barcode
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Price
@@ -244,7 +244,10 @@ const ProductsPage = () => {
                     <div className="flex items-center">
                       <div className="flex-shrink-0 h-10 w-10">
                         <div className="h-10 w-10 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
-                          <Icon icon="ph:package" className="text-gray-500 dark:text-gray-400" />
+                          <Icon
+                            icon="ph:package"
+                            className="text-gray-500 dark:text-gray-400"
+                          />
                         </div>
                       </div>
                       <div className="ml-4">
@@ -252,40 +255,42 @@ const ProductsPage = () => {
                           {product.name}
                         </div>
                         <div className="text-sm text-gray-500 dark:text-gray-400">
-                          {product.description}
+                          {product.barcode}
                         </div>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                    {product.sku}
+                    {product.barcode || "N/A"}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                    ${product.price?.toFixed(2)}
+                    ${product.sale?.toFixed(2) || "0.00"}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                    {product.stock_quantity} {product.unit}
+                    {product.stock} {product.unit}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      product.status === "active" 
-                        ? "bg-green-100 text-green-800" 
-                        : "bg-red-100 text-red-800"
-                    }`}>
-                      {product.status}
+                    <span
+                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        product.stock > 0
+                          ? "bg-green-100 text-green-800"
+                          : "bg-red-100 text-red-800"
+                      }`}
+                    >
+                      {product.stock > 0 ? "In Stock" : "Out of Stock"}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
-                      <Button 
-                        size="sm" 
+                      <Button
+                        size="sm"
                         className="btn-secondary"
                         onClick={() => handleEditProduct(product)}
                       >
                         <Icon icon="ph:pencil" />
                       </Button>
-                      <Button 
-                        size="sm" 
+                      <Button
+                        size="sm"
                         className="btn-danger"
                         onClick={() => handleDeleteProduct(product)}
                       >
@@ -297,11 +302,13 @@ const ProductsPage = () => {
               ))}
             </tbody>
           </table>
-          
+
           {filteredProducts.length === 0 && (
             <div className="text-center py-8">
               <p className="text-gray-500 dark:text-gray-400">
-                {searchTerm ? "No products found matching your search." : "No products available."}
+                {searchTerm
+                  ? "No products found matching your search."
+                  : "No products available."}
               </p>
             </div>
           )}

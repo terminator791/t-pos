@@ -4,7 +4,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import CrudModal from "@/components/ui/CrudModal";
 import FormField from "@/components/ui/FormField";
 import { CreateCustomerSchema, UpdateCustomerSchema } from "@/lib/schemas";
-import { useCreateCustomer, useUpdateCustomer } from "@/services/api";
+import {
+  useCreateCustomer,
+  useUpdateCustomer,
+  useRoles,
+  useLicenses,
+} from "@/services/api";
 
 const CustomerModal = ({
   isOpen,
@@ -14,9 +19,11 @@ const CustomerModal = ({
 }) => {
   const createCustomer = useCreateCustomer();
   const updateCustomer = useUpdateCustomer();
+  const { data: rolesData } = useRoles();
+  const { data: licensesData } = useLicenses();
 
   const schema = isEditing ? UpdateCustomerSchema : CreateCustomerSchema;
-  
+
   const {
     register,
     handleSubmit,
@@ -28,7 +35,7 @@ const CustomerModal = ({
     defaultValues: {
       username: "",
       pin: "",
-      role_id: "cashier",
+      role_id: "",
       serial_number: "",
     },
   });
@@ -37,7 +44,10 @@ const CustomerModal = ({
   useEffect(() => {
     if (isEditing && customer) {
       Object.keys(customer).forEach((key) => {
-        setValue(key, customer[key]);
+        if (key !== "pin") {
+          // Don't pre-fill PIN for security
+          setValue(key, customer[key]);
+        }
       });
     } else {
       reset();
@@ -47,6 +57,10 @@ const CustomerModal = ({
   const onSubmit = async (data) => {
     try {
       if (isEditing) {
+        // Remove pin if empty for update
+        if (!data.pin) {
+          delete data.pin;
+        }
         await updateCustomer.mutateAsync({ id: customer.id, ...data });
       } else {
         await createCustomer.mutateAsync(data);
@@ -60,17 +74,32 @@ const CustomerModal = ({
 
   const isLoading = createCustomer.isPending || updateCustomer.isPending;
 
-  const roleOptions = [
-    { value: "cashier", label: "Cashier" },
-    { value: "owner_business", label: "Business Owner" },
-  ];
+  // Get customer roles from API
+  const roles = rolesData?.data?.roles || [];
+  const customerRoles = roles.filter(
+    (role) => role.name === "cashier" || role.name === "owner_business"
+  );
+
+  const roleOptions = customerRoles.map((role) => ({
+    value: role.id,
+    label: role.display_name || role.name,
+  }));
+
+  // Get licenses from API
+  const licenses = licensesData?.data?.licenses || [];
+  const licenseOptions = licenses.map((license) => ({
+    value: license.serial_number,
+    label: license.serial_number,
+  }));
 
   return (
     <CrudModal
       isOpen={isOpen}
       onClose={onClose}
       title={isEditing ? "Edit Customer" : "Add New Customer"}
-      description={isEditing ? "Update customer information" : "Create a new customer"}
+      description={
+        isEditing ? "Update customer information" : "Create a new customer"
+      }
       onSubmit={handleSubmit(onSubmit)}
       isLoading={isLoading}
       submitText={isEditing ? "Update Customer" : "Create Customer"}
@@ -90,7 +119,11 @@ const CustomerModal = ({
           name="pin"
           label="PIN"
           type="password"
-          placeholder="Enter PIN (minimum 4 characters)"
+          placeholder={
+            isEditing
+              ? "Enter new PIN (6 characters minimum)"
+              : "Enter PIN (6 characters minimum)"
+          }
           register={register}
           error={errors.pin}
           disabled={isLoading}
@@ -109,7 +142,8 @@ const CustomerModal = ({
         <FormField
           name="serial_number"
           label="License Serial Number"
-          placeholder="Enter license serial number"
+          type="select"
+          options={licenseOptions}
           register={register}
           error={errors.serial_number}
           disabled={isLoading}
@@ -117,7 +151,8 @@ const CustomerModal = ({
 
         <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-md">
           <p className="text-sm text-blue-800 dark:text-blue-200">
-            <strong>Note:</strong> Customers are users with cashier or business owner roles who can access the POS system.
+            <strong>Note:</strong> Customers are users with cashier or business
+            owner roles who can access the POS system.
           </p>
         </div>
       </div>

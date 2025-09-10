@@ -23,7 +23,7 @@ const CustomersPage = () => {
   const totalCustomers = customersData?.data?.count || 0;
 
   // Filter customers based on search term
-  const filteredCustomers = customers.filter(customer =>
+  const filteredCustomers = customers.filter((customer) =>
     customer.username?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -69,10 +69,20 @@ const CustomersPage = () => {
     );
   }
 
-  // Calculate stats
-  const activeCustomers = customers.filter(c => c.role_id === "cashier" || c.role_id === "owner_business").length;
-  const cashiers = customers.filter(c => c.role_id === "cashier").length;
-  const businessOwners = customers.filter(c => c.role_id === "owner_business").length;
+  // Calculate stats only for displayed customers
+  const activeCustomers = filteredCustomers.filter(
+    (c) =>
+      c.role?.name === "cashier" ||
+      c.role?.name === "owner_business" ||
+      c.role_id === "cashier" ||
+      c.role_id === "owner_business"
+  ).length;
+  const cashiers = filteredCustomers.filter(
+    (c) => c.role?.name === "cashier" || c.role_id === "cashier"
+  ).length;
+  const businessOwners = filteredCustomers.filter(
+    (c) => c.role?.name === "owner_business" || c.role_id === "owner_business"
+  ).length;
 
   return (
     <div className="space-y-5">
@@ -81,7 +91,9 @@ const CustomersPage = () => {
         <Card>
           <div>
             <div className="flex">
-              <div className="flex-1 text-base font-medium">Total Customers</div>
+              <div className="flex-1 text-base font-medium">
+                Total Customers
+              </div>
               <div className="flex-none">
                 <div className="h-10 w-10 rounded-full bg-indigo-500 text-white text-2xl flex items-center justify-center">
                   <Icon icon="ph:users" />
@@ -93,9 +105,6 @@ const CustomersPage = () => {
                 {totalCustomers}
               </span>
               <span className="space-x-2 block mt-4">
-                <span className="badge bg-indigo-500/10 text-indigo-500">
-                  +18%
-                </span>
                 <span className="text-sm text-gray-500 dark:text-gray-400">
                   Since last month
                 </span>
@@ -103,11 +112,13 @@ const CustomersPage = () => {
             </div>
           </div>
         </Card>
-        
+
         <Card>
           <div>
             <div className="flex">
-              <div className="flex-1 text-base font-medium">Active Customers</div>
+              <div className="flex-1 text-base font-medium">
+                Active Customers
+              </div>
               <div className="flex-none">
                 <div className="h-10 w-10 rounded-full bg-green-500 text-white text-2xl flex items-center justify-center">
                   <Icon icon="ph:check-circle" />
@@ -119,9 +130,6 @@ const CustomersPage = () => {
                 {activeCustomers}
               </span>
               <span className="space-x-2 block mt-4">
-                <span className="badge bg-green-500/10 text-green-500">
-                  +12%
-                </span>
                 <span className="text-sm text-gray-500 dark:text-gray-400">
                   Since last week
                 </span>
@@ -145,9 +153,6 @@ const CustomersPage = () => {
                 {cashiers}
               </span>
               <span className="space-x-2 block mt-4">
-                <span className="badge bg-yellow-500/10 text-yellow-500">
-                  +25%
-                </span>
                 <span className="text-sm text-gray-500 dark:text-gray-400">
                   Active cashiers
                 </span>
@@ -159,7 +164,9 @@ const CustomersPage = () => {
         <Card>
           <div>
             <div className="flex">
-              <div className="flex-1 text-base font-medium">Business Owners</div>
+              <div className="flex-1 text-base font-medium">
+                Business Owners
+              </div>
               <div className="flex-none">
                 <div className="h-10 w-10 rounded-full bg-purple-500 text-white text-2xl flex items-center justify-center">
                   <Icon icon="ph:briefcase" />
@@ -171,9 +178,6 @@ const CustomersPage = () => {
                 {businessOwners}
               </span>
               <span className="space-x-2 block mt-4">
-                <span className="badge bg-purple-500/10 text-purple-500">
-                  +10%
-                </span>
                 <span className="text-sm text-gray-500 dark:text-gray-400">
                   Business owners
                 </span>
@@ -187,23 +191,17 @@ const CustomersPage = () => {
       <Card title="Customer Management">
         <div className="flex justify-between items-center mb-4">
           <div className="flex space-x-2">
-            <Button 
-              icon="ph:plus" 
+            <Button
+              icon="ph:plus"
               className="btn-primary"
               onClick={handleAddCustomer}
             >
               Add Customer
             </Button>
-            <Button 
-              icon="ph:funnel" 
-              className="btn-secondary"
-            >
+            <Button icon="ph:funnel" className="btn-secondary">
               Filter
             </Button>
-            <Button 
-              icon="ph:export" 
-              className="btn-secondary"
-            >
+            <Button icon="ph:export" className="btn-secondary">
               Export
             </Button>
           </div>
@@ -217,7 +215,7 @@ const CustomersPage = () => {
             />
           </div>
         </div>
-        
+
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-800">
@@ -249,7 +247,10 @@ const CustomersPage = () => {
                     <div className="flex items-center">
                       <div className="flex-shrink-0 h-10 w-10">
                         <div className="h-10 w-10 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
-                          <Icon icon="ph:user" className="text-gray-500 dark:text-gray-400" />
+                          <Icon
+                            icon="ph:user"
+                            className="text-gray-500 dark:text-gray-400"
+                          />
                         </div>
                       </div>
                       <div className="ml-4">
@@ -263,17 +264,23 @@ const CustomersPage = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      customer.role_id === "owner_business" 
-                        ? "bg-purple-100 text-purple-800" 
-                        : "bg-blue-100 text-blue-800"
-                    }`}>
-                      {customer.role_id === "owner_business" ? "Business Owner" : "Cashier"}
+                    <span
+                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        customer.role?.name === "owner_business" ||
+                        customer.role_id === "owner_business"
+                          ? "bg-purple-100 text-purple-800"
+                          : "bg-blue-100 text-blue-800"
+                      }`}
+                    >
+                      {customer.role?.name === "owner_business" ||
+                      customer.role_id === "owner_business"
+                        ? "Business Owner"
+                        : "Cashier"}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-mono text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-center">
-                      {customer.serial_number}
+                      {customer.license?.serial_number || "N/A"}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
@@ -286,15 +293,15 @@ const CustomersPage = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
-                      <Button 
-                        size="sm" 
+                      <Button
+                        size="sm"
                         className="btn-secondary"
                         onClick={() => handleEditCustomer(customer)}
                       >
                         <Icon icon="ph:pencil" />
                       </Button>
-                      <Button 
-                        size="sm" 
+                      <Button
+                        size="sm"
                         className="btn-danger"
                         onClick={() => handleDeleteCustomer(customer)}
                       >
@@ -306,11 +313,13 @@ const CustomersPage = () => {
               ))}
             </tbody>
           </table>
-          
+
           {filteredCustomers.length === 0 && (
             <div className="text-center py-8">
               <p className="text-gray-500 dark:text-gray-400">
-                {searchTerm ? "No customers found matching your search." : "No customers available."}
+                {searchTerm
+                  ? "No customers found matching your search."
+                  : "No customers available."}
               </p>
             </div>
           )}

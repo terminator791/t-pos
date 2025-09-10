@@ -106,6 +106,7 @@ func main() {
 	licenseHandler := handlers.NewLicenseHandler(licenseService)
 	customerHandler := handlers.NewCustomerHandler(customerService)
 	userManagementHandler := handlers.NewUserManagementHandler(userManagementService)
+	roleHandler := handlers.NewRoleHandler(roleRepo)
 
 	// Initialize Gin router
 	router := gin.Default()
@@ -125,7 +126,7 @@ func main() {
 	})
 
 	// Setup routes
-	routes.SetupRoutes(router, productHandler, checkoutHandler, authHandler, licenseHandler, customerHandler, userManagementHandler, authMiddleware, authzMiddleware)
+	routes.SetupRoutes(router, productHandler, checkoutHandler, authHandler, licenseHandler, customerHandler, userManagementHandler, roleHandler, authMiddleware, authzMiddleware)
 
 	// Start server
 	serverAddr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)

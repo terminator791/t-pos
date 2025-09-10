@@ -24,9 +24,10 @@ const UsersPage = () => {
   const totalUsers = usersData?.data?.count || 0;
 
   // Filter users based on search term and role
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = user.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.email?.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredUsers = users.filter((user) => {
+    const matchesSearch =
+      user.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesRole = !selectedRole || user.role_id === selectedRole;
     return matchesSearch && matchesRole;
   });
@@ -75,8 +76,15 @@ const UsersPage = () => {
 
   // Calculate stats
   const activeUsers = users.length; // Assuming all fetched users are active
-  const adminUsers = users.filter(u => u.role_id === "admin").length;
-  const superAdminUsers = users.filter(u => u.role_id === "super_admin").length;
+
+  // check user roles
+  const adminUsers = users.filter((u) => {
+    return u.role?.name === "admin" || u.role_id === "admin";
+  }).length;
+
+  const superAdminUsers = users.filter((u) => {
+    return u.role?.name === "super_admin" || u.role_id === "super_admin";
+  }).length;
 
   return (
     <div className="space-y-5">
@@ -107,7 +115,7 @@ const UsersPage = () => {
             </div>
           </div>
         </Card>
-        
+
         <Card>
           <div>
             <div className="flex">
@@ -191,28 +199,22 @@ const UsersPage = () => {
       <Card title="User Management">
         <div className="flex justify-between items-center mb-4">
           <div className="flex space-x-2">
-            <Button 
-              icon="ph:plus" 
+            <Button
+              icon="ph:plus"
               className="btn-primary"
               onClick={handleAddUser}
             >
               Add User
             </Button>
-            <Button 
-              icon="ph:funnel" 
-              className="btn-secondary"
-            >
+            <Button icon="ph:funnel" className="btn-secondary">
               Filter
             </Button>
-            <Button 
-              icon="ph:export" 
-              className="btn-secondary"
-            >
+            <Button icon="ph:export" className="btn-secondary">
               Export
             </Button>
           </div>
           <div className="flex items-center space-x-2">
-            <select 
+            <select
               className="form-control"
               value={selectedRole}
               onChange={(e) => setSelectedRole(e.target.value)}
@@ -230,7 +232,7 @@ const UsersPage = () => {
             />
           </div>
         </div>
-        
+
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-800">
@@ -242,7 +244,7 @@ const UsersPage = () => {
                   Role
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  License
+                  Name
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Created Date
@@ -262,7 +264,10 @@ const UsersPage = () => {
                     <div className="flex items-center">
                       <div className="flex-shrink-0 h-10 w-10">
                         <div className="h-10 w-10 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
-                          <Icon icon="ph:user" className="text-gray-500 dark:text-gray-400" />
+                          <Icon
+                            icon="ph:user"
+                            className="text-gray-500 dark:text-gray-400"
+                          />
                         </div>
                       </div>
                       <div className="ml-4">
@@ -276,17 +281,19 @@ const UsersPage = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      user.role_id === "super_admin" 
-                        ? "bg-red-100 text-red-800" 
-                        : "bg-purple-100 text-purple-800"
-                    }`}>
+                    <span
+                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        user.role_id === "super_admin"
+                          ? "bg-red-100 text-red-800"
+                          : "bg-purple-100 text-purple-800"
+                      }`}
+                    >
                       {user.role_id === "super_admin" ? "Super Admin" : "Admin"}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-mono text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-center">
-                      {user.serial_number}
+                    <div className="text-sm text-gray-900 dark:text-white text-center">
+                      {user.name || "N/A"}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
@@ -299,15 +306,15 @@ const UsersPage = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
-                      <Button 
-                        size="sm" 
+                      <Button
+                        size="sm"
                         className="btn-secondary"
                         onClick={() => handleEditUser(user)}
                       >
                         <Icon icon="ph:pencil" />
                       </Button>
-                      <Button 
-                        size="sm" 
+                      <Button
+                        size="sm"
                         className="btn-danger"
                         onClick={() => handleDeleteUser(user)}
                       >
@@ -319,11 +326,13 @@ const UsersPage = () => {
               ))}
             </tbody>
           </table>
-          
+
           {filteredUsers.length === 0 && (
             <div className="text-center py-8">
               <p className="text-gray-500 dark:text-gray-400">
-                {searchTerm || selectedRole ? "No users found matching your criteria." : "No users available."}
+                {searchTerm || selectedRole
+                  ? "No users found matching your criteria."
+                  : "No users available."}
               </p>
             </div>
           )}

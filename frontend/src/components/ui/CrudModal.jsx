@@ -24,8 +24,9 @@ const CrudModal = ({
 }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
+    e.stopPropagation();
     if (onSubmit) {
-      onSubmit(e);
+      return onSubmit(e);
     }
   };
 
@@ -39,7 +40,9 @@ const CrudModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className={`${sizeClasses[size]} max-h-[90vh] overflow-auto`}>
+      <DialogContent
+        className={`${sizeClasses[size]} max-h-[90vh] overflow-auto`}
+      >
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold text-gray-800 dark:text-white">
             {title}
@@ -52,9 +55,7 @@ const CrudModal = ({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="py-4">
-            {children}
-          </div>
+          <div className="py-4">{children}</div>
 
           <div className="flex justify-end space-x-2 pt-4 border-t border-gray-200 dark:border-gray-700">
             <DialogClose asChild>

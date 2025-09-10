@@ -34,13 +34,36 @@ export const authApi = apiSlice.injectEndpoints({
         method: "POST",
       }),
     }),
+    createPin: builder.mutation({
+      query: (data) => ({
+        url: "auth/pin",
+        method: "POST",
+        body: data,
+      }),
+    }),
+    updatePin: builder.mutation({
+      query: (data) => ({
+        url: "auth/pin",
+        method: "PUT",
+        body: data,
+      }),
+    }),
+    deletePin: builder.mutation({
+      query: () => ({
+        url: "auth/pin",
+        method: "DELETE",
+      }),
+    }),
   }),
 });
 
-export const { 
-  useRegisterUserMutation, 
-  useLoginMutation, 
+export const {
+  useRegisterUserMutation,
+  useLoginMutation,
   useGetProfileQuery,
   useGetPermissionsQuery,
-  useRefreshTokenMutation 
+  useRefreshTokenMutation,
+  useCreatePinMutation,
+  useUpdatePinMutation,
+  useDeletePinMutation,
 } = authApi;
