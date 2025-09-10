@@ -58,6 +58,7 @@ func main() {
 	receiptRepo := repositories.NewReceiptRepository(db)
 	licenseRepo := repositories.NewLicenseRepository(db)
 	licenseLogRepo := repositories.NewLicenseLogRepository(db)
+	transactionProductRepo := repositories.NewTransactionProductRepository(db)
 
 	// Initialize JWT and Password services
 	jwtService := auth.NewJWTService(cfg.JWT.Secret, "t-pos", cfg.JWT.ExpiryHour)
@@ -113,6 +114,11 @@ func main() {
 	categoryHandler := handlers.NewCategoryHandler(categoryUseCase)
 	cartHandler := handlers.NewCartHandler(cartUseCase)
 	transactionHandler := handlers.NewTransactionHandler(transactionUseCase)
+	expenseHandler := handlers.NewExpenseHandler(expenseRepo)
+	paymentHandler := handlers.NewPaymentHandler(paymentRepo)
+	historyHandler := handlers.NewHistoryHandler(historyRepo)
+	receiptHandler := handlers.NewReceiptHandler(receiptRepo)
+	transactionProductHandler := handlers.NewTransactionProductHandler(transactionProductRepo)
 	licenseHandler := handlers.NewLicenseHandler(licenseService)
 	customerHandler := handlers.NewCustomerHandler(customerService)
 	userManagementHandler := handlers.NewUserManagementHandler(userManagementService)
@@ -136,7 +142,7 @@ func main() {
 	})
 
 	// Setup routes
-	routes.SetupRoutes(router, productHandler, checkoutHandler, authHandler, licenseHandler, customerHandler, userManagementHandler, roleHandler, categoryHandler, cartHandler, transactionHandler, authMiddleware, authzMiddleware)
+	routes.SetupRoutes(router, productHandler, checkoutHandler, authHandler, licenseHandler, customerHandler, userManagementHandler, roleHandler, categoryHandler, cartHandler, transactionHandler, expenseHandler, paymentHandler, historyHandler, receiptHandler, transactionProductHandler, authMiddleware, authzMiddleware)
 
 	// Start server
 	serverAddr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)

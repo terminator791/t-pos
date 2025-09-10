@@ -53,6 +53,13 @@ func (r *PaymentRepositoryImpl) GetByShopID(ctx context.Context, shopID uuid.UUI
 	return payments, err
 }
 
+// GetByShopIDAndStatus retrieves payments by shop ID and status
+func (r *PaymentRepositoryImpl) GetByShopIDAndStatus(ctx context.Context, shopID uuid.UUID, status entities.PaymentStatus) ([]*entities.Payment, error) {
+	var payments []*entities.Payment
+	err := r.db.WithContext(ctx).Where("shop_id = ? AND status = ?", shopID, status).Find(&payments).Error
+	return payments, err
+}
+
 // GetByStatus retrieves payments by status
 func (r *PaymentRepositoryImpl) GetByStatus(ctx context.Context, status entities.PaymentStatus) ([]*entities.Payment, error) {
 	var payments []*entities.Payment

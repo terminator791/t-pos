@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -159,6 +160,74 @@ func (h *TransactionHandler) GetTransaction(c *gin.Context) {
 	response.SuccessOK(c, "Transaction retrieved successfully", transaction)
 }
 
+// ListTransactions handles GET /transactions - super admin and admin only
+func (h *TransactionHandler) ListTransactions(c *gin.Context) {
+	// Parse query parameters
+	limit, offset := parsePagination(c)
+
+	transactions, err := h.transactionUseCase.ListTransactions(c.Request.Context(), limit, offset)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to retrieve transactions", err.Error())
+		return
+	}
+
+	response.SuccessOK(c, "Transactions retrieved successfully", map[string]interface{}{
+		"transactions": transactions,
+		"limit":        limit,
+		"offset":       offset,
+	})
+}
+
+// ListTransactionsByShop handles GET /transactions/shop/:shopId
+func (h *TransactionHandler) ListTransactionsByShop(c *gin.Context) {
+	shopID, err := uuid.Parse(c.Param("shopId"))
+	if err != nil {
+		response.ErrorBadRequest(c, "Invalid shop ID", err.Error())
+		return
+	}
+
+	limit, offset := parsePagination(c)
+
+	transactions, err := h.transactionUseCase.GetTransactionsByShop(c.Request.Context(), shopID, limit, offset)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to retrieve transactions", err.Error())
+		return
+	}
+
+	response.SuccessOK(c, "Transactions retrieved successfully", map[string]interface{}{
+		"transactions": transactions,
+		"shop_id":      shopID,
+		"limit":        limit,
+		"offset":       offset,
+	})
+}
+
+// ListTransactionsByShopAndStatus handles GET /transactions/shop/:shopId/status/:status
+func (h *TransactionHandler) ListTransactionsByShopAndStatus(c *gin.Context) {
+	shopID, err := uuid.Parse(c.Param("shopId"))
+	if err != nil {
+		response.ErrorBadRequest(c, "Invalid shop ID", err.Error())
+		return
+	}
+
+	status := c.Param("status")
+	limit, offset := parsePagination(c)
+
+	transactions, err := h.transactionUseCase.GetTransactionsByShopAndStatus(c.Request.Context(), shopID, status, limit, offset)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to retrieve transactions", err.Error())
+		return
+	}
+
+	response.SuccessOK(c, "Transactions retrieved successfully", map[string]interface{}{
+		"transactions": transactions,
+		"shop_id":      shopID,
+		"status":       status,
+		"limit":        limit,
+		"offset":       offset,
+	})
+}
+
 // convertToUseCaseItems converts request items to usecase items
 func convertToUseCaseItems(items []CreateTransactionItemRequest) ([]usecases.CreateTransactionItem, error) {
 	result := make([]usecases.CreateTransactionItem, len(items))
@@ -174,4 +243,24 @@ func convertToUseCaseItems(items []CreateTransactionItemRequest) ([]usecases.Cre
 		}
 	}
 	return result, nil
+}
+
+// parsePagination parses limit and offset from query parameters
+func parsePagination(c *gin.Context) (int, int) {
+	limit := 20 // default limit
+	offset := 0 // default offset
+
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
+			limit = parsedLimit
+		}
+	}
+
+	if offsetStr := c.Query("offset"); offsetStr != "" {
+		if parsedOffset, err := strconv.Atoi(offsetStr); err == nil && parsedOffset >= 0 {
+			offset = parsedOffset
+		}
+	}
+
+	return limit, offset
 }

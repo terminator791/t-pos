@@ -34,8 +34,8 @@ func (r *TransactionRepositoryImpl) GetByID(ctx context.Context, id uuid.UUID) (
 		Preload("Cashier").
 		// Preload("TransactionProducts").
 		// Preload("TransactionProducts.Product").
+		// Preload("TransactionProducts.Product.Category").
 		// Preload("Payments").
-		// Preload("Payments.Shop").
 		First(&transaction, "id = ?", id).Error
 	if err != nil {
 		return nil, err
@@ -47,6 +47,18 @@ func (r *TransactionRepositoryImpl) GetByID(ctx context.Context, id uuid.UUID) (
 func (r *TransactionRepositoryImpl) GetByShopID(ctx context.Context, shopID uuid.UUID) ([]*entities.Transaction, error) {
 	var transactions []*entities.Transaction
 	err := r.db.WithContext(ctx).Where("shop_id = ?", shopID).Find(&transactions).Error
+	return transactions, err
+}
+
+// GetByShopIDAndStatus retrieves transactions by shop ID and status
+func (r *TransactionRepositoryImpl) GetByShopIDAndStatus(ctx context.Context, shopID uuid.UUID, status entities.TransactionStatus) ([]*entities.Transaction, error) {
+	var transactions []*entities.Transaction
+	err := r.db.WithContext(ctx).
+		Preload("Shop").
+		Preload("Shop.License").
+		// Preload("Shop.Owner").
+		Preload("Cashier").
+		Where("shop_id = ? AND status = ?", shopID, status).Find(&transactions).Error
 	return transactions, err
 }
 

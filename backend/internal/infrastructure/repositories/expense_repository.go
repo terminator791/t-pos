@@ -44,6 +44,20 @@ func (r *ExpenseRepositoryImpl) GetByShopID(ctx context.Context, shopID uuid.UUI
 	return expenses, err
 }
 
+// GetByShopIDAndStatus retrieves expenses by shop ID and status
+func (r *ExpenseRepositoryImpl) GetByShopIDAndStatus(ctx context.Context, shopID uuid.UUID, status entities.ExpenseStatus) ([]*entities.Expense, error) {
+	var expenses []*entities.Expense
+	err := r.db.WithContext(ctx).Where("shop_id = ? AND status = ?", shopID, status).Find(&expenses).Error
+	return expenses, err
+}
+
+// GetByStatus retrieves expenses by status
+func (r *ExpenseRepositoryImpl) GetByStatus(ctx context.Context, status entities.ExpenseStatus) ([]*entities.Expense, error) {
+	var expenses []*entities.Expense
+	err := r.db.WithContext(ctx).Where("status = ?", status).Find(&expenses).Error
+	return expenses, err
+}
+
 // Update updates an existing expense
 func (r *ExpenseRepositoryImpl) Update(ctx context.Context, expense *entities.Expense) error {
 	return r.db.WithContext(ctx).Save(expense).Error

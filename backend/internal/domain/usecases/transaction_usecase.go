@@ -429,6 +429,22 @@ func (uc *TransactionUseCase) GetTransaction(ctx context.Context, transactionID 
 	return uc.transactionRepo.GetByID(ctx, transactionID)
 }
 
+// ListTransactions retrieves all transactions with pagination (super admin and admin only)
+func (uc *TransactionUseCase) ListTransactions(ctx context.Context, limit, offset int) ([]*entities.Transaction, error) {
+	return uc.transactionRepo.List(ctx, limit, offset)
+}
+
+// GetTransactionsByShop retrieves transactions by shop ID with pagination
+func (uc *TransactionUseCase) GetTransactionsByShop(ctx context.Context, shopID uuid.UUID, limit, offset int) ([]*entities.Transaction, error) {
+	return uc.transactionRepo.GetByShopID(ctx, shopID)
+}
+
+// GetTransactionsByShopAndStatus retrieves transactions by shop ID and status with pagination
+func (uc *TransactionUseCase) GetTransactionsByShopAndStatus(ctx context.Context, shopID uuid.UUID, status string, limit, offset int) ([]*entities.Transaction, error) {
+	transactionStatus := entities.TransactionStatus(status)
+	return uc.transactionRepo.GetByShopIDAndStatus(ctx, shopID, transactionStatus)
+}
+
 // calculateTotalAndValidateProducts calculates the total and validates all products
 func (uc *TransactionUseCase) calculateTotalAndValidateProducts(ctx context.Context, items []CreateTransactionItem) (float64, []entities.TransactionProduct, error) {
 	var total float64

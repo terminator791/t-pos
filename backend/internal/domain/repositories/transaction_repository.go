@@ -12,6 +12,7 @@ type TransactionRepository interface {
 	Create(ctx context.Context, transaction *entities.Transaction) error
 	GetByID(ctx context.Context, id uuid.UUID) (*entities.Transaction, error)
 	GetByShopID(ctx context.Context, shopID uuid.UUID) ([]*entities.Transaction, error)
+	GetByShopIDAndStatus(ctx context.Context, shopID uuid.UUID, status entities.TransactionStatus) ([]*entities.Transaction, error)
 	GetByCashierID(ctx context.Context, cashierID uuid.UUID) ([]*entities.Transaction, error)
 	GetByStatus(ctx context.Context, status entities.TransactionStatus) ([]*entities.Transaction, error)
 	GetTodaysTransactions(ctx context.Context, shopID uuid.UUID) ([]*entities.Transaction, error)

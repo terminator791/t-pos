@@ -20,6 +20,11 @@ func SetupRoutes(
 	categoryHandler *handlers.CategoryHandler,
 	cartHandler *handlers.CartHandler,
 	transactionHandler *handlers.TransactionHandler,
+	expenseHandler *handlers.ExpenseHandler,
+	paymentHandler *handlers.PaymentHandler,
+	historyHandler *handlers.HistoryHandler,
+	receiptHandler *handlers.ReceiptHandler,
+	transactionProductHandler *handlers.TransactionProductHandler,
 	authMiddleware *auth.AuthMiddleware,
 	authzMiddleware *casbin.AuthzMiddleware,
 ) {
@@ -94,8 +99,55 @@ func SetupRoutes(
 				transactions.GET("/:id", transactionHandler.GetTransaction)
 				transactions.POST("/:id/pay", transactionHandler.PayTransaction)
 				transactions.POST("/:id/cancel", transactionHandler.CancelTransaction)
+				// List routes
+				transactions.GET("", transactionHandler.ListTransactions) // super admin and admin only
+				transactions.GET("/shop/:shopId", transactionHandler.ListTransactionsByShop)
+				transactions.GET("/shop/:shopId/status/:status", transactionHandler.ListTransactionsByShopAndStatus)
 				// Legacy routes
 				transactions.GET("/shop/:shopId/today", checkoutHandler.GetTodaysTransactions)
+			}
+
+			// Expense routes
+			expenses := protected.Group("/expenses")
+			{
+				expenses.GET("", expenseHandler.ListExpenses) // super admin and admin only
+				expenses.GET("/shop/:shopId", expenseHandler.ListExpensesByShop)
+				expenses.GET("/shop/:shopId/status/:status", expenseHandler.ListExpensesByShopAndStatus)
+				expenses.GET("/:id", expenseHandler.GetExpense)
+			}
+
+			// Payment routes
+			payments := protected.Group("/payments")
+			{
+				payments.GET("", paymentHandler.ListPayments) // super admin and admin only
+				payments.GET("/shop/:shopId", paymentHandler.ListPaymentsByShop)
+				payments.GET("/shop/:shopId/status/:status", paymentHandler.ListPaymentsByShopAndStatus)
+				payments.GET("/:id", paymentHandler.GetPayment)
+			}
+
+			// History routes
+			histories := protected.Group("/histories")
+			{
+				histories.GET("", historyHandler.ListHistories) // super admin and admin only
+				histories.GET("/shop/:shopId", historyHandler.ListHistoriesByShop)
+				histories.GET("/:id", historyHandler.GetHistory)
+			}
+
+			// Receipt routes
+			receipts := protected.Group("/receipts")
+			{
+				receipts.GET("", receiptHandler.ListReceipts) // super admin and admin only
+				receipts.GET("/shop/:shopId", receiptHandler.ListReceiptsByShop)
+				receipts.GET("/:id", receiptHandler.GetReceipt)
+			}
+
+			// Transaction Product routes
+			transactionProducts := protected.Group("/transaction-products")
+			{
+				transactionProducts.GET("", transactionProductHandler.ListTransactionProducts) // super admin and admin only
+				transactionProducts.GET("/transaction/:transactionId", transactionProductHandler.ListTransactionProductsByTransaction)
+				transactionProducts.GET("/shop/:shopId", transactionProductHandler.ListTransactionProductsByShop)
+				transactionProducts.GET("/:id", transactionProductHandler.GetTransactionProduct)
 			}
 
 			// Checkout and transaction routes (existing, deprecated)
