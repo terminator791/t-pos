@@ -103,17 +103,38 @@ func (uc *TransactionUseCase) CreateTransaction(ctx context.Context, req *Create
 	}()
 
 	// Validate shop exists
-	_, err := uc.shopRepo.GetByID(ctx, req.ShopID)
+	shop, err := uc.shopRepo.GetByID(ctx, req.ShopID)
 	if err != nil {
 		tx.Rollback()
 		return nil, errors.New("invalid shop ID")
 	}
 
-	// Validate cashier exists
-	_, err = uc.userRepo.GetByID(ctx, req.CashierID)
+	// Validate cashier exists and has access to the shop
+	cashier, err := uc.userRepo.GetByID(ctx, req.CashierID)
 	if err != nil {
 		tx.Rollback()
 		return nil, errors.New("invalid cashier ID")
+	}
+
+	// Validate shop access based on user role
+	if cashier.Role != nil {
+		switch cashier.Role.Name {
+		case "cashier":
+			// Cashiers can only access their assigned shop
+			if cashier.ShopID == nil || *cashier.ShopID != req.ShopID {
+				tx.Rollback()
+				return nil, errors.New("cashier is not authorized to access this shop")
+			}
+		case "owner_business":
+			// Owner business can access shops under their license
+			if cashier.LicenseID == nil || shop.LicenseID != *cashier.LicenseID {
+				tx.Rollback()
+				return nil, errors.New("owner business is not authorized to access this shop")
+			}
+		default:
+			// For other roles, we'll allow access for now
+			// TODO: Add more specific authorization rules for admin, super_admin, etc.
+		}
 	}
 
 	// Calculate total and validate products

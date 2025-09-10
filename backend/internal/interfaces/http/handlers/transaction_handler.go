@@ -1,9 +1,12 @@
 package handlers
 
 import (
+	"errors"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/terminator791/t-pos/internal/domain/usecases"
+	"github.com/terminator791/t-pos/internal/infrastructure/auth"
 	"github.com/terminator791/t-pos/pkg/response"
 )
 
@@ -21,7 +24,7 @@ func NewTransactionHandler(transactionUseCase *usecases.TransactionUseCase) *Tra
 
 // CreateTransactionRequest represents the request structure for creating a transaction
 type CreateTransactionRequest struct {
-	ShopID       uuid.UUID                     `json:"shop_id" binding:"required"`
+	ShopID       *uuid.UUID                    `json:"shop_id,omitempty"` // Optional for owner business, ignored for cashiers
 	CustomerName string                        `json:"customer_name" binding:"required"`
 	Items        []CreateTransactionItemRequest `json:"items" binding:"required"`
 	Discount     float64                       `json:"discount,omitempty"`
@@ -59,11 +62,36 @@ func (h *TransactionHandler) CreateTransaction(c *gin.Context) {
 		return
 	}
 
+	// Get shop ID from user context or request
+	// For cashiers: must use their assigned shop_id from context
+	// For owner business: can specify shop_id in request or use context
+	var shopID uuid.UUID
+	userShopID, hasShopContext := auth.GetUserShopIDFromContext(c)
+	
+	if hasShopContext && userShopID != nil {
+		// User has shop context (cashier), use it
+		shopID = *userShopID
+	} else if req.ShopID != nil {
+		// No shop context but shop_id provided in request (owner business)
+		shopID = *req.ShopID
+	} else {
+		// No shop context and no shop_id in request
+		response.ErrorBadRequest(c, "Shop ID required: cashiers must be assigned to a shop, owner business must specify shop_id in request", nil)
+		return
+	}
+
+	// Validate and convert request items
+	usecaseItems, err := convertToUseCaseItems(req.Items)
+	if err != nil {
+		response.ErrorBadRequest(c, "Invalid transaction items", err.Error())
+		return
+	}
+
 	transaction, err := h.transactionUseCase.CreateTransaction(c.Request.Context(), &usecases.CreateTransactionRequest{
-		ShopID:       req.ShopID,
+		ShopID:       shopID,
 		CashierID:    cashierID,
 		CustomerName: req.CustomerName,
-		Items:        convertToUseCaseItems(req.Items),
+		Items:        usecaseItems,
 		Discount:     req.Discount,
 	})
 	if err != nil {
@@ -132,13 +160,18 @@ func (h *TransactionHandler) GetTransaction(c *gin.Context) {
 }
 
 // convertToUseCaseItems converts request items to usecase items
-func convertToUseCaseItems(items []CreateTransactionItemRequest) []usecases.CreateTransactionItem {
+func convertToUseCaseItems(items []CreateTransactionItemRequest) ([]usecases.CreateTransactionItem, error) {
 	result := make([]usecases.CreateTransactionItem, len(items))
 	for i, item := range items {
+		// Validate that ProductID is not zero UUID
+		if item.ProductID == uuid.Nil {
+			return nil, errors.New("invalid product ID: cannot be empty or zero UUID")
+		}
+		
 		result[i] = usecases.CreateTransactionItem{
 			ProductID: item.ProductID,
 			Quantity:  item.Quantity,
 		}
 	}
-	return result
+	return result, nil
 }

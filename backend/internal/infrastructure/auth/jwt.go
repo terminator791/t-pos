@@ -20,11 +20,12 @@ type JWTService struct {
 
 // Claims represents the JWT claims structure
 type Claims struct {
-	UserID   uuid.UUID `json:"user_id"`
-	Email    string    `json:"email"`
-	Username string    `json:"username"`
-	Name     string    `json:"name"`
-	Domain   string    `json:"domain,omitempty"` // tenant/shop domain
+	UserID   uuid.UUID  `json:"user_id"`
+	Email    string     `json:"email"`
+	Username string     `json:"username"`
+	Name     string     `json:"name"`
+	Domain   string     `json:"domain,omitempty"` // tenant/shop domain
+	ShopID   *uuid.UUID `json:"shop_id,omitempty"` // assigned shop for cashiers
 	jwt.RegisteredClaims
 }
 
@@ -39,7 +40,7 @@ func NewJWTService(secret string, issuer string, expiryHours int) *JWTService {
 }
 
 // GenerateToken generates a new JWT token for the given user
-func (j *JWTService) GenerateToken(userID uuid.UUID, email, username, name, domain string) (string, error) {
+func (j *JWTService) GenerateToken(userID uuid.UUID, email, username, name, domain string, shopID *uuid.UUID) (string, error) {
 	now := time.Now()
 	claims := &Claims{
 		UserID:   userID,
@@ -47,6 +48,7 @@ func (j *JWTService) GenerateToken(userID uuid.UUID, email, username, name, doma
 		Username: username,
 		Name:     name,
 		Domain:   domain,
+		ShopID:   shopID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    j.issuer,
 			Subject:   userID.String(),
@@ -99,6 +101,7 @@ func (j *JWTService) RefreshToken(claims *Claims) (string, error) {
 		Username: claims.Username,
 		Name:     claims.Name,
 		Domain:   claims.Domain,
+		ShopID:   claims.ShopID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    j.issuer,
 			Subject:   claims.UserID.String(),
