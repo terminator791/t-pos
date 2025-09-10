@@ -144,7 +144,7 @@ func main() {
 	roleHandler := handlers.NewRoleHandler(roleRepo)
 	aclHandler := handlers.NewACLHandler(enforcerService, roleRepo, policyRepo)
 	shopHandler := handlers.NewShopHandler(shopUseCase)
-	syncHandler := handlers.NewSyncHandler(syncService)
+	syncHandler := handlers.NewSyncHandler(syncService, userRepo)
 
 	// Initialize Gin router
 	router := gin.Default()

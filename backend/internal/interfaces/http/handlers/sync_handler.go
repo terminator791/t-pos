@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/terminator791/t-pos/internal/application/services"
 	"github.com/terminator791/t-pos/internal/domain/dto"
+	"github.com/terminator791/t-pos/internal/domain/repositories"
 	"github.com/terminator791/t-pos/internal/infrastructure/auth"
 	"github.com/terminator791/t-pos/pkg/response"
 )
@@ -16,12 +17,14 @@ import (
 // SyncHandler handles synchronization related HTTP requests
 type SyncHandler struct {
 	syncService *services.SyncService
+	userRepo    repositories.UserRepository
 }
 
 // NewSyncHandler creates a new sync handler
-func NewSyncHandler(syncService *services.SyncService) *SyncHandler {
+func NewSyncHandler(syncService *services.SyncService, userRepo repositories.UserRepository) *SyncHandler {
 	return &SyncHandler{
 		syncService: syncService,
+		userRepo:    userRepo,
 	}
 }
 
@@ -35,22 +38,20 @@ func (h *SyncHandler) ProcessSync(c *gin.Context) {
 		return
 	}
 
-	// For now, let's use a placeholder approach to get license ID
-	// We'll need to get it from the user entity via repository or add it to JWT claims
-	// This is a temporary solution - in production we'd want license_id in JWT
-	var licenseID uuid.UUID
-	
-	// Try to get license ID from user domain in JWT claims
-	domain, domainExists := auth.GetUserDomainFromContext(c)
-	if domainExists && domain != "" {
-		// Parse license ID from domain or look it up
-		// For now, use a placeholder UUID - this should be replaced with actual logic
-		// to derive license_id from domain or user
-		licenseID = uuid.New() // TODO: Replace with actual license lookup
-	} else {
-		response.ErrorUnauthorized(c, "License information not available", nil)
+	// Get user entity to extract license ID
+	user, err := h.userRepo.GetByID(c.Request.Context(), userID)
+	if err != nil {
+		response.ErrorNotFound(c, "User not found", nil)
 		return
 	}
+
+	// Validate user has license ID
+	if user.LicenseID == nil {
+		response.ErrorUnauthorized(c, "User is not associated with a license", nil)
+		return
+	}
+
+	licenseID := *user.LicenseID
 
 	// Parse sync request
 	var syncRequest dto.SyncRequest
@@ -93,6 +94,13 @@ func (h *SyncHandler) GetSyncInfo(c *gin.Context) {
 		return
 	}
 
+	// Get user entity to extract license ID
+	user, err := h.userRepo.GetByID(c.Request.Context(), userID)
+	if err != nil {
+		response.ErrorNotFound(c, "User not found", nil)
+		return
+	}
+
 	// Get domain from JWT claims
 	domain, _ := auth.GetUserDomainFromContext(c)
 
@@ -102,6 +110,7 @@ func (h *SyncHandler) GetSyncInfo(c *gin.Context) {
 		"conflict_resolution":      "last_write_wins",
 		"max_entities_per_request": 1000,
 		"user_id":                  userID.String(),
+		"license_id":               user.LicenseID,
 		"domain":                   domain,
 	}
 
