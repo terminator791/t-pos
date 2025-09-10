@@ -24,6 +24,43 @@ export const useProduct = (id) => {
   });
 };
 
+export const useProductByBarcode = (barcode) => {
+  return useQuery({
+    queryKey: ["products", "barcode", barcode],
+    queryFn: async () => {
+      const response = await api.get(`/products/barcode/${barcode}`);
+      return response.data;
+    },
+    enabled: !!barcode,
+  });
+};
+
+export const useSearchProducts = (query, shopId) => {
+  return useQuery({
+    queryKey: ["products", "search", query, shopId],
+    queryFn: async () => {
+      const response = await api.get("/products/search", {
+        params: { q: query, shop_id: shopId },
+      });
+      return response.data;
+    },
+    enabled: !!query && !!shopId,
+  });
+};
+
+export const useLowStockProducts = (shopId) => {
+  return useQuery({
+    queryKey: ["products", "low-stock", shopId],
+    queryFn: async () => {
+      const response = await api.get("/products/low-stock", {
+        params: { shop_id: shopId },
+      });
+      return response.data;
+    },
+    enabled: !!shopId,
+  });
+};
+
 export const useCreateProduct = () => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -38,6 +75,29 @@ export const useCreateProduct = () => {
     onError: (error) => {
       const message =
         error.response?.data?.message || "Failed to create product";
+      toast.error(message);
+    },
+  });
+};
+
+export const useCreateProductWithFile = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (formData) => {
+      const response = await api.post("/products/upload", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      toast.success("Product created successfully with file upload");
+    },
+    onError: (error) => {
+      const message =
+        error.response?.data?.message || "Failed to create product with file";
       toast.error(message);
     },
   });
@@ -78,6 +138,30 @@ export const useDeleteProduct = () => {
       const message =
         error.response?.data?.message || "Failed to delete product";
       toast.error(message);
+    },
+  });
+};
+
+// Categories API (for product categories)
+export const useCategories = (shopId) => {
+  return useQuery({
+    queryKey: ["categories", shopId],
+    queryFn: async () => {
+      const response = await api.get("/categories", {
+        params: shopId ? { shop_id: shopId } : {},
+      });
+      return response.data;
+    },
+  });
+};
+
+// Shops API (for product shop selection)
+export const useShops = (params = {}) => {
+  return useQuery({
+    queryKey: ["shops", params],
+    queryFn: async () => {
+      const response = await api.get("/shops", { params });
+      return response.data;
     },
   });
 };

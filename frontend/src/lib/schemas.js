@@ -8,21 +8,18 @@ export const ProductSchema = z.object({
     .min(1, "Product name is required")
     .max(255, "Product name too long"),
   description: z.string().optional(),
-  sku: z.string().min(1, "SKU is required").max(100, "SKU too long"),
-  category_id: z.string().uuid("Invalid category ID"),
-  price: z.number().min(0, "Price must be positive"),
-  cost: z.number().min(0, "Cost must be positive").optional(),
+  barcode: z.string().optional(),
+  sale: z.number().min(0, "Sale price must be positive"),
+  buy: z.number().min(0, "Buy price must be positive"),
   stock_quantity: z
     .number()
     .int()
     .min(0, "Stock quantity must be non-negative"),
-  min_stock_level: z
-    .number()
-    .int()
-    .min(0, "Minimum stock level must be non-negative")
-    .optional(),
   unit: z.string().optional(),
-  status: z.enum(["active", "inactive"]).default("active"),
+  ppn: z.number().min(0, "PPN must be positive").optional(),
+  photo: z.string().optional(),
+  category_id: z.string().optional(),
+  shop_id: z.string().min(1, "Shop is required"),
   created_at: z.string().optional(),
   updated_at: z.string().optional(),
 });

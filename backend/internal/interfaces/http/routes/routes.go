@@ -52,6 +52,7 @@ func SetupRoutes(
 			products := protected.Group("/products")
 			{
 				products.POST("", productHandler.CreateProduct)
+				products.POST("/upload", productHandler.CreateProductWithFile)
 				products.GET("", productHandler.ListProducts)
 				products.GET("/search", productHandler.SearchProducts)
 				products.GET("/low-stock", productHandler.GetLowStockProducts)
