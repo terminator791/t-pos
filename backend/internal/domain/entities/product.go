@@ -55,3 +55,23 @@ func (p *Product) CalculateProfit() {
 		p.Profit = &profit
 	}
 }
+
+// Syncable interface implementation
+func (p Product) GetID() uuid.UUID {
+	return p.ID
+}
+
+func (p Product) GetCreatedAt() time.Time {
+	return p.CreatedAt
+}
+
+func (p Product) GetUpdatedAt() time.Time {
+	return p.UpdatedAt
+}
+
+func (p Product) GetDeletedAt() *time.Time {
+	if p.DeletedAt.Valid {
+		return &p.DeletedAt.Time
+	}
+	return nil
+}
