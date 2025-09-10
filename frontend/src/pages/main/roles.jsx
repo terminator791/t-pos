@@ -26,17 +26,25 @@ const RolesPage = () => {
   const [roleToDelete, setRoleToDelete] = useState(null);
 
   // API hooks
-  const { data: roles = [], isLoading: rolesLoading } = useRoles();
-  const { data: permissions = [] } = usePermissions();
-  const { data: domains = [] } = useDomains();
-  const { data: roleAssignments = [] } = useRoleAssignments();
+  const { data: rolesData, isLoading: rolesLoading } = useRoles();
+  const { data: permissionsData } = usePermissions();
+  const { data: domainsData } = useDomains();
+  const { data: roleAssignmentsData } = useRoleAssignments();
   const deleteRole = useDeleteRole();
+
+  // Safely extract data arrays
+  const roles = Array.isArray(rolesData?.data) ? rolesData.data : Array.isArray(rolesData) ? rolesData : [];
+  const permissions = Array.isArray(permissionsData?.data) ? permissionsData.data : Array.isArray(permissionsData) ? permissionsData : [];
+  const domains = Array.isArray(domainsData?.data) ? domainsData.data : Array.isArray(domainsData) ? domainsData : [];
+  const roleAssignments = Array.isArray(roleAssignmentsData?.data) ? roleAssignmentsData.data : Array.isArray(roleAssignmentsData) ? roleAssignmentsData : [];
 
   // Filter roles based on search term and domain
   const filteredRoles = useMemo(() => {
+    if (!Array.isArray(roles)) return [];
     return roles.filter(role => {
+      if (!role || !role.name) return false;
       const matchesSearch = role.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           role.description?.toLowerCase().includes(searchTerm.toLowerCase());
+                           (role.description && role.description.toLowerCase().includes(searchTerm.toLowerCase()));
       const matchesDomain = selectedDomain === "*" || role.domain === selectedDomain;
       return matchesSearch && matchesDomain;
     });

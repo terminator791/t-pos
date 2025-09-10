@@ -26,8 +26,8 @@ const ProductModal = ({
   const createProductWithFile = useCreateProductWithFile();
 
   // Get categories and shops for dropdowns
-  const { data: categoriesData } = useCategories();
-  const { data: shopsData } = useShops();
+  const { data: categoriesData, isLoading: categoriesLoading } = useCategories();
+  const { data: shopsData, isLoading: shopsLoading } = useShops();
 
   const categories = categoriesData?.data?.categories || [];
   const shops = shopsData?.data?.shops || [];
@@ -131,7 +131,9 @@ const ProductModal = ({
   const isLoading =
     createProduct.isPending ||
     updateProduct.isPending ||
-    createProductWithFile.isPending;
+    createProductWithFile.isPending ||
+    categoriesLoading ||
+    shopsLoading;
 
   const unitOptions = [
     { value: "pcs", label: "Pieces" },
@@ -145,15 +147,23 @@ const ProductModal = ({
     { value: "portion", label: "Portions" },
   ];
 
-  const categoryOptions = categories.map((cat) => ({
-    value: cat.id,
-    label: cat.name,
-  }));
+  const categoryOptions = Array.isArray(categories)
+    ? categories
+        .filter((cat) => cat && cat.id && cat.name)
+        .map((cat) => ({
+          value: cat.id,
+          label: cat.name,
+        }))
+    : [];
 
-  const shopOptions = shops.map((shop) => ({
-    value: shop.id,
-    label: shop.name,
-  }));
+  const shopOptions = Array.isArray(shops)
+    ? shops
+        .filter((shop) => shop && shop.id && shop.name)
+        .map((shop) => ({
+          value: shop.id,
+          label: shop.name,
+        }))
+    : [];
 
   return (
     <CrudModal

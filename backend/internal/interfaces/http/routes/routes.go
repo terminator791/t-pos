@@ -26,6 +26,7 @@ func SetupRoutes(
 	receiptHandler *handlers.ReceiptHandler,
 	transactionProductHandler *handlers.TransactionProductHandler,
 	aclHandler *handlers.ACLHandler,
+	shopHandler *handlers.ShopHandler,
 	authMiddleware *auth.AuthMiddleware,
 	authzMiddleware *casbin.AuthzMiddleware,
 ) {
@@ -79,6 +80,18 @@ func SetupRoutes(
 				categories.GET("/:id", categoryHandler.GetCategory)
 				categories.PUT("/:id", categoryHandler.UpdateCategory)
 				categories.DELETE("/:id", categoryHandler.DeleteCategory)
+			}
+
+			// Shop routes
+			shops := protected.Group("/shops")
+			{
+				shops.POST("", shopHandler.CreateShop)
+				shops.GET("", shopHandler.ListShops)
+				shops.GET("/:id", shopHandler.GetShop)
+				shops.PUT("/:id", shopHandler.UpdateShop)
+				shops.DELETE("/:id", shopHandler.DeleteShop)
+				shops.GET("/license/:licenseId", shopHandler.GetShopsByLicense)
+				shops.GET("/owner/:ownerId", shopHandler.GetShopsByOwner)
 			}
 
 			// Cart routes

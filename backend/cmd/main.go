@@ -101,6 +101,7 @@ func main() {
 	categoryUseCase := usecases.NewCategoryUseCase(db, categoryRepo, shopRepo)
 	cartUseCase := usecases.NewCartUseCase(db, cartRepo, productRepo, userRepo, shopRepo)
 	transactionUseCase := usecases.NewTransactionUseCase(db, transactionRepo, productRepo, shopRepo, userRepo, paymentRepo, expenseRepo, historyRepo, receiptRepo)
+	shopUseCase := usecases.NewShopUseCase(shopRepo, licenseRepo, userRepo)
 
 	// Initialize services
 	licenseService := services.NewLicenseService(licenseRepo, licenseLogRepo, userRepo, db)
@@ -124,6 +125,7 @@ func main() {
 	userManagementHandler := handlers.NewUserManagementHandler(userManagementService)
 	roleHandler := handlers.NewRoleHandler(roleRepo)
 	aclHandler := handlers.NewACLHandler(enforcerService, roleRepo, policyRepo)
+	shopHandler := handlers.NewShopHandler(shopUseCase)
 
 	// Initialize Gin router
 	router := gin.Default()
@@ -143,7 +145,7 @@ func main() {
 	})
 
 	// Setup routes
-	routes.SetupRoutes(router, productHandler, checkoutHandler, authHandler, licenseHandler, customerHandler, userManagementHandler, roleHandler, categoryHandler, cartHandler, transactionHandler, expenseHandler, paymentHandler, historyHandler, receiptHandler, transactionProductHandler, aclHandler, authMiddleware, authzMiddleware)
+	routes.SetupRoutes(router, productHandler, checkoutHandler, authHandler, licenseHandler, customerHandler, userManagementHandler, roleHandler, categoryHandler, cartHandler, transactionHandler, expenseHandler, paymentHandler, historyHandler, receiptHandler, transactionProductHandler, aclHandler, shopHandler, authMiddleware, authzMiddleware)
 
 	// Start server
 	serverAddr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
