@@ -93,6 +93,8 @@ func SetupRoutes(
 				transactions.GET("/:id", transactionHandler.GetTransaction)
 				transactions.POST("/:id/pay", transactionHandler.PayTransaction)
 				transactions.POST("/:id/cancel", transactionHandler.CancelTransaction)
+				// Legacy routes
+				transactions.GET("/shop/:shopId/today", checkoutHandler.GetTodaysTransactions)
 			}
 
 			// Checkout and transaction routes (existing)
@@ -101,13 +103,7 @@ func SetupRoutes(
 				checkout.POST("", checkoutHandler.ProcessCheckout)
 				checkout.POST("/:transactionId/complete", checkoutHandler.CompletePayment)
 				checkout.POST("/:transactionId/cancel", checkoutHandler.CancelTransaction)
-			}
-
-			// Legacy transaction routes
-			legacyTransactions := protected.Group("/transactions")
-			{
-				legacyTransactions.GET("/:transactionId", checkoutHandler.GetTransactionDetails)
-				legacyTransactions.GET("/shop/:shopId/today", checkoutHandler.GetTodaysTransactions)
+				checkout.GET("/:transactionId", checkoutHandler.GetTransactionDetails)
 			}
 
 			// License routes
