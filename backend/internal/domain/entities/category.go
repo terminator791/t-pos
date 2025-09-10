@@ -25,3 +25,23 @@ type Category struct {
 func (Category) TableName() string {
 	return "categories"
 }
+
+// Syncable interface implementation
+func (c Category) GetID() uuid.UUID {
+	return c.ID
+}
+
+func (c Category) GetCreatedAt() time.Time {
+	return c.CreatedAt
+}
+
+func (c Category) GetUpdatedAt() time.Time {
+	return c.UpdatedAt
+}
+
+func (c Category) GetDeletedAt() *time.Time {
+	if c.DeletedAt.Valid {
+		return &c.DeletedAt.Time
+	}
+	return nil
+}

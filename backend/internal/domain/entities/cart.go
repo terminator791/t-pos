@@ -28,3 +28,23 @@ type Cart struct {
 func (Cart) TableName() string {
 	return "carts"
 }
+
+// Syncable interface implementation
+func (c Cart) GetID() uuid.UUID {
+	return c.ID
+}
+
+func (c Cart) GetCreatedAt() time.Time {
+	return c.CreatedAt
+}
+
+func (c Cart) GetUpdatedAt() time.Time {
+	return c.UpdatedAt
+}
+
+func (c Cart) GetDeletedAt() *time.Time {
+	if c.DeletedAt.Valid {
+		return &c.DeletedAt.Time
+	}
+	return nil
+}
