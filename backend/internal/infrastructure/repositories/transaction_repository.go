@@ -48,13 +48,6 @@ func (r *TransactionRepositoryImpl) GetByCashierID(ctx context.Context, cashierI
 	return transactions, err
 }
 
-// GetByCustomerID retrieves transactions by customer ID
-func (r *TransactionRepositoryImpl) GetByCustomerID(ctx context.Context, customerID uuid.UUID) ([]*entities.Transaction, error) {
-	var transactions []*entities.Transaction
-	err := r.db.WithContext(ctx).Where("user_id = ?", customerID).Find(&transactions).Error
-	return transactions, err
-}
-
 // GetByStatus retrieves transactions by status
 func (r *TransactionRepositoryImpl) GetByStatus(ctx context.Context, status entities.TransactionStatus) ([]*entities.Transaction, error) {
 	var transactions []*entities.Transaction

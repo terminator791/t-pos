@@ -31,7 +31,6 @@ type User struct {
 	UserDomains       []UserDomain   `gorm:"foreignKey:UserID" json:"user_domains,omitempty"`
 	OwnedShops        []Shop         `gorm:"foreignKey:UserID" json:"owned_shops,omitempty"`
 	CashierTransactions []Transaction `gorm:"foreignKey:CashierID" json:"cashier_transactions,omitempty"`
-	CustomerTransactions []Transaction `gorm:"foreignKey:UserID" json:"customer_transactions,omitempty"`
 	Carts             []Cart         `gorm:"foreignKey:UserID" json:"carts,omitempty"`
 	Payments          []Payment      `gorm:"foreignKey:UserID" json:"payments,omitempty"`
 	LicenseLogs       []LicenseLog   `gorm:"foreignKey:UserID" json:"license_logs,omitempty"`

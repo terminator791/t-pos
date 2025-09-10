@@ -22,7 +22,6 @@ type Transaction struct {
 	ID                    uuid.UUID         `gorm:"type:uuid;primary_key;default:uuid_generate_v4()" json:"id"`
 	ShopID                uuid.UUID         `gorm:"type:uuid;not null" json:"shop_id"`
 	CashierID             uuid.UUID         `gorm:"type:uuid;not null" json:"cashier_id"`
-	UserID                *uuid.UUID        `gorm:"type:uuid" json:"user_id"` // customer_user_id
 	CustomerName          *string           `gorm:"size:255" json:"customer_name"`
 	Discount              float64           `gorm:"type:decimal(10,2);default:0" json:"discount"`
 	DiscountPercentage    float64           `gorm:"type:decimal(5,2);default:0" json:"discount_percentage"`
@@ -41,7 +40,6 @@ type Transaction struct {
 	// Relationships
 	Shop                Shop                 `gorm:"foreignKey:ShopID;constraint:OnDelete:CASCADE" json:"shop,omitempty"`
 	Cashier             User                 `gorm:"foreignKey:CashierID;constraint:OnDelete:CASCADE" json:"cashier,omitempty"`
-	Customer            *User                `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"customer,omitempty"`
 	TransactionProducts []TransactionProduct `gorm:"foreignKey:TransactionID" json:"transaction_products,omitempty"`
 	Payments            []Payment            `gorm:"foreignKey:TransactionID" json:"payments,omitempty"`
 	Histories           []History            `gorm:"foreignKey:TransactionID" json:"histories,omitempty"`
