@@ -54,6 +54,8 @@ func main() {
 	paymentRepo := repositories.NewPaymentRepository(db)
 	cartRepo := repositories.NewCartRepository(db)
 	expenseRepo := repositories.NewExpenseRepository(db)
+	historyRepo := repositories.NewHistoryRepository(db)
+	receiptRepo := repositories.NewReceiptRepository(db)
 	licenseRepo := repositories.NewLicenseRepository(db)
 	licenseLogRepo := repositories.NewLicenseLogRepository(db)
 
@@ -95,9 +97,9 @@ func main() {
 	// Initialize use cases
 	productUseCase := usecases.NewProductUseCase(productRepo, categoryRepo, shopRepo)
 	checkoutUseCase := usecases.NewCheckoutUseCase(transactionRepo, productRepo, shopRepo, userRepo, paymentRepo)
-	categoryUseCase := usecases.NewCategoryUseCase(categoryRepo, shopRepo)
-	cartUseCase := usecases.NewCartUseCase(cartRepo, productRepo, userRepo, shopRepo)
-	transactionUseCase := usecases.NewTransactionUseCase(transactionRepo, productRepo, shopRepo, userRepo, paymentRepo, expenseRepo)
+	categoryUseCase := usecases.NewCategoryUseCase(db, categoryRepo, shopRepo)
+	cartUseCase := usecases.NewCartUseCase(db, cartRepo, productRepo, userRepo, shopRepo)
+	transactionUseCase := usecases.NewTransactionUseCase(db, transactionRepo, productRepo, shopRepo, userRepo, paymentRepo, expenseRepo, historyRepo, receiptRepo)
 
 	// Initialize services
 	licenseService := services.NewLicenseService(licenseRepo, licenseLogRepo, userRepo, db)
