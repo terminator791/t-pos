@@ -33,6 +33,13 @@ func (r *PolicyRepositoryImpl) GetByID(ctx context.Context, id uuid.UUID) (*enti
 	return &policy, nil
 }
 
+// GetAll retrieves all policies
+func (r *PolicyRepositoryImpl) GetAll(ctx context.Context) ([]*entities.Policy, error) {
+	var policies []*entities.Policy
+	err := r.db.WithContext(ctx).Preload("Role").Find(&policies).Error
+	return policies, err
+}
+
 // GetByRoleID retrieves policies by role ID
 func (r *PolicyRepositoryImpl) GetByRoleID(ctx context.Context, roleID uuid.UUID) ([]*entities.Policy, error) {
 	var policies []*entities.Policy

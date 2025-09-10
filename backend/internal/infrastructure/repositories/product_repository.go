@@ -20,13 +20,28 @@ func NewProductRepository(db *gorm.DB) *ProductRepositoryImpl {
 
 // Create creates a new product
 func (r *ProductRepositoryImpl) Create(ctx context.Context, product *entities.Product) error {
-	return r.db.WithContext(ctx).Create(product).Error
+	if err := r.db.WithContext(ctx).Create(product).Error; err != nil {
+		return err
+	}
+	
+	// Reload with relationships
+	return r.db.WithContext(ctx).
+		Preload("Shop").
+		Preload("Shop.License").
+		Preload("Shop.Owner").
+		Preload("Category").
+		First(product, product.ID).Error
 }
 
 // GetByID retrieves a product by ID
 func (r *ProductRepositoryImpl) GetByID(ctx context.Context, id uuid.UUID) (*entities.Product, error) {
 	var product entities.Product
-	err := r.db.WithContext(ctx).Preload("Category").First(&product, id).Error
+	err := r.db.WithContext(ctx).
+		Preload("Shop").
+		Preload("Shop.License").
+		Preload("Shop.Owner").
+		Preload("Category").
+		First(&product, id).Error
 	if err != nil {
 		return nil, err
 	}
@@ -36,7 +51,12 @@ func (r *ProductRepositoryImpl) GetByID(ctx context.Context, id uuid.UUID) (*ent
 // GetByBarcode retrieves a product by barcode
 func (r *ProductRepositoryImpl) GetByBarcode(ctx context.Context, barcode string) (*entities.Product, error) {
 	var product entities.Product
-	err := r.db.WithContext(ctx).Preload("Category").Where("barcode = ?", barcode).First(&product).Error
+	err := r.db.WithContext(ctx).
+		Preload("Shop").
+		Preload("Shop.License").
+		Preload("Shop.Owner").
+		Preload("Category").
+		Where("barcode = ?", barcode).First(&product).Error
 	if err != nil {
 		return nil, err
 	}
@@ -46,27 +66,52 @@ func (r *ProductRepositoryImpl) GetByBarcode(ctx context.Context, barcode string
 // GetByShopID retrieves products by shop ID
 func (r *ProductRepositoryImpl) GetByShopID(ctx context.Context, shopID uuid.UUID) ([]*entities.Product, error) {
 	var products []*entities.Product
-	err := r.db.WithContext(ctx).Preload("Category").Where("shop_id = ?", shopID).Find(&products).Error
+	err := r.db.WithContext(ctx).
+		Preload("Shop").
+		Preload("Shop.License").
+		Preload("Shop.Owner").
+		Preload("Category").
+		Where("shop_id = ?", shopID).Find(&products).Error
 	return products, err
 }
 
 // GetByCategory retrieves products by category ID
 func (r *ProductRepositoryImpl) GetByCategory(ctx context.Context, categoryID uuid.UUID) ([]*entities.Product, error) {
 	var products []*entities.Product
-	err := r.db.WithContext(ctx).Preload("Category").Where("cat_id = ?", categoryID).Find(&products).Error
+	err := r.db.WithContext(ctx).
+		Preload("Shop").
+		Preload("Shop.License").
+		Preload("Shop.Owner").
+		Preload("Category").
+		Where("cat_id = ?", categoryID).Find(&products).Error
 	return products, err
 }
 
 // GetLowStockProducts retrieves products with low stock for a specific shop
 func (r *ProductRepositoryImpl) GetLowStockProducts(ctx context.Context, shopID uuid.UUID) ([]*entities.Product, error) {
 	var products []*entities.Product
-	err := r.db.WithContext(ctx).Preload("Category").Where("shop_id = ? AND stock <= ?", shopID, 10).Find(&products).Error
+	err := r.db.WithContext(ctx).
+		Preload("Shop").
+		Preload("Shop.License").
+		Preload("Shop.Owner").
+		Preload("Category").
+		Where("shop_id = ? AND stock <= ?", shopID, 10).Find(&products).Error
 	return products, err
 }
 
 // Update updates an existing product
 func (r *ProductRepositoryImpl) Update(ctx context.Context, product *entities.Product) error {
-	return r.db.WithContext(ctx).Save(product).Error
+	if err := r.db.WithContext(ctx).Save(product).Error; err != nil {
+		return err
+	}
+	
+	// Reload with relationships
+	return r.db.WithContext(ctx).
+		Preload("Shop").
+		Preload("Shop.License").
+		Preload("Shop.Owner").
+		Preload("Category").
+		First(product, product.ID).Error
 }
 
 // UpdateStock updates product stock
@@ -82,7 +127,12 @@ func (r *ProductRepositoryImpl) Delete(ctx context.Context, id uuid.UUID) error 
 // List retrieves a list of products with pagination
 func (r *ProductRepositoryImpl) List(ctx context.Context, limit, offset int) ([]*entities.Product, error) {
 	var products []*entities.Product
-	err := r.db.WithContext(ctx).Preload("Category").Limit(limit).Offset(offset).Find(&products).Error
+	err := r.db.WithContext(ctx).
+		Preload("Shop").
+		Preload("Shop.License").
+		Preload("Shop.Owner").
+		Preload("Category").
+		Limit(limit).Offset(offset).Find(&products).Error
 	return products, err
 }
 
@@ -90,6 +140,11 @@ func (r *ProductRepositoryImpl) List(ctx context.Context, limit, offset int) ([]
 func (r *ProductRepositoryImpl) Search(ctx context.Context, query string, shopID uuid.UUID) ([]*entities.Product, error) {
 	var products []*entities.Product
 	searchQuery := "%" + query + "%"
-	err := r.db.WithContext(ctx).Preload("Category").Where("shop_id = ? AND (name ILIKE ? OR barcode ILIKE ?)", shopID, searchQuery, searchQuery).Find(&products).Error
+	err := r.db.WithContext(ctx).
+		Preload("Shop").
+		Preload("Shop.License").
+		Preload("Shop.Owner").
+		Preload("Category").
+		Where("shop_id = ? AND (name ILIKE ? OR barcode ILIKE ?)", shopID, searchQuery, searchQuery).Find(&products).Error
 	return products, err
 }

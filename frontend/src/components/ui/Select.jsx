@@ -1,5 +1,6 @@
 import React, { Fragment } from "react";
 import Icon from "@/components/ui/Icon";
+
 const Select = ({
   label,
   placeholder = "Select Option",
@@ -25,7 +26,34 @@ const Select = ({
   children,
   ...rest
 }) => {
-  options = options || Array(3).fill("option");
+  // Ensure options is always an array
+  const safeOptions = Array.isArray(options) ? options : [];
+
+  const renderOptions = () => {
+    return safeOptions.map((option, i) => {
+      if (!option) return null;
+
+      if (
+        typeof option === "object" &&
+        option.value !== undefined &&
+        option.label !== undefined
+      ) {
+        return (
+          <option key={i} value={option.value}>
+            {option.label}
+          </option>
+        );
+      } else if (typeof option === "string" || typeof option === "number") {
+        return (
+          <option key={i} value={option}>
+            {option}
+          </option>
+        );
+      }
+      return null;
+    });
+  };
+
   return (
     <div
       className={`textfiled-wrapper  ${error ? "is-error" : ""}  ${
@@ -67,19 +95,7 @@ const Select = ({
                 <option value="" disabled>
                   {placeholder}
                 </option>
-                {options.map((option, i) => (
-                  <Fragment key={i}>
-                    {option.value && option.label ? (
-                      <option key={i} value={option.value}>
-                        {option.label}
-                      </option>
-                    ) : (
-                      <option key={i} value={option}>
-                        {option}
-                      </option>
-                    )}
-                  </Fragment>
-                ))}
+                {renderOptions()}
               </Fragment>
             )}
           </select>
@@ -106,19 +122,7 @@ const Select = ({
                 <option value="" disabled>
                   {placeholder}
                 </option>
-                {options.map((option, i) => (
-                  <Fragment key={i}>
-                    {option.value && option.label ? (
-                      <option key={i} value={option.value}>
-                        {option.label}
-                      </option>
-                    ) : (
-                      <option key={i} value={option}>
-                        {option}
-                      </option>
-                    )}
-                  </Fragment>
-                ))}
+                {renderOptions()}
               </Fragment>
             )}
           </select>

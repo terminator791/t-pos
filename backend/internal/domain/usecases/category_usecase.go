@@ -7,17 +7,20 @@ import (
 	"github.com/google/uuid"
 	"github.com/terminator791/t-pos/internal/domain/entities"
 	"github.com/terminator791/t-pos/internal/domain/repositories"
+	"gorm.io/gorm"
 )
 
 // CategoryUseCase handles category-related business logic
 type CategoryUseCase struct {
+	db           *gorm.DB
 	categoryRepo repositories.CategoryRepository
 	shopRepo     repositories.ShopRepository
 }
 
 // NewCategoryUseCase creates a new CategoryUseCase
-func NewCategoryUseCase(categoryRepo repositories.CategoryRepository, shopRepo repositories.ShopRepository) *CategoryUseCase {
+func NewCategoryUseCase(db *gorm.DB, categoryRepo repositories.CategoryRepository, shopRepo repositories.ShopRepository) *CategoryUseCase {
 	return &CategoryUseCase{
+		db:           db,
 		categoryRepo: categoryRepo,
 		shopRepo:     shopRepo,
 	}
@@ -29,13 +32,39 @@ func (uc *CategoryUseCase) CreateCategory(ctx context.Context, category *entitie
 		return errors.New("category name is required")
 	}
 
+	// Start database transaction
+	tx := uc.db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	// Ensure rollback on error
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
 	// Check if shop exists
 	_, err := uc.shopRepo.GetByID(ctx, category.ShopID)
 	if err != nil {
+		tx.Rollback()
 		return errors.New("invalid shop ID")
 	}
 
-	return uc.categoryRepo.Create(ctx, category)
+	// Create category
+	err = tx.WithContext(ctx).Create(category).Error
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Commit transaction
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // GetCategory retrieves a category by ID
@@ -54,28 +83,78 @@ func (uc *CategoryUseCase) UpdateCategory(ctx context.Context, category *entitie
 		return errors.New("category ID is required")
 	}
 
-	existing, err := uc.categoryRepo.GetByID(ctx, category.ID)
-	if err != nil {
-		return err
+	// Start database transaction
+	tx := uc.db.Begin()
+	if tx.Error != nil {
+		return tx.Error
 	}
-	if existing == nil {
+
+	// Ensure rollback on error
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Check if category exists with row lock
+	var existing entities.Category
+	err := tx.WithContext(ctx).Set("gorm:query_option", "FOR UPDATE").Where("id = ?", category.ID).First(&existing).Error
+	if err != nil {
+		tx.Rollback()
 		return errors.New("category not found")
 	}
 
-	return uc.categoryRepo.Update(ctx, category)
+	// Update category
+	err = tx.WithContext(ctx).Save(category).Error
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Commit transaction
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // DeleteCategory deletes a category
 func (uc *CategoryUseCase) DeleteCategory(ctx context.Context, id uuid.UUID) error {
-	existing, err := uc.categoryRepo.GetByID(ctx, id)
-	if err != nil {
-		return err
+	// Start database transaction
+	tx := uc.db.Begin()
+	if tx.Error != nil {
+		return tx.Error
 	}
-	if existing == nil {
+
+	// Ensure rollback on error
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Check if category exists with row lock
+	var existing entities.Category
+	err := tx.WithContext(ctx).Set("gorm:query_option", "FOR UPDATE").Where("id = ?", id).First(&existing).Error
+	if err != nil {
+		tx.Rollback()
 		return errors.New("category not found")
 	}
 
-	return uc.categoryRepo.Delete(ctx, id)
+	// Delete category
+	err = tx.WithContext(ctx).Delete(&entities.Category{}, "id = ?", id).Error
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Commit transaction
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // ListCategories retrieves a list of categories

@@ -80,7 +80,6 @@ func (uc *CheckoutUseCase) ProcessCheckout(ctx context.Context, req *CheckoutReq
 	transaction := &entities.Transaction{
 		ShopID:             req.ShopID,
 		CashierID:          req.CashierID,
-		UserID:             req.CustomerID,
 		Discount:           req.Discount,
 		DiscountPercentage: req.DiscountPercentage,
 		AdditionalCost:     req.AdditionalCost,

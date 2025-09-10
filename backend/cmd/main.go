@@ -52,8 +52,13 @@ func main() {
 	shopRepo := repositories.NewShopRepository(db)
 	transactionRepo := repositories.NewTransactionRepository(db)
 	paymentRepo := repositories.NewPaymentRepository(db)
+	cartRepo := repositories.NewCartRepository(db)
+	expenseRepo := repositories.NewExpenseRepository(db)
+	historyRepo := repositories.NewHistoryRepository(db)
+	receiptRepo := repositories.NewReceiptRepository(db)
 	licenseRepo := repositories.NewLicenseRepository(db)
 	licenseLogRepo := repositories.NewLicenseLogRepository(db)
+	transactionProductRepo := repositories.NewTransactionProductRepository(db)
 
 	// Initialize JWT and Password services
 	jwtService := auth.NewJWTService(cfg.JWT.Secret, "t-pos", cfg.JWT.ExpiryHour)
@@ -93,6 +98,10 @@ func main() {
 	// Initialize use cases
 	productUseCase := usecases.NewProductUseCase(productRepo, categoryRepo, shopRepo)
 	checkoutUseCase := usecases.NewCheckoutUseCase(transactionRepo, productRepo, shopRepo, userRepo, paymentRepo)
+	categoryUseCase := usecases.NewCategoryUseCase(db, categoryRepo, shopRepo)
+	cartUseCase := usecases.NewCartUseCase(db, cartRepo, productRepo, userRepo, shopRepo)
+	transactionUseCase := usecases.NewTransactionUseCase(db, transactionRepo, productRepo, shopRepo, userRepo, paymentRepo, expenseRepo, historyRepo, receiptRepo)
+	shopUseCase := usecases.NewShopUseCase(shopRepo, licenseRepo, userRepo)
 
 	// Initialize services
 	licenseService := services.NewLicenseService(licenseRepo, licenseLogRepo, userRepo, db)
@@ -103,9 +112,20 @@ func main() {
 	authHandler := handlers.NewAuthHandler(userRepo, userDomainRepo, roleRepo, licenseRepo, shopRepo, jwtService, passwordService, enforcerService)
 	productHandler := handlers.NewProductHandler(productUseCase)
 	checkoutHandler := handlers.NewCheckoutHandler(checkoutUseCase)
+	categoryHandler := handlers.NewCategoryHandler(categoryUseCase)
+	cartHandler := handlers.NewCartHandler(cartUseCase)
+	transactionHandler := handlers.NewTransactionHandler(transactionUseCase)
+	expenseHandler := handlers.NewExpenseHandler(expenseRepo)
+	paymentHandler := handlers.NewPaymentHandler(paymentRepo)
+	historyHandler := handlers.NewHistoryHandler(historyRepo)
+	receiptHandler := handlers.NewReceiptHandler(receiptRepo)
+	transactionProductHandler := handlers.NewTransactionProductHandler(transactionProductRepo)
 	licenseHandler := handlers.NewLicenseHandler(licenseService)
 	customerHandler := handlers.NewCustomerHandler(customerService)
 	userManagementHandler := handlers.NewUserManagementHandler(userManagementService)
+	roleHandler := handlers.NewRoleHandler(roleRepo)
+	aclHandler := handlers.NewACLHandler(enforcerService, roleRepo, policyRepo)
+	shopHandler := handlers.NewShopHandler(shopUseCase)
 
 	// Initialize Gin router
 	router := gin.Default()
@@ -125,7 +145,7 @@ func main() {
 	})
 
 	// Setup routes
-	routes.SetupRoutes(router, productHandler, checkoutHandler, authHandler, licenseHandler, customerHandler, userManagementHandler, authMiddleware, authzMiddleware)
+	routes.SetupRoutes(router, productHandler, checkoutHandler, authHandler, licenseHandler, customerHandler, userManagementHandler, roleHandler, categoryHandler, cartHandler, transactionHandler, expenseHandler, paymentHandler, historyHandler, receiptHandler, transactionProductHandler, aclHandler, shopHandler, authMiddleware, authzMiddleware)
 
 	// Start server
 	serverAddr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)

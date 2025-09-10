@@ -16,8 +16,9 @@ func TestJWTService(t *testing.T) {
 	username := "testuser"
 	name := "Test User"
 	domain := "test-domain"
+	var shopID *uuid.UUID = nil // No shop assignment for this test
 	
-	token, err := jwtService.GenerateToken(userID, email, username, name, domain)
+	token, err := jwtService.GenerateToken(userID, email, username, name, domain, shopID)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, token)
 	

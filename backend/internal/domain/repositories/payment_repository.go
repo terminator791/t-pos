@@ -13,6 +13,7 @@ type PaymentRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*entities.Payment, error)
 	GetByTransactionID(ctx context.Context, transactionID uuid.UUID) ([]*entities.Payment, error)
 	GetByShopID(ctx context.Context, shopID uuid.UUID) ([]*entities.Payment, error)
+	GetByShopIDAndStatus(ctx context.Context, shopID uuid.UUID, status entities.PaymentStatus) ([]*entities.Payment, error)
 	GetByStatus(ctx context.Context, status entities.PaymentStatus) ([]*entities.Payment, error)
 	Update(ctx context.Context, payment *entities.Payment) error
 	Delete(ctx context.Context, id uuid.UUID) error

@@ -12,6 +12,7 @@ type User struct {
 	ID               uuid.UUID      `gorm:"type:uuid;primary_key;default:uuid_generate_v4()" json:"id"`
 	LicenseID        *uuid.UUID     `gorm:"type:uuid" json:"license_id"`
 	RoleID           *uuid.UUID     `gorm:"type:uuid" json:"role_id"`
+	ShopID           *uuid.UUID     `gorm:"type:uuid" json:"shop_id"` // Shop binding for cashiers
 	Email            *string        `gorm:"size:255;uniqueIndex" json:"email"`
 	EmailVerifiedAt  *time.Time     `json:"email_verified_at"`
 	Username         *string        `gorm:"size:255;uniqueIndex;not null" json:"username"`
@@ -28,10 +29,10 @@ type User struct {
 	// Relationships
 	License           *License       `gorm:"foreignKey:LicenseID;constraint:OnDelete:CASCADE" json:"license,omitempty"`
 	Role              *Role          `gorm:"foreignKey:RoleID;constraint:OnDelete:SET NULL" json:"role,omitempty"`
+	AssignedShop      *Shop          `gorm:"foreignKey:ShopID;constraint:OnDelete:SET NULL" json:"assigned_shop,omitempty"`
 	UserDomains       []UserDomain   `gorm:"foreignKey:UserID" json:"user_domains,omitempty"`
 	OwnedShops        []Shop         `gorm:"foreignKey:UserID" json:"owned_shops,omitempty"`
 	CashierTransactions []Transaction `gorm:"foreignKey:CashierID" json:"cashier_transactions,omitempty"`
-	CustomerTransactions []Transaction `gorm:"foreignKey:UserID" json:"customer_transactions,omitempty"`
 	Carts             []Cart         `gorm:"foreignKey:UserID" json:"carts,omitempty"`
 	Payments          []Payment      `gorm:"foreignKey:UserID" json:"payments,omitempty"`
 	LicenseLogs       []LicenseLog   `gorm:"foreignKey:UserID" json:"license_logs,omitempty"`
@@ -49,4 +50,24 @@ func (u *User) BeforeCreate(tx *gorm.DB) error {
 		u.ID = uuid.New()
 	}
 	return nil
+}
+
+// GetAccessibleShopID returns the shop ID the user can access
+// For cashiers: returns their assigned shop_id
+// For owner business: returns nil (can access all shops under their license)
+func (u *User) GetAccessibleShopID() *uuid.UUID {
+	if u.Role != nil && u.Role.Name == "cashier" && u.ShopID != nil {
+		return u.ShopID
+	}
+	return nil // Owner business can access all shops under their license
+}
+
+// IsCashier checks if the user has cashier role
+func (u *User) IsCashier() bool {
+	return u.Role != nil && u.Role.Name == "cashier"
+}
+
+// IsOwnerBusiness checks if the user has owner business role
+func (u *User) IsOwnerBusiness() bool {
+	return u.Role != nil && u.Role.Name == "owner_business"
 }

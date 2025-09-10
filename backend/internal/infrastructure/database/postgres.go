@@ -38,12 +38,26 @@ func Migrate() error {
 		return fmt.Errorf("database not connected")
 	}
 
+	// First, migrate base entities (no dependencies)
 	err := DB.AutoMigrate(
 		&entities.License{},
-		&entities.User{},
 		&entities.Role{},
 		&entities.Policy{},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to migrate base entities: %w", err)
+	}
+
+	// Create User table without Shop foreign key constraint to avoid circular dependency
+	err = createUserTableWithoutShopFK()
+	if err != nil {
+		return fmt.Errorf("failed to create users table: %w", err)
+	}
+
+	// Migrate remaining entities that depend on User and License
+	err = DB.AutoMigrate(
 		&entities.LicenseLog{},
+		&entities.UserDomain{},
 		&entities.Shop{},
 		&entities.Category{},
 		&entities.Product{},
@@ -56,15 +70,75 @@ func Migrate() error {
 		&entities.StockHistory{},
 		&entities.Expense{},
 		&entities.Log{},
-		&entities.UserDomain{},
 	)
-
 	if err != nil {
-		return fmt.Errorf("failed to migrate database: %w", err)
+		return fmt.Errorf("failed to migrate remaining entities: %w", err)
+	}
+
+	// Now add missing foreign key constraints for User-Shop relationship
+	err = addUserShopConstraint()
+	if err != nil {
+		log.Printf("Warning: Failed to add User-Shop foreign key constraint: %v", err)
 	}
 
 	log.Println("Database migration completed successfully")
 	return nil
+}
+
+// createUserTableWithoutShopFK creates the users table without the shop_id foreign key constraint
+func createUserTableWithoutShopFK() error {
+	createSQL := `
+	CREATE TABLE IF NOT EXISTS "users" (
+		"id" uuid DEFAULT uuid_generate_v4(),
+		"license_id" uuid,
+		"role_id" uuid,
+		"shop_id" uuid,
+		"email" varchar(255),
+		"email_verified_at" timestamptz,
+		"username" varchar(255) NOT NULL,
+		"name" varchar(255),
+		"password" varchar(255) NOT NULL,
+		"pin" varchar(255),
+		"info_device" varchar(255),
+		"fcm_token" varchar(255),
+		"remember_token" varchar(100),
+		"created_at" timestamptz,
+		"updated_at" timestamptz,
+		"deleted_at" timestamptz,
+		PRIMARY KEY ("id"),
+		CONSTRAINT "fk_users_role" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE SET NULL,
+		CONSTRAINT "fk_licenses_users" FOREIGN KEY ("license_id") REFERENCES "licenses"("id") ON DELETE CASCADE
+	)`
+
+	err := DB.Exec(createSQL).Error
+	if err != nil {
+		return err
+	}
+
+	// Create indexes
+	indexes := []string{
+		`CREATE INDEX IF NOT EXISTS "idx_users_deleted_at" ON "users" ("deleted_at")`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS "idx_users_email" ON "users" ("email")`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS "idx_users_username" ON "users" ("username")`,
+	}
+
+	for _, indexSQL := range indexes {
+		if err := DB.Exec(indexSQL).Error; err != nil {
+			log.Printf("Warning: Failed to create index: %v", err)
+		}
+	}
+
+	return nil
+}
+
+// addUserShopConstraint adds the foreign key constraint between users and shops
+func addUserShopConstraint() error {
+	constraintSQL := `
+	ALTER TABLE users 
+	ADD CONSTRAINT IF NOT EXISTS fk_users_assigned_shop 
+	FOREIGN KEY (shop_id) REFERENCES shops(id) ON DELETE SET NULL`
+
+	return DB.Exec(constraintSQL).Error
 }
 
 // Close closes the database connection
@@ -92,28 +166,39 @@ func DropAllTables() error {
 		return fmt.Errorf("database not connected")
 	}
 
-	// Get all table names
+	// Drop tables in reverse dependency order to respect foreign key constraints
 	tables := []string{
 		"casbin_rule", // Casbin table
-		"user_roles",  // User-Role relationship table (to be dropped)
+		
+		// History and logs (depends on Shop and User)
 		"logs",
 		"stock_histories", 
 		"expenses",
 		"histories",
+		
+		// Transaction related entities (depends on User, Shop, Product)
 		"receipts",
 		"payments",
 		"transaction_products",
 		"transactions",
 		"carts",
+		
+		// Product related entities (depends on Shop)
 		"products",
 		"categories",
+		
+		// Shop entities (depends on License and User)
 		"shops",
-		"policies",
-		"roles",
+		
+		// User entities (depends on License and Role)
+		"user_domains",
 		"license_logs",
 		"users",
+		
+		// Base entities (no dependencies)
+		"policies",
+		"roles",
 		"licenses",
-		"user_domains",
 	}
 
 	// Drop tables in reverse order to respect foreign key constraints

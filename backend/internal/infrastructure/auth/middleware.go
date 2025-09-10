@@ -61,6 +61,7 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 		c.Set("user_username", claims.Username)
 		c.Set("user_name", claims.Name)
 		c.Set("user_domain", claims.Domain)
+		c.Set("user_shop_id", claims.ShopID)
 		c.Set("user", user)
 		c.Set("claims", claims)
 
@@ -102,6 +103,7 @@ func (m *AuthMiddleware) OptionalAuth() gin.HandlerFunc {
 		c.Set("user_username", claims.Username)
 		c.Set("user_name", claims.Name)
 		c.Set("user_domain", claims.Domain)
+		c.Set("user_shop_id", claims.ShopID)
 		c.Set("user", user)
 		c.Set("claims", claims)
 
@@ -127,4 +129,14 @@ func GetUserDomainFromContext(c *gin.Context) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// GetUserShopIDFromContext retrieves user shop ID from gin context
+func GetUserShopIDFromContext(c *gin.Context) (*uuid.UUID, bool) {
+	if shopID, exists := c.Get("user_shop_id"); exists {
+		if id, ok := shopID.(*uuid.UUID); ok {
+			return id, true
+		}
+	}
+	return nil, false
 }

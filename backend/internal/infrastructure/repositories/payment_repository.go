@@ -26,7 +26,13 @@ func (r *PaymentRepositoryImpl) Create(ctx context.Context, payment *entities.Pa
 // GetByID retrieves a payment by ID
 func (r *PaymentRepositoryImpl) GetByID(ctx context.Context, id uuid.UUID) (*entities.Payment, error) {
 	var payment entities.Payment
-	err := r.db.WithContext(ctx).First(&payment, "id = ?", id).Error
+	err := r.db.WithContext(ctx).
+		Preload("Shop").
+		Preload("Shop.License").
+		Preload("Shop.Owner").
+		Preload("Transaction").
+		Preload("Transaction.Cashier").
+		First(&payment, "id = ?", id).Error
 	if err != nil {
 		return nil, err
 	}
@@ -44,6 +50,13 @@ func (r *PaymentRepositoryImpl) GetByTransactionID(ctx context.Context, transact
 func (r *PaymentRepositoryImpl) GetByShopID(ctx context.Context, shopID uuid.UUID) ([]*entities.Payment, error) {
 	var payments []*entities.Payment
 	err := r.db.WithContext(ctx).Where("shop_id = ?", shopID).Find(&payments).Error
+	return payments, err
+}
+
+// GetByShopIDAndStatus retrieves payments by shop ID and status
+func (r *PaymentRepositoryImpl) GetByShopIDAndStatus(ctx context.Context, shopID uuid.UUID, status entities.PaymentStatus) ([]*entities.Payment, error) {
+	var payments []*entities.Payment
+	err := r.db.WithContext(ctx).Where("shop_id = ? AND status = ?", shopID, status).Find(&payments).Error
 	return payments, err
 }
 
