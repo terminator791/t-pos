@@ -300,18 +300,130 @@ func (s *SyncService) resolveCartConflict(existing, incoming entities.Cart) *dto
 	return conflict
 }
 
-// Helper methods for other entities (categories, products, transactions)
-// Implementation follows the same pattern as carts
+// Helper methods for category operations
+func (s *SyncService) validateCategoryLicense(ctx context.Context, category entities.Category, licenseID uuid.UUID) bool {
+	// Validate that the category's shop belongs to the license
+	var count int64
+	s.db.Model(&entities.Shop{}).Where("id = ? AND license_id = ?", category.ShopID, licenseID).Count(&count)
+	return count > 0
+}
+
+func (s *SyncService) findCategoryByID(ctx context.Context, tx *gorm.DB, id uuid.UUID) (*entities.Category, error) {
+	var category entities.Category
+	err := tx.WithContext(ctx).Where("id = ?", id).First(&category).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &category, nil
+}
+
+func (s *SyncService) createCategory(ctx context.Context, tx *gorm.DB, category entities.Category) error {
+	return tx.WithContext(ctx).Create(&category).Error
+}
+
+func (s *SyncService) updateCategory(ctx context.Context, tx *gorm.DB, category entities.Category) error {
+	return tx.WithContext(ctx).Save(&category).Error
+}
+
+func (s *SyncService) resolveCategoryConflict(existing, incoming entities.Category) *dto.ConflictInfo {
+	if existing.UpdatedAt.Equal(incoming.UpdatedAt) {
+		return nil // No conflict
+	}
+
+	conflict := &dto.ConflictInfo{
+		EntityType:   "category",
+		EntityID:     existing.ID,
+		ConflictType: "timestamp_mismatch",
+		ServerData:   existing,
+		ClientData:   incoming,
+	}
+
+	// Apply conflict resolution strategy
+	switch s.conflictStrategy {
+	case dto.LastWriteWins:
+		if existing.UpdatedAt.After(incoming.UpdatedAt) {
+			conflict.Resolution = "server_wins"
+			conflict.Details = "Server version is newer"
+		} else {
+			conflict.Resolution = "client_wins"
+			conflict.Details = "Client version is newer"
+		}
+	case dto.ServerWins:
+		conflict.Resolution = "server_wins"
+		conflict.Details = "Server version always wins"
+	case dto.ClientWins:
+		conflict.Resolution = "client_wins"
+		conflict.Details = "Client version always wins"
+	}
+
+	return conflict
+}
+
+// Helper methods for other entities (products, transactions)
+// Implementation follows the same pattern as carts and categories
 
 func (s *SyncService) pushCategories(ctx context.Context, tx *gorm.DB, categories []entities.Category, licenseID uuid.UUID, response *dto.SyncResponse) error {
-	// Similar implementation to pushCarts
-	// TODO: Implement category sync logic
+	for _, category := range categories {
+		// Validate category belongs to license
+		if !s.validateCategoryLicense(ctx, category, licenseID) {
+			s.addError(response, "categories", category.ID, "unauthorized", "Category does not belong to license")
+			continue
+		}
+
+		// Check if category exists
+		existingCategory, err := s.findCategoryByID(ctx, tx, category.ID)
+		if err != nil && err != gorm.ErrRecordNotFound {
+			s.addError(response, "categories", category.ID, "database_error", err.Error())
+			continue
+		}
+
+		if existingCategory == nil {
+			// Create new category
+			if err := s.createCategory(ctx, tx, category); err != nil {
+				s.addError(response, "categories", category.ID, "create_failed", err.Error())
+				continue
+			}
+			s.incrementStat(response.Stats.CreatedEntities, "categories")
+		} else {
+			// Handle potential conflict
+			if conflict := s.resolveCategoryConflict(*existingCategory, category); conflict != nil {
+				response.Conflicts = append(response.Conflicts, *conflict)
+				// Use server version in case of conflict (for LastWriteWins strategy)
+				if existingCategory.UpdatedAt.After(category.UpdatedAt) {
+					continue // Skip update, server version is newer
+				}
+			}
+
+			// Update existing category
+			if err := s.updateCategory(ctx, tx, category); err != nil {
+				s.addError(response, "categories", category.ID, "update_failed", err.Error())
+				continue
+			}
+			s.incrementStat(response.Stats.UpdatedEntities, "categories")
+		}
+
+		s.incrementStat(response.Stats.ProcessedEntities, "categories")
+	}
+
 	return nil
 }
 
 func (s *SyncService) pullCategories(ctx context.Context, tx *gorm.DB, lastSync time.Time, licenseID uuid.UUID, response *dto.SyncResponse) error {
-	// Similar implementation to pullCarts
-	// TODO: Implement category pull logic
+	// Get all categories for the license that were updated after lastSync
+	var categories []entities.Category
+	err := tx.WithContext(ctx).
+		Joins("JOIN shops ON categories.shop_id = shops.id").
+		Where("shops.license_id = ? AND categories.updated_at > ?", licenseID, lastSync).
+		Find(&categories).Error
+
+	if err != nil {
+		return fmt.Errorf("failed to query categories: %w", err)
+	}
+
+	response.Categories = categories
 	return nil
 }
 
