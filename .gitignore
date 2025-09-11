@@ -177,3 +177,7 @@ secrets/
 
 # instructions
 .github/
+
+#remove all .exe files
+*.exe
+*.exe~
