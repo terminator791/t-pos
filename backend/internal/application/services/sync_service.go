@@ -109,6 +109,9 @@ func (s *SyncService) ProcessSync(ctx context.Context, req dto.SyncRequest, lice
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
+	// Clean up response - remove empty arrays and fix conflict data
+	s.cleanupResponse(response)
+
 	// Calculate final stats
 	response.Stats.ProcessingTimeMs = time.Since(startTime).Milliseconds()
 	response.Stats.ConflictCount = len(response.Conflicts)
@@ -371,7 +374,7 @@ func (s *SyncService) validateCategoryLicense(ctx context.Context, category enti
 
 func (s *SyncService) findCategoryByID(ctx context.Context, tx *gorm.DB, id uuid.UUID) (*entities.Category, error) {
 	var category entities.Category
-	err := tx.WithContext(ctx).Where("id = ?", id).First(&category).Error
+	err := tx.WithContext(ctx).Select("id", "shop_id", "name", "created_at", "updated_at").Where("id = ?", id).First(&category).Error
 	if err == gorm.ErrRecordNotFound {
 		return nil, nil
 	}
@@ -476,6 +479,7 @@ func (s *SyncService) pullCategories(ctx context.Context, tx *gorm.DB, lastSync 
 	// Get all categories for the license that were updated after lastSync
 	var categories []entities.Category
 	err := tx.WithContext(ctx).
+		Select("categories.id", "categories.shop_id", "categories.name", "categories.created_at", "categories.updated_at").
 		Joins("JOIN shops ON categories.shop_id = shops.id").
 		Where("shops.license_id = ? AND categories.updated_at > ?", licenseID, lastSync).
 		Find(&categories).Error
@@ -1703,4 +1707,208 @@ func (s *SyncService) resolveUserConflict(existing, incoming entities.User) *dto
 	}
 
 	return conflict
+}
+
+// cleanupResponse removes empty arrays and cleans up conflict data to remove nested empty relations
+func (s *SyncService) cleanupResponse(response *dto.SyncResponse) {
+	// Clean up conflicts by removing nested empty relations
+	for i, conflict := range response.Conflicts {
+		response.Conflicts[i].ServerData = s.cleanupEntityData(conflict.ServerData)
+		response.Conflicts[i].ClientData = s.cleanupEntityData(conflict.ClientData)
+	}
+	
+	// Remove empty slices - set to nil so omitempty works
+	if len(response.Carts) == 0 {
+		response.Carts = nil
+	}
+	if len(response.Categories) == 0 {
+		response.Categories = nil
+	}
+	if len(response.Expenses) == 0 {
+		response.Expenses = nil
+	}
+	if len(response.Histories) == 0 {
+		response.Histories = nil
+	}
+	if len(response.Payments) == 0 {
+		response.Payments = nil
+	}
+	if len(response.Products) == 0 {
+		response.Products = nil
+	}
+	if len(response.Receipts) == 0 {
+		response.Receipts = nil
+	}
+	if len(response.Shops) == 0 {
+		response.Shops = nil
+	}
+	if len(response.StockHistories) == 0 {
+		response.StockHistories = nil
+	}
+	if len(response.TransactionProducts) == 0 {
+		response.TransactionProducts = nil
+	}
+	if len(response.Transactions) == 0 {
+		response.Transactions = nil
+	}
+	if len(response.Users) == 0 {
+		response.Users = nil
+	}
+	if len(response.Conflicts) == 0 {
+		response.Conflicts = nil
+	}
+	if len(response.Errors) == 0 {
+		response.Errors = nil
+	}
+}
+
+// cleanupEntityData removes nested empty relations from entity data
+func (s *SyncService) cleanupEntityData(data interface{}) interface{} {
+	if data == nil {
+		return nil
+	}
+
+	// Convert to map for easier manipulation
+	dataMap := make(map[string]interface{})
+	
+	// Handle different entity types and create clean data
+	switch entity := data.(type) {
+	case entities.Category:
+		dataMap["id"] = entity.ID
+		dataMap["shop_id"] = entity.ShopID
+		dataMap["name"] = entity.Name
+		dataMap["created_at"] = entity.CreatedAt
+		dataMap["updated_at"] = entity.UpdatedAt
+		return dataMap
+		
+	case entities.Product:
+		dataMap["id"] = entity.ID
+		dataMap["shop_id"] = entity.ShopID
+		if entity.CatID != nil {
+			dataMap["cat_id"] = *entity.CatID
+		}
+		dataMap["name"] = entity.Name
+		if entity.Barcode != nil {
+			dataMap["barcode"] = *entity.Barcode
+		}
+		dataMap["sale"] = entity.Sale
+		dataMap["buy"] = entity.Buy
+		dataMap["stock"] = entity.Stock
+		dataMap["created_at"] = entity.CreatedAt
+		dataMap["updated_at"] = entity.UpdatedAt
+		return dataMap
+		
+	case entities.Cart:
+		dataMap["id"] = entity.ID
+		dataMap["shop_id"] = entity.ShopID
+		dataMap["product_id"] = entity.ProductID
+		dataMap["user_id"] = entity.UserID
+		dataMap["quantity"] = entity.Quantity
+		dataMap["created_at"] = entity.CreatedAt
+		dataMap["updated_at"] = entity.UpdatedAt
+		return dataMap
+		
+	case entities.Transaction:
+		dataMap["id"] = entity.ID
+		dataMap["shop_id"] = entity.ShopID
+		dataMap["cashier_id"] = entity.CashierID
+		if entity.CustomerName != nil {
+			dataMap["customer_name"] = *entity.CustomerName
+		}
+		dataMap["discount"] = entity.Discount
+		dataMap["discount_percentage"] = entity.DiscountPercentage
+		dataMap["additional_cost"] = entity.AdditionalCost
+		dataMap["status"] = entity.Status
+		dataMap["total_price"] = entity.TotalPrice
+		dataMap["created_at"] = entity.CreatedAt
+		dataMap["updated_at"] = entity.UpdatedAt
+		return dataMap
+		
+	case entities.Payment:
+		dataMap["id"] = entity.ID
+		dataMap["shop_id"] = entity.ShopID
+		if entity.UserID != nil {
+			dataMap["user_id"] = *entity.UserID
+		}
+		dataMap["transaction_id"] = entity.TransactionID
+		dataMap["status"] = entity.Status
+		dataMap["total"] = entity.Total
+		dataMap["created_at"] = entity.CreatedAt
+		dataMap["updated_at"] = entity.UpdatedAt
+		return dataMap
+		
+	case entities.Expense:
+		dataMap["id"] = entity.ID
+		dataMap["shop_id"] = entity.ShopID
+		dataMap["created_at"] = entity.CreatedAt
+		dataMap["updated_at"] = entity.UpdatedAt
+		return dataMap
+		
+	case entities.Receipt:
+		dataMap["id"] = entity.ID
+		dataMap["shop_id"] = entity.ShopID
+		dataMap["created_at"] = entity.CreatedAt
+		dataMap["updated_at"] = entity.UpdatedAt
+		return dataMap
+		
+	case entities.History:
+		dataMap["id"] = entity.ID
+		dataMap["shop_id"] = entity.ShopID
+		dataMap["created_at"] = entity.CreatedAt
+		dataMap["updated_at"] = entity.UpdatedAt
+		return dataMap
+		
+	case entities.StockHistory:
+		dataMap["id"] = entity.ID
+		dataMap["product_id"] = entity.ProductID
+		dataMap["created_at"] = entity.CreatedAt
+		dataMap["updated_at"] = entity.UpdatedAt
+		return dataMap
+		
+	case entities.TransactionProduct:
+		dataMap["id"] = entity.ID
+		dataMap["transaction_id"] = entity.TransactionID
+		dataMap["product_id"] = entity.ProductID
+		dataMap["created_at"] = entity.CreatedAt
+		dataMap["updated_at"] = entity.UpdatedAt
+		return dataMap
+		
+	case entities.Shop:
+		dataMap["id"] = entity.ID
+		dataMap["license_id"] = entity.LicenseID
+		dataMap["user_id"] = entity.UserID
+		dataMap["name"] = entity.Name
+		dataMap["domain"] = entity.Domain
+		dataMap["created_at"] = entity.CreatedAt
+		dataMap["updated_at"] = entity.UpdatedAt
+		return dataMap
+		
+	case entities.User:
+		dataMap["id"] = entity.ID
+		if entity.LicenseID != nil {
+			dataMap["license_id"] = *entity.LicenseID
+		}
+		dataMap["name"] = entity.Name
+		dataMap["created_at"] = entity.CreatedAt
+		dataMap["updated_at"] = entity.UpdatedAt
+		return dataMap
+		
+	default:
+		// For unknown types, try to extract basic fields if it's a map
+		if entityMap, ok := data.(map[string]interface{}); ok {
+			cleanMap := make(map[string]interface{})
+			// Copy only non-nested fields
+			for key, value := range entityMap {
+				if key != "shop" && key != "product" && key != "user" && key != "category" && 
+				   key != "transaction" && key != "license" && key != "owner" && key != "cashier" &&
+				   key != "products" && key != "carts" && key != "transaction_products" && 
+				   key != "stock_histories" && key != "payments" && key != "receipts" && key != "histories" {
+					cleanMap[key] = value
+				}
+			}
+			return cleanMap
+		}
+		// Return as is for unknown types
+		return data
+	}
 }

@@ -27,32 +27,42 @@ type SyncRequest struct {
 // SyncResponse represents the sync response sent back to mobile client
 type SyncResponse struct {
 	SyncTimestamp       time.Time                     `json:"sync_timestamp"`
-	Carts               []entities.Cart               `json:"carts"`
-	Categories          []entities.Category           `json:"categories"`
-	Expenses            []entities.Expense            `json:"expenses"`
-	Histories           []entities.History            `json:"histories"`
-	Payments            []entities.Payment            `json:"payments"`
-	Products            []entities.Product            `json:"products"`
-	Receipts            []entities.Receipt            `json:"receipts"`
-	Shops               []entities.Shop               `json:"shops"`
-	StockHistories      []entities.StockHistory       `json:"stock_histories"`
-	TransactionProducts []entities.TransactionProduct `json:"transaction_products"`
-	Transactions        []entities.Transaction        `json:"transactions"`
-	Users               []entities.User               `json:"users"`
-	Conflicts           []ConflictInfo                `json:"conflicts"`
-	Errors              []SyncError                   `json:"errors"`
+	Carts               []entities.Cart               `json:"carts,omitempty"`
+	Categories          []entities.Category           `json:"categories,omitempty"`
+	Expenses            []entities.Expense            `json:"expenses,omitempty"`
+	Histories           []entities.History            `json:"histories,omitempty"`
+	Payments            []entities.Payment            `json:"payments,omitempty"`
+	Products            []entities.Product            `json:"products,omitempty"`
+	Receipts            []entities.Receipt            `json:"receipts,omitempty"`
+	Shops               []entities.Shop               `json:"shops,omitempty"`
+	StockHistories      []entities.StockHistory       `json:"stock_histories,omitempty"`
+	TransactionProducts []entities.TransactionProduct `json:"transaction_products,omitempty"`
+	Transactions        []entities.Transaction        `json:"transactions,omitempty"`
+	Users               []entities.User               `json:"users,omitempty"`
+	Conflicts           []ConflictInfo                `json:"conflicts,omitempty"`
+	Errors              []SyncError                   `json:"errors,omitempty"`
 	Stats               SyncStats                     `json:"stats"`
 }
 
 // ConflictInfo represents information about a data conflict during sync
 type ConflictInfo struct {
-	EntityType   string    `json:"entity_type"`
-	EntityID     uuid.UUID `json:"entity_id"`
-	ConflictType string    `json:"conflict_type"`
-	Resolution   string    `json:"resolution"`
-	Details      string    `json:"details"`
-	ServerData   any       `json:"server_data,omitempty"`
-	ClientData   any       `json:"client_data,omitempty"`
+	EntityType   string      `json:"entity_type"`
+	EntityID     uuid.UUID   `json:"entity_id"`
+	ConflictType string      `json:"conflict_type"`
+	Resolution   string      `json:"resolution"`
+	Details      string      `json:"details"`
+	ServerData   interface{} `json:"server_data,omitempty"`
+	ClientData   interface{} `json:"client_data,omitempty"`
+}
+
+// CleanConflictData creates a clean version of conflict data without nested empty relations
+type CleanConflictData struct {
+	ID        uuid.UUID            `json:"id"`
+	Name      string               `json:"name,omitempty"`
+	ShopID    *uuid.UUID           `json:"shop_id,omitempty"`
+	CreatedAt time.Time            `json:"created_at"`
+	UpdatedAt time.Time            `json:"updated_at"`
+	Extra     map[string]interface{} `json:",inline"`
 }
 
 // SyncError represents an error that occurred during sync for a specific entity
