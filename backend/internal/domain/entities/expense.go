@@ -43,3 +43,23 @@ func (Expense) TableName() string {
 func (e *Expense) IsCompleted() bool {
 	return e.Status == ExpenseStatusCompleted
 }
+
+// Syncable interface implementation
+func (e Expense) GetID() uuid.UUID {
+	return e.ID
+}
+
+func (e Expense) GetCreatedAt() time.Time {
+	return e.CreatedAt
+}
+
+func (e Expense) GetUpdatedAt() time.Time {
+	return e.UpdatedAt
+}
+
+func (e Expense) GetDeletedAt() *time.Time {
+	if e.DeletedAt.Valid {
+		return &e.DeletedAt.Time
+	}
+	return nil
+}

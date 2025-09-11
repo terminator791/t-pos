@@ -25,3 +25,23 @@ type History struct {
 func (History) TableName() string {
 	return "histories"
 }
+
+// Syncable interface implementation
+func (h History) GetID() uuid.UUID {
+	return h.ID
+}
+
+func (h History) GetCreatedAt() time.Time {
+	return h.CreatedAt
+}
+
+func (h History) GetUpdatedAt() time.Time {
+	return h.UpdatedAt
+}
+
+func (h History) GetDeletedAt() *time.Time {
+	if h.DeletedAt.Valid {
+		return &h.DeletedAt.Time
+	}
+	return nil
+}

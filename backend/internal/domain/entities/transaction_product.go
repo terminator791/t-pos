@@ -33,3 +33,23 @@ func (TransactionProduct) TableName() string {
 func (tp *TransactionProduct) CalculateTotalPrice() {
 	tp.TotalPrice = float64(tp.Quantity) * tp.UnitPrice
 }
+
+// Syncable interface implementation
+func (tp TransactionProduct) GetID() uuid.UUID {
+	return tp.ID
+}
+
+func (tp TransactionProduct) GetCreatedAt() time.Time {
+	return tp.CreatedAt
+}
+
+func (tp TransactionProduct) GetUpdatedAt() time.Time {
+	return tp.UpdatedAt
+}
+
+func (tp TransactionProduct) GetDeletedAt() *time.Time {
+	if tp.DeletedAt.Valid {
+		return &tp.DeletedAt.Time
+	}
+	return nil
+}

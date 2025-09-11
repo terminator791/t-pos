@@ -45,3 +45,23 @@ func (Payment) TableName() string {
 func (p *Payment) IsCompleted() bool {
 	return p.Status == PaymentStatusCompleted
 }
+
+// Syncable interface implementation
+func (p Payment) GetID() uuid.UUID {
+	return p.ID
+}
+
+func (p Payment) GetCreatedAt() time.Time {
+	return p.CreatedAt
+}
+
+func (p Payment) GetUpdatedAt() time.Time {
+	return p.UpdatedAt
+}
+
+func (p Payment) GetDeletedAt() *time.Time {
+	if p.DeletedAt.Valid {
+		return &p.DeletedAt.Time
+	}
+	return nil
+}

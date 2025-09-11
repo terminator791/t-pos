@@ -71,3 +71,23 @@ func (t *Transaction) CalculateTotal() {
 func (t *Transaction) IsCompleted() bool {
 	return t.Status == TransactionStatusCompleted
 }
+
+// Syncable interface implementation
+func (t Transaction) GetID() uuid.UUID {
+	return t.ID
+}
+
+func (t Transaction) GetCreatedAt() time.Time {
+	return t.CreatedAt
+}
+
+func (t Transaction) GetUpdatedAt() time.Time {
+	return t.UpdatedAt
+}
+
+func (t Transaction) GetDeletedAt() *time.Time {
+	if t.DeletedAt.Valid {
+		return &t.DeletedAt.Time
+	}
+	return nil
+}
