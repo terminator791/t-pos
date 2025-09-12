@@ -157,7 +157,7 @@ func (s *UserManagementService) CreateUser(ctx context.Context, req CreateUserRe
 		LicenseID: &license.ID,
 		RoleID:    &roleID,
 		Username:  &req.Username,
-		Name:      req.Username, // Use username as default name
+		Name:      req.Username,      // Use username as default name
 		Password:  string(hashedPin), // Use PIN as password for admin users
 		Pin:       stringPtr(string(hashedPin)),
 	}

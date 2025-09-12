@@ -180,6 +180,17 @@ func (s *AuthSeeder) SeedPolicies() error {
 		{"admin", "*", "/api/v1/roles/*", "GET"},
 		{"admin", "*", "/api/v1/roles/name/*", "GET"},
 
+		// shops
+		{"admin", "*", "/api/v1/shops", "GET"},
+		{"admin", "*", "/api/v1/shops/*", "GET"},
+		{"admin", "*", "/api/v1/shops", "POST"},
+		{"admin", "*", "/api/v1/shops/*", "PUT"},
+		{"admin", "*", "/api/v1/shops/*", "DELETE"},
+
+		// Sync
+		{"admin", "*", "/api/v1/sync", "POST"},
+		{"admin", "*", "/api/v1/sync/*", "GET"},
+
 		// ================== OWNER BUSINESS - License-based shop management ==================
 		// Products - Full CRUD within license domain
 		{"owner_business", "*", "/api/v1/products", "GET"},
@@ -246,6 +257,10 @@ func (s *AuthSeeder) SeedPolicies() error {
 		{"owner_business", "*", "/api/v1/customers", "POST"},
 		{"owner_business", "*", "/api/v1/customers/*", "DELETE"},
 
+		// sync
+		{"owner_business", "*", "/api/v1/sync", "POST"},
+		{"owner_business", "*", "/api/v1/sync/*", "GET"},
+
 		// ================== CASHIER - Shop-specific POS operations ==================
 		// Products - Full CRUD within shop
 		{"cashier", "shop:*", "/api/v1/products", "GET"},
@@ -309,6 +324,10 @@ func (s *AuthSeeder) SeedPolicies() error {
 		{"cashier", "shop:*", "/api/v1/customers", "GET"},
 		{"cashier", "shop:*", "/api/v1/customers/*", "GET"},
 
+		// sync
+		{"cashier", "shop:*", "/api/v1/sync", "POST"},
+		{"cashier", "shop:*", "/api/v1/sync/*", "GET"},
+
 		// ================== AUTH ENDPOINTS FOR ALL ROLES ==================
 		{"super_admin", "*", "/api/v1/auth/profile", "GET"},
 		{"super_admin", "*", "/api/v1/auth/logout", "POST"},
@@ -317,7 +336,7 @@ func (s *AuthSeeder) SeedPolicies() error {
 		{"super_admin", "*", "/api/v1/auth/pin", "POST"},
 		{"super_admin", "*", "/api/v1/auth/pin", "PUT"},
 		{"super_admin", "*", "/api/v1/auth/pin", "DELETE"},
-		
+
 		{"admin", "*", "/api/v1/auth/profile", "GET"},
 		{"admin", "*", "/api/v1/auth/logout", "POST"},
 		{"admin", "*", "/api/v1/auth/refresh", "POST"},
@@ -325,7 +344,7 @@ func (s *AuthSeeder) SeedPolicies() error {
 		{"admin", "*", "/api/v1/auth/pin", "POST"},
 		{"admin", "*", "/api/v1/auth/pin", "PUT"},
 		{"admin", "*", "/api/v1/auth/pin", "DELETE"},
-		
+
 		{"owner_business", "*", "/api/v1/auth/profile", "GET"},
 		{"owner_business", "*", "/api/v1/auth/logout", "POST"},
 		{"owner_business", "*", "/api/v1/auth/refresh", "POST"},
@@ -333,7 +352,7 @@ func (s *AuthSeeder) SeedPolicies() error {
 		{"owner_business", "*", "/api/v1/auth/pin", "POST"},
 		{"owner_business", "*", "/api/v1/auth/pin", "PUT"},
 		{"owner_business", "*", "/api/v1/auth/pin", "DELETE"},
-		
+
 		{"cashier", "shop:*", "/api/v1/auth/profile", "GET"},
 		{"cashier", "shop:*", "/api/v1/auth/logout", "POST"},
 		{"cashier", "shop:*", "/api/v1/auth/refresh", "POST"},

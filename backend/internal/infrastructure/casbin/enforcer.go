@@ -72,7 +72,7 @@ func NewEnforcerService(db *gorm.DB, modelPath string) (*EnforcerService, error)
 func (e *EnforcerService) Enforce(user, domain, object, action string) (bool, error) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	
+
 	return e.enforcer.Enforce(user, domain, object, action)
 }
 
@@ -80,7 +80,7 @@ func (e *EnforcerService) Enforce(user, domain, object, action string) (bool, er
 func (e *EnforcerService) AddPolicy(role, domain, object, action string) (bool, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	
+
 	return e.enforcer.AddPolicy(role, domain, object, action)
 }
 
@@ -88,7 +88,7 @@ func (e *EnforcerService) AddPolicy(role, domain, object, action string) (bool, 
 func (e *EnforcerService) RemovePolicy(role, domain, object, action string) (bool, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	
+
 	return e.enforcer.RemovePolicy(role, domain, object, action)
 }
 
@@ -96,7 +96,7 @@ func (e *EnforcerService) RemovePolicy(role, domain, object, action string) (boo
 func (e *EnforcerService) AddRoleForUser(user, role, domain string) (bool, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	
+
 	return e.enforcer.AddRoleForUserInDomain(user, role, domain)
 }
 
@@ -104,7 +104,7 @@ func (e *EnforcerService) AddRoleForUser(user, role, domain string) (bool, error
 func (e *EnforcerService) RemoveRoleForUser(user, role, domain string) (bool, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	
+
 	return e.enforcer.DeleteRoleForUserInDomain(user, role, domain)
 }
 
@@ -112,7 +112,7 @@ func (e *EnforcerService) RemoveRoleForUser(user, role, domain string) (bool, er
 func (e *EnforcerService) GetRolesForUser(user, domain string) []string {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	
+
 	return e.enforcer.GetRolesForUserInDomain(user, domain)
 }
 
@@ -120,7 +120,7 @@ func (e *EnforcerService) GetRolesForUser(user, domain string) []string {
 func (e *EnforcerService) GetUsersForRole(role, domain string) []string {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	
+
 	return e.enforcer.GetUsersForRoleInDomain(role, domain)
 }
 
@@ -128,7 +128,7 @@ func (e *EnforcerService) GetUsersForRole(role, domain string) []string {
 func (e *EnforcerService) LoadPolicy() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	
+
 	return e.enforcer.LoadPolicy()
 }
 
@@ -136,7 +136,7 @@ func (e *EnforcerService) LoadPolicy() error {
 func (e *EnforcerService) SavePolicy() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	
+
 	return e.enforcer.SavePolicy()
 }
 
@@ -144,7 +144,7 @@ func (e *EnforcerService) SavePolicy() error {
 func (e *EnforcerService) GetAllPolicies() [][]string {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	
+
 	policies, _ := e.enforcer.GetPolicy()
 	return policies
 }
@@ -153,7 +153,7 @@ func (e *EnforcerService) GetAllPolicies() [][]string {
 func (e *EnforcerService) GetAllRoles() [][]string {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	
+
 	roles, _ := e.enforcer.GetGroupingPolicy()
 	return roles
 }

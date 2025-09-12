@@ -3,9 +3,11 @@ package usecases
 import (
 	"context"
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/terminator791/t-pos/internal/domain/dto"
 	"github.com/terminator791/t-pos/internal/domain/entities"
 	"github.com/terminator791/t-pos/internal/domain/repositories"
 	"gorm.io/gorm"
@@ -51,11 +53,11 @@ func NewTransactionUseCase(
 
 // CreateTransactionRequest represents the request to create a transaction
 type CreateTransactionRequest struct {
-	ShopID       uuid.UUID              `json:"shop_id"`
-	CashierID    uuid.UUID              `json:"cashier_id"`
-	CustomerName string                 `json:"customer_name"`
+	ShopID       uuid.UUID               `json:"shop_id"`
+	CashierID    uuid.UUID               `json:"cashier_id"`
+	CustomerName string                  `json:"customer_name"`
 	Items        []CreateTransactionItem `json:"items"`
-	Discount     float64                `json:"discount"`
+	Discount     float64                 `json:"discount"`
 }
 
 // CreateTransactionItem represents an item in the transaction
@@ -66,17 +68,17 @@ type CreateTransactionItem struct {
 
 // CreateTransactionResponse represents the response after creating a transaction
 type CreateTransactionResponse struct {
-	Transaction *entities.Transaction `json:"transaction"`
-	Payment     *entities.Payment     `json:"payment"`
-	Expense     *entities.Expense     `json:"expense"`
+	Transaction *dto.TransactionDTO `json:"transaction"`
+	Payment     *dto.PaymentDTO     `json:"payment"`
+	Expense     *dto.ExpenseDTO     `json:"expense"`
 }
 
 // PayTransactionResponse represents the response after paying a transaction
 type PayTransactionResponse struct {
-	Transaction *entities.Transaction `json:"transaction"`
-	Payment     *entities.Payment     `json:"payment"`
-	Change      float64              `json:"change"`
-	Success     bool                 `json:"success"`
+	Transaction *dto.TransactionDTO `json:"transaction"`
+	Payment     *dto.PaymentDTO     `json:"payment"`
+	Change      float64             `json:"change"`
+	Success     bool                `json:"success"`
 }
 
 // CreateTransaction creates a new transaction with all pending records
@@ -138,7 +140,7 @@ func (uc *TransactionUseCase) CreateTransaction(ctx context.Context, req *Create
 	}
 
 	// Calculate total and validate products
-	total, transactionProducts, err := uc.calculateTotalAndValidateProducts(ctx, req.Items)
+	total, transactionProducts, err := uc.calculateTotalAndValidateProducts(ctx, req.ShopID, req.Items)
 	if err != nil {
 		tx.Rollback()
 		return nil, err
@@ -223,9 +225,9 @@ func (uc *TransactionUseCase) CreateTransaction(ctx context.Context, req *Create
 	}
 
 	return &CreateTransactionResponse{
-		Transaction: createdTransaction,
-		Payment:     createdPayment,
-		Expense:     createdExpense,
+		Transaction: dto.ConvertToTransactionDTO(createdTransaction),
+		Payment:     dto.ConvertToPaymentDTO(createdPayment),
+		Expense:     dto.ConvertToExpenseDTO(createdExpense),
 	}, nil
 }
 
@@ -261,7 +263,7 @@ func (uc *TransactionUseCase) PayTransaction(ctx context.Context, transactionID 
 	if amount < transaction.TotalPrice {
 		tx.Rollback()
 		return &PayTransactionResponse{
-			Transaction: &transaction,
+			Transaction: dto.ConvertToTransactionDTO(&transaction),
 			Success:     false,
 		}, errors.New("insufficient payment amount")
 	}
@@ -349,8 +351,8 @@ func (uc *TransactionUseCase) PayTransaction(ctx context.Context, transactionID 
 	}
 
 	return &PayTransactionResponse{
-		Transaction: completedTransaction,
-		Payment:     completedPayment,
+		Transaction: dto.ConvertToTransactionDTO(completedTransaction),
+		Payment:     dto.ConvertToPaymentDTO(completedPayment),
 		Change:      change,
 		Success:     true,
 	}, nil
@@ -441,12 +443,57 @@ func (uc *TransactionUseCase) GetTransactionsByShop(ctx context.Context, shopID 
 
 // GetTransactionsByShopAndStatus retrieves transactions by shop ID and status with pagination
 func (uc *TransactionUseCase) GetTransactionsByShopAndStatus(ctx context.Context, shopID uuid.UUID, status string, limit, offset int) ([]*entities.Transaction, error) {
+	// Convert string status to TransactionStatus enum
 	transactionStatus := entities.TransactionStatus(status)
-	return uc.transactionRepo.GetByShopIDAndStatus(ctx, shopID, transactionStatus)
+	
+	// Get transactions by shop ID and status
+	transactions, err := uc.transactionRepo.GetByShopIDAndStatus(ctx, shopID, transactionStatus)
+	if err != nil {
+		return nil, err
+	}
+
+	// Apply pagination manually since repository doesn't support it
+	total := len(transactions)
+	start := offset
+	end := offset + limit
+
+	if start > total {
+		return []*entities.Transaction{}, nil
+	}
+
+	if end > total {
+		end = total
+	}
+
+	return transactions[start:end], nil
+}
+
+// GetTodaysTransactionsByShop gets today's transactions for a specific shop with pagination
+func (uc *TransactionUseCase) GetTodaysTransactionsByShop(ctx context.Context, shopID uuid.UUID, limit, offset int) ([]*entities.Transaction, error) {
+	// Get today's transactions (repository method doesn't support pagination)
+	transactions, err := uc.transactionRepo.GetTodaysTransactions(ctx, shopID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Apply pagination manually since repository doesn't support it
+	total := len(transactions)
+	start := offset
+	end := offset + limit
+
+	if start > total {
+		return []*entities.Transaction{}, nil
+	}
+
+	if end > total {
+		end = total
+	}
+
+	return transactions[start:end], nil
 }
 
 // calculateTotalAndValidateProducts calculates the total and validates all products
-func (uc *TransactionUseCase) calculateTotalAndValidateProducts(ctx context.Context, items []CreateTransactionItem) (float64, []entities.TransactionProduct, error) {
+func (uc *TransactionUseCase) calculateTotalAndValidateProducts(ctx context.Context, shopID uuid.UUID, items []CreateTransactionItem) (float64, []entities.TransactionProduct, error) {
 	var total float64
 	var transactionProducts []entities.TransactionProduct
 
@@ -457,8 +504,19 @@ func (uc *TransactionUseCase) calculateTotalAndValidateProducts(ctx context.Cont
 			return 0, nil, errors.New("product not found: " + item.ProductID.String())
 		}
 
+		// Validate product belongs to the same shop
+		if product.ShopID != shopID {
+			return 0, nil, errors.New("product " + item.ProductID.String() + " does not belong to shop " + shopID.String())
+		}
+
 		if item.Quantity <= 0 {
 			return 0, nil, errors.New("quantity must be greater than 0")
+		}
+
+		// Check stock availability if product has stock tracking enabled
+		if product.IsHaveStock && product.Stock < item.Quantity {
+			return 0, nil, errors.New("insufficient stock for product " + product.Name + ". Available: " + 
+				strconv.Itoa(product.Stock) + ", Requested: " + strconv.Itoa(item.Quantity))
 		}
 
 		// Calculate item total

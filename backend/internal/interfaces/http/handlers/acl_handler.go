@@ -32,7 +32,7 @@ func NewACLHandler(
 // GetAllPolicies returns all Casbin policies
 func (h *ACLHandler) GetAllPolicies(c *gin.Context) {
 	policies := h.enforcerService.GetAllPolicies()
-	
+
 	response.SuccessOK(c, "Policies retrieved successfully", gin.H{
 		"policies": policies,
 		"count":    len(policies),
@@ -42,10 +42,10 @@ func (h *ACLHandler) GetAllPolicies(c *gin.Context) {
 // GetAllRoles returns all Casbin role assignments
 func (h *ACLHandler) GetAllRoles(c *gin.Context) {
 	roles := h.enforcerService.GetAllRoles()
-	
+
 	response.SuccessOK(c, "Role assignments retrieved successfully", gin.H{
 		"role_assignments": roles,
-		"count":           len(roles),
+		"count":            len(roles),
 	})
 }
 
@@ -53,13 +53,13 @@ func (h *ACLHandler) GetAllRoles(c *gin.Context) {
 func (h *ACLHandler) GetUserRoles(c *gin.Context) {
 	userID := c.Param("userId")
 	domain := c.Query("domain")
-	
+
 	if domain == "" {
 		domain = "*"
 	}
-	
+
 	roles := h.enforcerService.GetRolesForUser(userID, domain)
-	
+
 	response.SuccessOK(c, "User roles retrieved successfully", gin.H{
 		"user_id": userID,
 		"domain":  domain,
@@ -71,13 +71,13 @@ func (h *ACLHandler) GetUserRoles(c *gin.Context) {
 func (h *ACLHandler) GetRoleUsers(c *gin.Context) {
 	role := c.Param("role")
 	domain := c.Query("domain")
-	
+
 	if domain == "" {
 		domain = "*"
 	}
-	
+
 	users := h.enforcerService.GetUsersForRole(role, domain)
-	
+
 	response.SuccessOK(c, "Role users retrieved successfully", gin.H{
 		"role":   role,
 		"domain": domain,
@@ -92,27 +92,27 @@ func (h *ACLHandler) AddRoleForUser(c *gin.Context) {
 		Role   string `json:"role" binding:"required"`
 		Domain string `json:"domain"`
 	}
-	
+
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.ErrorBadRequest(c, "Invalid request data", err.Error())
 		return
 	}
-	
+
 	if req.Domain == "" {
 		req.Domain = "*"
 	}
-	
+
 	success, err := h.enforcerService.AddRoleForUser(req.UserID, req.Role, req.Domain)
 	if err != nil {
 		response.ErrorInternalServer(c, "Failed to add role", err.Error())
 		return
 	}
-	
+
 	if !success {
 		response.ErrorBadRequest(c, "Role assignment already exists", nil)
 		return
 	}
-	
+
 	response.SuccessCreated(c, "Role added successfully", gin.H{
 		"user_id": req.UserID,
 		"role":    req.Role,
@@ -127,27 +127,27 @@ func (h *ACLHandler) RemoveRoleForUser(c *gin.Context) {
 		Role   string `json:"role" binding:"required"`
 		Domain string `json:"domain"`
 	}
-	
+
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.ErrorBadRequest(c, "Invalid request data", err.Error())
 		return
 	}
-	
+
 	if req.Domain == "" {
 		req.Domain = "*"
 	}
-	
+
 	success, err := h.enforcerService.RemoveRoleForUser(req.UserID, req.Role, req.Domain)
 	if err != nil {
 		response.ErrorInternalServer(c, "Failed to remove role", err.Error())
 		return
 	}
-	
+
 	if !success {
 		response.ErrorNotFound(c, "Role assignment not found", nil)
 		return
 	}
-	
+
 	response.SuccessOK(c, "Role removed successfully", gin.H{
 		"user_id": req.UserID,
 		"role":    req.Role,
@@ -163,23 +163,23 @@ func (h *ACLHandler) AddPolicy(c *gin.Context) {
 		Object string `json:"object" binding:"required"`
 		Action string `json:"action" binding:"required"`
 	}
-	
+
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.ErrorBadRequest(c, "Invalid request data", err.Error())
 		return
 	}
-	
+
 	success, err := h.enforcerService.AddPolicy(req.Role, req.Domain, req.Object, req.Action)
 	if err != nil {
 		response.ErrorInternalServer(c, "Failed to add policy", err.Error())
 		return
 	}
-	
+
 	if !success {
 		response.ErrorBadRequest(c, "Policy already exists", nil)
 		return
 	}
-	
+
 	response.SuccessCreated(c, "Policy added successfully", gin.H{
 		"role":   req.Role,
 		"domain": req.Domain,
@@ -196,23 +196,23 @@ func (h *ACLHandler) RemovePolicy(c *gin.Context) {
 		Object string `json:"object" binding:"required"`
 		Action string `json:"action" binding:"required"`
 	}
-	
+
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.ErrorBadRequest(c, "Invalid request data", err.Error())
 		return
 	}
-	
+
 	success, err := h.enforcerService.RemovePolicy(req.Role, req.Domain, req.Object, req.Action)
 	if err != nil {
 		response.ErrorInternalServer(c, "Failed to remove policy", err.Error())
 		return
 	}
-	
+
 	if !success {
 		response.ErrorNotFound(c, "Policy not found", nil)
 		return
 	}
-	
+
 	response.SuccessOK(c, "Policy removed successfully", gin.H{
 		"role":   req.Role,
 		"domain": req.Domain,
@@ -229,18 +229,18 @@ func (h *ACLHandler) CheckPermission(c *gin.Context) {
 		Object string `json:"object" binding:"required"`
 		Action string `json:"action" binding:"required"`
 	}
-	
+
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.ErrorBadRequest(c, "Invalid request data", err.Error())
 		return
 	}
-	
+
 	allowed, err := h.enforcerService.Enforce(req.UserID, req.Domain, req.Object, req.Action)
 	if err != nil {
 		response.ErrorInternalServer(c, "Failed to check permission", err.Error())
 		return
 	}
-	
+
 	response.SuccessOK(c, "Permission check completed", gin.H{
 		"user_id": req.UserID,
 		"domain":  req.Domain,
@@ -256,7 +256,7 @@ func (h *ACLHandler) ReloadPolicies(c *gin.Context) {
 		response.ErrorInternalServer(c, "Failed to reload policies", err.Error())
 		return
 	}
-	
+
 	response.SuccessOK(c, "Policies reloaded successfully", nil)
 }
 
@@ -267,7 +267,7 @@ func (h *ACLHandler) GetSystemRoles(c *gin.Context) {
 		response.ErrorInternalServer(c, "Failed to get system roles", err.Error())
 		return
 	}
-	
+
 	response.SuccessOK(c, "System roles retrieved successfully", gin.H{
 		"roles": roles,
 		"count": len(roles),
@@ -281,7 +281,7 @@ func (h *ACLHandler) GetSystemPolicies(c *gin.Context) {
 		response.ErrorInternalServer(c, "Failed to get system policies", err.Error())
 		return
 	}
-	
+
 	response.SuccessOK(c, "System policies retrieved successfully", gin.H{
 		"policies": policies,
 		"count":    len(policies),

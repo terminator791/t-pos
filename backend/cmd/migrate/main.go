@@ -162,9 +162,9 @@ func checkStatus() {
 	}
 
 	tables := []string{
-		"licenses", "users", "roles", "policies", "license_logs", 
-		"shops", "categories", "products", "carts", "transactions", "transaction_products", 
-		"payments", "receipts", "histories", "stock_histories", "expenses", "logs", 
+		"licenses", "users", "roles", "policies", "license_logs",
+		"shops", "categories", "products", "carts", "transactions", "transaction_products",
+		"payments", "receipts", "histories", "stock_histories", "expenses", "logs",
 		"user_domains", "casbin_rule",
 	}
 
@@ -178,7 +178,7 @@ func checkStatus() {
 			WHERE table_schema = 'public' 
 			AND table_name = ?
 		)`
-		
+
 		if err := db.Raw(query, table).Scan(&exists).Error; err != nil {
 			log.Printf("❌ %s: Error checking - %v", table, err)
 			continue

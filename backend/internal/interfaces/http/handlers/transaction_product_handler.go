@@ -31,8 +31,8 @@ func (h *TransactionProductHandler) ListTransactionProducts(c *gin.Context) {
 
 	response.SuccessOK(c, "Transaction products retrieved successfully", map[string]interface{}{
 		"transaction_products": transactionProducts,
-		"limit":               limit,
-		"offset":              offset,
+		"limit":                limit,
+		"offset":               offset,
 	})
 }
 
@@ -55,8 +55,8 @@ func (h *TransactionProductHandler) ListTransactionProductsByTransaction(c *gin.
 	response.SuccessOK(c, "Transaction products retrieved successfully", map[string]interface{}{
 		"transaction_products": transactionProducts,
 		"transaction_id":       transactionID,
-		"limit":               limit,
-		"offset":              offset,
+		"limit":                limit,
+		"offset":               offset,
 	})
 }
 
@@ -78,9 +78,9 @@ func (h *TransactionProductHandler) ListTransactionProductsByShop(c *gin.Context
 
 	response.SuccessOK(c, "Transaction products retrieved successfully", map[string]interface{}{
 		"transaction_products": transactionProducts,
-		"shop_id":             shopID,
-		"limit":               limit,
-		"offset":              offset,
+		"shop_id":              shopID,
+		"limit":                limit,
+		"offset":               offset,
 	})
 }
 

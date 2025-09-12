@@ -144,9 +144,9 @@ func (m *AuthzMiddleware) RequireAnyRole(roles ...string) gin.HandlerFunc {
 
 		if !hasRole {
 			response.ErrorForbidden(c, "Insufficient role permissions", map[string]interface{}{
-				"user_roles":      userRoles,
-				"required_roles":  roles,
-				"domain":          domain,
+				"user_roles":     userRoles,
+				"required_roles": roles,
+				"domain":         domain,
 			})
 			c.Abort()
 			return

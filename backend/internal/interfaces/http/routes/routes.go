@@ -27,6 +27,7 @@ func SetupRoutes(
 	transactionProductHandler *handlers.TransactionProductHandler,
 	aclHandler *handlers.ACLHandler,
 	shopHandler *handlers.ShopHandler,
+	syncHandler *handlers.SyncHandler,
 	authMiddleware *auth.AuthMiddleware,
 	authzMiddleware *casbin.AuthzMiddleware,
 ) {
@@ -117,8 +118,8 @@ func SetupRoutes(
 				transactions.GET("", transactionHandler.ListTransactions) // super admin and admin only
 				transactions.GET("/shop/:shopId", transactionHandler.ListTransactionsByShop)
 				transactions.GET("/shop/:shopId/status/:status", transactionHandler.ListTransactionsByShopAndStatus)
-				// Legacy routes
-				transactions.GET("/shop/:shopId/today", checkoutHandler.GetTodaysTransactions)
+				// Today's transactions
+				transactions.GET("/shop/:shopId/today", transactionHandler.GetTodaysTransactions)
 			}
 
 			// Expense routes
@@ -218,7 +219,7 @@ func SetupRoutes(
 				acl.DELETE("/policies", aclHandler.RemovePolicy)
 				acl.GET("/policies/system", aclHandler.GetSystemPolicies)
 
-				// Role assignment management  
+				// Role assignment management
 				acl.GET("/roles", aclHandler.GetAllRoles)
 				acl.GET("/roles/system", aclHandler.GetSystemRoles)
 				acl.GET("/users/:userId/roles", aclHandler.GetUserRoles)
@@ -229,6 +230,14 @@ func SetupRoutes(
 				// Permission checking
 				acl.POST("/check", aclHandler.CheckPermission)
 				acl.POST("/reload", aclHandler.ReloadPolicies)
+			}
+
+			// Sync routes (owner_business and cashier roles)
+			sync := protected.Group("/sync")
+			{
+				sync.POST("", syncHandler.ProcessSync)
+				sync.GET("/info", syncHandler.GetSyncInfo)
+				sync.GET("/health", syncHandler.Health)
 			}
 		}
 	}

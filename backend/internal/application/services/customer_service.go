@@ -152,7 +152,7 @@ func (s *CustomerService) CreateCustomer(ctx context.Context, req CreateCustomer
 		LicenseID: &license.ID,
 		RoleID:    &roleID,
 		Username:  &req.Username,
-		Name:      req.Username, // Use username as default name
+		Name:      req.Username,      // Use username as default name
 		Password:  string(hashedPin), // Use PIN as password for customers
 		Pin:       stringPtr(string(hashedPin)),
 	}

@@ -38,15 +38,15 @@ func NewCheckoutUseCase(
 
 // CheckoutRequest represents the request to create a checkout
 type CheckoutRequest struct {
-	ShopID         uuid.UUID                `json:"shop_id"`
-	CashierID      uuid.UUID                `json:"cashier_id"`
-	CustomerID     *uuid.UUID               `json:"customer_id"` // Optional customer
-	Items          []CheckoutItemRequest    `json:"items"`
-	PaymentMethod  string                   `json:"payment_method"` // cash, card, digital
-	Discount       float64                  `json:"discount"`
-	DiscountPercentage float64              `json:"discount_percentage"`
-	AdditionalCost float64                  `json:"additional_cost"`
-	AmountPaid     int64                    `json:"amount_paid"`
+	ShopID             uuid.UUID             `json:"shop_id"`
+	CashierID          uuid.UUID             `json:"cashier_id"`
+	CustomerID         *uuid.UUID            `json:"customer_id"` // Optional customer
+	Items              []CheckoutItemRequest `json:"items"`
+	PaymentMethod      string                `json:"payment_method"` // cash, card, digital
+	Discount           float64               `json:"discount"`
+	DiscountPercentage float64               `json:"discount_percentage"`
+	AdditionalCost     float64               `json:"additional_cost"`
+	AmountPaid         int64                 `json:"amount_paid"`
 }
 
 // CheckoutItemRequest represents an item in the checkout request
@@ -59,8 +59,8 @@ type CheckoutItemRequest struct {
 type CheckoutResponse struct {
 	Transaction *entities.Transaction `json:"transaction"`
 	Payment     *entities.Payment     `json:"payment"`
-	Change      float64              `json:"change"`
-	Message     string               `json:"message"`
+	Change      float64               `json:"change"`
+	Message     string                `json:"message"`
 }
 
 // ProcessCheckout processes the entire checkout flow
@@ -78,14 +78,14 @@ func (uc *CheckoutUseCase) ProcessCheckout(ctx context.Context, req *CheckoutReq
 
 	// Create transaction
 	transaction := &entities.Transaction{
-		ShopID:             req.ShopID,
-		CashierID:          req.CashierID,
-		Discount:           req.Discount,
-		DiscountPercentage: req.DiscountPercentage,
-		AdditionalCost:     req.AdditionalCost,
-		Status:             entities.TransactionStatusPending,
-		TotalPrice:         subtotal,
-		Amount:             req.AmountPaid,
+		ShopID:              req.ShopID,
+		CashierID:           req.CashierID,
+		Discount:            req.Discount,
+		DiscountPercentage:  req.DiscountPercentage,
+		AdditionalCost:      req.AdditionalCost,
+		Status:              entities.TransactionStatusPending,
+		TotalPrice:          subtotal,
+		Amount:              req.AmountPaid,
 		TransactionProducts: transactionProducts,
 	}
 
@@ -247,14 +247,14 @@ func (uc *CheckoutUseCase) calculateTotalsAndValidateStock(ctx context.Context, 
 
 		// Check stock availability if product has stock tracking
 		if product.IsHaveStock && product.Stock < item.Quantity {
-			return 0, nil, fmt.Errorf("insufficient stock for product %s. Available: %d, Requested: %d", 
+			return 0, nil, fmt.Errorf("insufficient stock for product %s. Available: %d, Requested: %d",
 				product.Name, product.Stock, item.Quantity)
 		}
 
 		transactionProduct := entities.TransactionProduct{
-			ProductID:  item.ProductID,
-			Quantity:   item.Quantity,
-			UnitPrice:  product.Sale,
+			ProductID: item.ProductID,
+			Quantity:  item.Quantity,
+			UnitPrice: product.Sale,
 		}
 		transactionProduct.CalculateTotalPrice()
 

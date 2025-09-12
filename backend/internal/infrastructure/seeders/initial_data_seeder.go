@@ -105,7 +105,7 @@ func (s *InitialDataSeeder) SeedUsers() error {
 			Email:     strPtr("superadmin@example.com"),
 			Username:  strPtr("superadmin"),
 			Name:      "Super Admin",
-			Pin:      strPtr(string(hashedPin)),
+			Pin:       strPtr(string(hashedPin)),
 			Password:  string(hashedPassword),
 		},
 		{
@@ -113,7 +113,7 @@ func (s *InitialDataSeeder) SeedUsers() error {
 			Email:     strPtr("admin@example.com"),
 			Username:  strPtr("admin"),
 			Name:      "Admin User",
-			Pin:      strPtr(string(hashedPin)),
+			Pin:       strPtr(string(hashedPin)),
 			Password:  string(hashedPassword),
 		},
 	}
@@ -508,7 +508,7 @@ func (s *InitialDataSeeder) SeedUserDomains() error {
 		},
 		{
 			UserID: admin.ID,
-			Domain: "*", // Admin gets global domain access  
+			Domain: "*", // Admin gets global domain access
 		},
 		{
 			UserID: admin.ID,

@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/terminator791/t-pos/internal/domain/dto"
 	"github.com/terminator791/t-pos/internal/domain/usecases"
 	"github.com/terminator791/t-pos/internal/infrastructure/auth"
 	"github.com/terminator791/t-pos/pkg/response"
@@ -25,10 +26,11 @@ func NewTransactionHandler(transactionUseCase *usecases.TransactionUseCase) *Tra
 
 // CreateTransactionRequest represents the request structure for creating a transaction
 type CreateTransactionRequest struct {
-	ShopID       *uuid.UUID                    `json:"shop_id,omitempty"` // Optional for owner business, ignored for cashiers
-	CustomerName string                        `json:"customer_name" binding:"required"`
+	ShopID       *uuid.UUID                     `json:"shop_id,omitempty"` // Optional for owner business, ignored for cashiers
+	CustomerName string                         `json:"customer_name" binding:"required"`
+	CashierName  string                         `json:"cashier_name,omitempty"`
 	Items        []CreateTransactionItemRequest `json:"items" binding:"required"`
-	Discount     float64                       `json:"discount,omitempty"`
+	Discount     float64                        `json:"discount,omitempty"`
 }
 
 // CreateTransactionItemRequest represents an item in the transaction
@@ -68,7 +70,7 @@ func (h *TransactionHandler) CreateTransaction(c *gin.Context) {
 	// For owner business: can specify shop_id in request or use context
 	var shopID uuid.UUID
 	userShopID, hasShopContext := auth.GetUserShopIDFromContext(c)
-	
+
 	if hasShopContext && userShopID != nil {
 		// User has shop context (cashier), use it
 		shopID = *userShopID
@@ -194,8 +196,14 @@ func (h *TransactionHandler) ListTransactionsByShop(c *gin.Context) {
 		return
 	}
 
+	// Convert to DTOs to avoid circular dependency issues
+	transactionDTOs := make([]*dto.TransactionDTO, len(transactions))
+	for i, t := range transactions {
+		transactionDTOs[i] = dto.ConvertToTransactionDTO(t)
+	}
+
 	response.SuccessOK(c, "Transactions retrieved successfully", map[string]interface{}{
-		"transactions": transactions,
+		"transactions": transactionDTOs,
 		"shop_id":      shopID,
 		"limit":        limit,
 		"offset":       offset,
@@ -219,10 +227,46 @@ func (h *TransactionHandler) ListTransactionsByShopAndStatus(c *gin.Context) {
 		return
 	}
 
+	// Convert to DTOs to avoid circular dependency issues
+	transactionDTOs := make([]*dto.TransactionDTO, len(transactions))
+	for i, t := range transactions {
+		transactionDTOs[i] = dto.ConvertToTransactionDTO(t)
+	}
+
 	response.SuccessOK(c, "Transactions retrieved successfully", map[string]interface{}{
-		"transactions": transactions,
+		"transactions": transactionDTOs,
 		"shop_id":      shopID,
 		"status":       status,
+		"limit":        limit,
+		"offset":       offset,
+	})
+}
+
+// GetTodaysTransactions handles GET /transactions/shop/:shopId/today
+func (h *TransactionHandler) GetTodaysTransactions(c *gin.Context) {
+	shopID, err := uuid.Parse(c.Param("shopId"))
+	if err != nil {
+		response.ErrorBadRequest(c, "Invalid shop ID", err.Error())
+		return
+	}
+
+	limit, offset := parsePagination(c)
+
+	transactions, err := h.transactionUseCase.GetTodaysTransactionsByShop(c.Request.Context(), shopID, limit, offset)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to retrieve today's transactions", err.Error())
+		return
+	}
+
+	// Convert to DTOs to avoid circular dependency issues
+	transactionDTOs := make([]*dto.TransactionDTO, len(transactions))
+	for i, t := range transactions {
+		transactionDTOs[i] = dto.ConvertToTransactionDTO(t)
+	}
+
+	response.SuccessOK(c, "Today's transactions retrieved successfully", map[string]interface{}{
+		"transactions": transactionDTOs,
+		"shop_id":      shopID,
 		"limit":        limit,
 		"offset":       offset,
 	})
@@ -236,7 +280,7 @@ func convertToUseCaseItems(items []CreateTransactionItemRequest) ([]usecases.Cre
 		if item.ProductID == uuid.Nil {
 			return nil, errors.New("invalid product ID: cannot be empty or zero UUID")
 		}
-		
+
 		result[i] = usecases.CreateTransactionItem{
 			ProductID: item.ProductID,
 			Quantity:  item.Quantity,

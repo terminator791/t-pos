@@ -56,6 +56,7 @@ func main() {
 	expenseRepo := repositories.NewExpenseRepository(db)
 	historyRepo := repositories.NewHistoryRepository(db)
 	receiptRepo := repositories.NewReceiptRepository(db)
+	stockHistoryRepo := repositories.NewStockHistoryRepository(db)
 	licenseRepo := repositories.NewLicenseRepository(db)
 	licenseLogRepo := repositories.NewLicenseLogRepository(db)
 	transactionProductRepo := repositories.NewTransactionProductRepository(db)
@@ -108,6 +109,24 @@ func main() {
 	customerService := services.NewCustomerService(userRepo, roleRepo, licenseRepo, db)
 	userManagementService := services.NewUserManagementService(userRepo, roleRepo, licenseRepo, db)
 
+	// Initialize sync service
+	syncService := services.NewSyncService(
+		db,
+		cartRepo,
+		categoryRepo,
+		expenseRepo,
+		historyRepo,
+		paymentRepo,
+		productRepo,
+		receiptRepo,
+		shopRepo,
+		stockHistoryRepo,
+		transactionRepo,
+		transactionProductRepo,
+		userRepo,
+		cfg.Sync,
+	)
+
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(userRepo, userDomainRepo, roleRepo, licenseRepo, shopRepo, jwtService, passwordService, enforcerService)
 	productHandler := handlers.NewProductHandler(productUseCase)
@@ -126,6 +145,7 @@ func main() {
 	roleHandler := handlers.NewRoleHandler(roleRepo)
 	aclHandler := handlers.NewACLHandler(enforcerService, roleRepo, policyRepo)
 	shopHandler := handlers.NewShopHandler(shopUseCase)
+	syncHandler := handlers.NewSyncHandler(syncService, userRepo)
 
 	// Initialize Gin router
 	router := gin.Default()
@@ -135,17 +155,17 @@ func main() {
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		
+
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(200)
 			return
 		}
-		
+
 		c.Next()
 	})
 
 	// Setup routes
-	routes.SetupRoutes(router, productHandler, checkoutHandler, authHandler, licenseHandler, customerHandler, userManagementHandler, roleHandler, categoryHandler, cartHandler, transactionHandler, expenseHandler, paymentHandler, historyHandler, receiptHandler, transactionProductHandler, aclHandler, shopHandler, authMiddleware, authzMiddleware)
+	routes.SetupRoutes(router, productHandler, checkoutHandler, authHandler, licenseHandler, customerHandler, userManagementHandler, roleHandler, categoryHandler, cartHandler, transactionHandler, expenseHandler, paymentHandler, historyHandler, receiptHandler, transactionProductHandler, aclHandler, shopHandler, syncHandler, authMiddleware, authzMiddleware)
 
 	// Start server
 	serverAddr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
