@@ -261,105 +261,111 @@ func (s *AuthSeeder) SeedPolicies() error {
 		{"owner_business", "*", "/api/v1/sync", "POST"},
 		{"owner_business", "*", "/api/v1/sync/*", "GET"},
 
-		// ================== CASHIER - Shop-specific POS operations ==================
-		// Products - Full CRUD within shop
-		{"cashier", "shop:*", "/api/v1/products", "GET"},
-		{"cashier", "shop:*", "/api/v1/products/*", "GET"},
-		{"cashier", "shop:*", "/api/v1/products", "POST"},
-		{"cashier", "shop:*", "/api/v1/products/*", "PUT"},
-		{"cashier", "shop:*", "/api/v1/products/*", "DELETE"},
-		{"cashier", "shop:*", "/api/v1/products/search", "GET"},
-		{"cashier", "shop:*", "/api/v1/products/barcode/*", "GET"},
-		{"cashier", "shop:*", "/api/v1/products/low-stock", "GET"},
-		{"cashier", "shop:*", "/api/v1/products/upload", "POST"},
+		// Cashier management (create cashiers for their shops)
+		{"owner_business", "*", "/api/v1/auth/*", "POST"},
 
-		// Categories - Full CRUD within shop
-		{"cashier", "shop:*", "/api/v1/categories", "GET"},
-		{"cashier", "shop:*", "/api/v1/categories/*", "GET"},
-		{"cashier", "shop:*", "/api/v1/categories", "POST"},
-		{"cashier", "shop:*", "/api/v1/categories/*", "PUT"},
-		{"cashier", "shop:*", "/api/v1/categories/*", "DELETE"},
+		// ================== CASHIER - Shop-based POS operations ==================
+		// Products - Full CRUD within assigned shop only
+		{"cashier", "*", "/api/v1/products", "GET"},
+		{"cashier", "*", "/api/v1/products/*", "GET"},
+		{"cashier", "*", "/api/v1/products", "POST"},
+		{"cashier", "*", "/api/v1/products/*", "PUT"},
+		{"cashier", "*", "/api/v1/products/*", "DELETE"},
+		{"cashier", "*", "/api/v1/products/search", "GET"},
+		{"cashier", "*", "/api/v1/products/barcode/*", "GET"},
+		{"cashier", "*", "/api/v1/products/low-stock", "GET"},
+		{"cashier", "*", "/api/v1/products/upload", "POST"},
 
-		// Carts - Full CRUD within shop
-		{"cashier", "shop:*", "/api/v1/carts", "GET"},
-		{"cashier", "shop:*", "/api/v1/carts/*", "GET"},
-		{"cashier", "shop:*", "/api/v1/carts", "POST"},
-		{"cashier", "shop:*", "/api/v1/carts/*", "PUT"},
-		{"cashier", "shop:*", "/api/v1/carts/*", "DELETE"},
-		{"cashier", "shop:*", "/api/v1/carts/all", "GET"},
+		// Categories - Full CRUD within assigned shop only
+		{"cashier", "*", "/api/v1/categories", "GET"},
+		{"cashier", "*", "/api/v1/categories/*", "GET"},
+		{"cashier", "*", "/api/v1/categories", "POST"},
+		{"cashier", "*", "/api/v1/categories/*", "PUT"},
+		{"cashier", "*", "/api/v1/categories/*", "DELETE"},
 
-		// Transactions - Full CRUD within shop
-		{"cashier", "shop:*", "/api/v1/transactions", "POST"},
-		{"cashier", "shop:*", "/api/v1/transactions/*", "GET"},
-		{"cashier", "shop:*", "/api/v1/transactions/*/pay", "POST"},
-		{"cashier", "shop:*", "/api/v1/transactions/*/cancel", "POST"},
-		{"cashier", "shop:*", "/api/v1/transactions/shop/*", "GET"},
-		{"cashier", "shop:*", "/api/v1/transactions/shop/*/status/*", "GET"},
-		{"cashier", "shop:*", "/api/v1/transactions/shop/*/today", "GET"},
+		// Carts - Full CRUD within assigned shop only
+		{"cashier", "*", "/api/v1/carts", "GET"},
+		{"cashier", "*", "/api/v1/carts/*", "GET"},
+		{"cashier", "*", "/api/v1/carts", "POST"},
+		{"cashier", "*", "/api/v1/carts/*", "PUT"},
+		{"cashier", "*", "/api/v1/carts/*", "DELETE"},
+		{"cashier", "*", "/api/v1/carts/all", "GET"},
 
-		// Expenses - Read only within shop
-		{"cashier", "shop:*", "/api/v1/expenses/shop/*", "GET"},
-		{"cashier", "shop:*", "/api/v1/expenses/shop/*/status/*", "GET"},
-		{"cashier", "shop:*", "/api/v1/expenses/*", "GET"},
+		// Shops - Read access to their assigned shop only
+		{"cashier", "*", "/api/v1/shops/*", "GET"},
 
-		// Payments - Read only within shop
-		{"cashier", "shop:*", "/api/v1/payments/shop/*", "GET"},
-		{"cashier", "shop:*", "/api/v1/payments/shop/*/status/*", "GET"},
-		{"cashier", "shop:*", "/api/v1/payments/*", "GET"},
+		// Transactions - Full CRUD within assigned shop only
+		{"cashier", "*", "/api/v1/transactions", "POST"},
+		{"cashier", "*", "/api/v1/transactions/*", "GET"},
+		{"cashier", "*", "/api/v1/transactions/*/pay", "POST"},
+		{"cashier", "*", "/api/v1/transactions/*/cancel", "POST"},
+		{"cashier", "*", "/api/v1/transactions/shop/*", "GET"},
+		{"cashier", "*", "/api/v1/transactions/shop/*/status/*", "GET"},
+		{"cashier", "*", "/api/v1/transactions/shop/*/today", "GET"},
 
-		// Histories - Read only within shop
-		{"cashier", "shop:*", "/api/v1/histories/shop/*", "GET"},
-		{"cashier", "shop:*", "/api/v1/histories/*", "GET"},
+		// Expenses - Read only within assigned shop
+		{"cashier", "*", "/api/v1/expenses/shop/*", "GET"},
+		{"cashier", "*", "/api/v1/expenses/shop/*/status/*", "GET"},
+		{"cashier", "*", "/api/v1/expenses/*", "GET"},
 
-		// Receipts - Read only within shop
-		{"cashier", "shop:*", "/api/v1/receipts/shop/*", "GET"},
-		{"cashier", "shop:*", "/api/v1/receipts/*", "GET"},
+		// Payments - Read only within assigned shop
+		{"cashier", "*", "/api/v1/payments/shop/*", "GET"},
+		{"cashier", "*", "/api/v1/payments/shop/*/status/*", "GET"},
+		{"cashier", "*", "/api/v1/payments/*", "GET"},
 
-		// Transaction Products - Read only within shop
-		{"cashier", "shop:*", "/api/v1/transaction-products/transaction/*", "GET"},
-		{"cashier", "shop:*", "/api/v1/transaction-products/shop/*", "GET"},
-		{"cashier", "shop:*", "/api/v1/transaction-products/*", "GET"},
+		// Histories - Read only within assigned shop
+		{"cashier", "*", "/api/v1/histories/shop/*", "GET"},
+		{"cashier", "*", "/api/v1/histories/*", "GET"},
+
+		// Receipts - Read only within assigned shop
+		{"cashier", "*", "/api/v1/receipts/shop/*", "GET"},
+		{"cashier", "*", "/api/v1/receipts/*", "GET"},
+
+		// Transaction Products - Read only within assigned shop
+		{"cashier", "*", "/api/v1/transaction-products/transaction/*", "GET"},
+		{"cashier", "*", "/api/v1/transaction-products/shop/*", "GET"},
+		{"cashier", "*", "/api/v1/transaction-products/*", "GET"},
 
 		// Customers - Read only (cannot create/delete)
-		{"cashier", "shop:*", "/api/v1/customers", "GET"},
-		{"cashier", "shop:*", "/api/v1/customers/*", "GET"},
+		{"cashier", "*", "/api/v1/customers", "GET"},
+		{"cashier", "*", "/api/v1/customers/*", "GET"},
 
-		// sync
-		{"cashier", "shop:*", "/api/v1/sync", "POST"},
-		{"cashier", "shop:*", "/api/v1/sync/*", "GET"},
+		// Sync within assigned shop only
+		{"cashier", "*", "/api/v1/sync", "POST"},
+		{"cashier", "*", "/api/v1/sync/*", "GET"},
 
 		// ================== AUTH ENDPOINTS FOR ALL ROLES ==================
-		{"super_admin", "*", "/api/v1/auth/profile", "GET"},
-		{"super_admin", "*", "/api/v1/auth/logout", "POST"},
-		{"super_admin", "*", "/api/v1/auth/refresh", "POST"},
-		{"super_admin", "*", "/api/v1/auth/permissions", "GET"},
-		{"super_admin", "*", "/api/v1/auth/pin", "POST"},
-		{"super_admin", "*", "/api/v1/auth/pin", "PUT"},
-		{"super_admin", "*", "/api/v1/auth/pin", "DELETE"},
+		{"super_admin", "*", "/api/v1/auth/*", "GET"},
+		{"super_admin", "*", "/api/v1/auth/*", "POST"},
+		{"super_admin", "*", "/api/v1/auth/*", "POST"},
+		{"super_admin", "*", "/api/v1/auth/*", "GET"},
+		{"super_admin", "*", "/api/v1/auth/*", "POST"},
+		{"super_admin", "*", "/api/v1/auth/*", "PUT"},
+		{"super_admin", "*", "/api/v1/auth/*", "DELETE"},
 
-		{"admin", "*", "/api/v1/auth/profile", "GET"},
-		{"admin", "*", "/api/v1/auth/logout", "POST"},
-		{"admin", "*", "/api/v1/auth/refresh", "POST"},
-		{"admin", "*", "/api/v1/auth/permissions", "GET"},
-		{"admin", "*", "/api/v1/auth/pin", "POST"},
-		{"admin", "*", "/api/v1/auth/pin", "PUT"},
-		{"admin", "*", "/api/v1/auth/pin", "DELETE"},
+		{"admin", "*", "/api/v1/auth/*", "GET"},
+		{"admin", "*", "/api/v1/auth/*", "POST"},
+		{"admin", "*", "/api/v1/auth/*", "POST"},
+		{"admin", "*", "/api/v1/auth/*", "GET"},
+		{"admin", "*", "/api/v1/auth/*", "POST"},
+		{"admin", "*", "/api/v1/auth/*", "PUT"},
+		{"admin", "*", "/api/v1/auth/*", "DELETE"},
 
-		{"owner_business", "*", "/api/v1/auth/profile", "GET"},
-		{"owner_business", "*", "/api/v1/auth/logout", "POST"},
-		{"owner_business", "*", "/api/v1/auth/refresh", "POST"},
-		{"owner_business", "*", "/api/v1/auth/permissions", "GET"},
-		{"owner_business", "*", "/api/v1/auth/pin", "POST"},
-		{"owner_business", "*", "/api/v1/auth/pin", "PUT"},
-		{"owner_business", "*", "/api/v1/auth/pin", "DELETE"},
+		{"owner_business", "*", "/api/v1/auth/*", "GET"},
+		{"owner_business", "*", "/api/v1/auth/*", "POST"},
+		{"owner_business", "*", "/api/v1/auth/*", "POST"},
+		{"owner_business", "*", "/api/v1/auth/*", "GET"},
+		{"owner_business", "*", "/api/v1/auth/*", "POST"},
+		{"owner_business", "*", "/api/v1/auth/*", "PUT"},
+		{"owner_business", "*", "/api/v1/auth/*", "DELETE"},
 
-		{"cashier", "shop:*", "/api/v1/auth/profile", "GET"},
-		{"cashier", "shop:*", "/api/v1/auth/logout", "POST"},
-		{"cashier", "shop:*", "/api/v1/auth/refresh", "POST"},
-		{"cashier", "shop:*", "/api/v1/auth/permissions", "GET"},
-		{"cashier", "shop:*", "/api/v1/auth/pin", "POST"},
-		{"cashier", "shop:*", "/api/v1/auth/pin", "PUT"},
-		{"cashier", "shop:*", "/api/v1/auth/pin", "DELETE"},
+		{"cashier", "*", "/api/v1/auth/*", "GET"},
+		{"cashier", "*", "/api/v1/auth/*", "POST"},
+		{"cashier", "*", "/api/v1/auth/*", "POST"},
+		{"cashier", "*", "/api/v1/auth/*", "GET"},
+		{"cashier", "*", "/api/v1/auth/*", "POST"},
+		{"cashier", "*", "/api/v1/auth/*", "PUT"},
+		{"cashier", "*", "/api/v1/auth/*", "DELETE"},
 	}
 
 	for _, p := range policies {
