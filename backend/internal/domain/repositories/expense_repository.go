@@ -17,4 +17,6 @@ type ExpenseRepository interface {
 	Update(ctx context.Context, expense *entities.Expense) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	List(ctx context.Context, limit, offset int) ([]*entities.Expense, error)
+	ListByShopIDs(ctx context.Context, shopIDs []uuid.UUID, limit, offset int) ([]*entities.Expense, error)
+	GetByShopIDs(ctx context.Context, shopIDs []uuid.UUID) ([]*entities.Expense, error)
 }
