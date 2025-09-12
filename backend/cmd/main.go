@@ -170,5 +170,6 @@ func main() {
 	// Start server
 	serverAddr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	log.Printf("Starting T-POS server on %s", serverAddr)
+	// router.SetTrustedProxies([]string{"127.0.0.1"})
 	log.Fatal(router.Run(serverAddr))
 }

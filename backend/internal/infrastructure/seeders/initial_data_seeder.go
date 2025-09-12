@@ -12,6 +12,59 @@ import (
 	"gorm.io/gorm"
 )
 
+// Fixed UUID constants for consistent seeding
+var (
+	// Licenses
+	License1ID = uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	License2ID = uuid.MustParse("22222222-2222-2222-2222-222222222222")
+	License3ID = uuid.MustParse("33333333-3333-3333-3333-333333333333")
+
+	// Users
+	SuperAdminID = uuid.MustParse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+	Admin1ID     = uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+	Owner1ID     = uuid.MustParse("cccccccc-cccc-cccc-cccc-cccccccccccc")
+	Owner2ID     = uuid.MustParse("dddddddd-dddd-dddd-dddd-dddddddddddd")
+	Cashier1ID   = uuid.MustParse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee")
+	Cashier2ID   = uuid.MustParse("ffffffff-ffff-ffff-ffff-ffffffffffff")
+
+	// Shops
+	Shop1ID = uuid.MustParse("11111111-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+	Shop2ID = uuid.MustParse("22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+	Shop3ID = uuid.MustParse("33333333-cccc-cccc-cccc-cccccccccccc")
+
+	// Categories
+	FoodCat1ID     = uuid.MustParse("aaaaaaaa-1111-1111-1111-aaaaaaaaaaaa")
+	ElectronicsCat1ID = uuid.MustParse("bbbbbbbb-1111-1111-1111-bbbbbbbbbbbb")
+	ClothingCat1ID = uuid.MustParse("cccccccc-1111-1111-1111-cccccccccccc")
+	HouseholdCat1ID = uuid.MustParse("dddddddd-1111-1111-1111-dddddddddddd")
+
+	FoodCat2ID     = uuid.MustParse("aaaaaaaa-2222-2222-2222-aaaaaaaaaaaa")
+	ElectronicsCat2ID = uuid.MustParse("bbbbbbbb-2222-2222-2222-bbbbbbbbbbbb")
+	ClothingCat2ID = uuid.MustParse("cccccccc-2222-2222-2222-cccccccccccc")
+	HouseholdCat2ID = uuid.MustParse("dddddddd-2222-2222-2222-dddddddddddd")
+
+	FoodCat3ID     = uuid.MustParse("aaaaaaaa-3333-3333-3333-aaaaaaaaaaaa")
+	ElectronicsCat3ID = uuid.MustParse("bbbbbbbb-3333-3333-3333-bbbbbbbbbbbb")
+	ClothingCat3ID = uuid.MustParse("cccccccc-3333-3333-3333-cccccccccccc")
+	HouseholdCat3ID = uuid.MustParse("dddddddd-3333-3333-3333-dddddddddddd")
+
+	// Products
+	Product1ID = uuid.MustParse("11111111-1111-aaaa-aaaa-aaaaaaaaaaaa")
+	Product2ID = uuid.MustParse("22222222-1111-aaaa-aaaa-bbbbbbbbbbbb")
+	Product3ID = uuid.MustParse("33333333-1111-aaaa-aaaa-cccccccccccc")
+	Product4ID = uuid.MustParse("44444444-1111-aaaa-aaaa-dddddddddddd")
+
+	Product5ID = uuid.MustParse("11111111-2222-bbbb-bbbb-aaaaaaaaaaaa")
+	Product6ID = uuid.MustParse("22222222-2222-bbbb-bbbb-bbbbbbbbbbbb")
+	Product7ID = uuid.MustParse("33333333-2222-bbbb-bbbb-cccccccccccc")
+	Product8ID = uuid.MustParse("44444444-2222-bbbb-bbbb-dddddddddddd")
+
+	Product9ID  = uuid.MustParse("11111111-3333-cccc-cccc-aaaaaaaaaaaa")
+	Product10ID = uuid.MustParse("22222222-3333-cccc-cccc-bbbbbbbbbbbb")
+	Product11ID = uuid.MustParse("33333333-3333-cccc-cccc-cccccccccccc")
+	Product12ID = uuid.MustParse("44444444-3333-cccc-cccc-dddddddddddd")
+)
+
 // InitialDataSeeder handles seeding of initial application data
 type InitialDataSeeder struct {
 	licenseRepo     repositories.LicenseRepository
@@ -53,10 +106,16 @@ func (s *InitialDataSeeder) SeedLicenses() error {
 
 	licenses := []entities.License{
 		{
+			ID:           License1ID,
 			SerialNumber: "LIC-001-DEMO",
 		},
 		{
+			ID:           License2ID,
 			SerialNumber: "LIC-002-DEMO",
+		},
+		{
+			ID:           License3ID,
+			SerialNumber: "LIC-003-DEMO",
 		},
 	}
 
@@ -81,7 +140,7 @@ func (s *InitialDataSeeder) SeedLicenses() error {
 	return nil
 }
 
-// SeedUsers creates initial users (super admin and admin)
+// SeedUsers creates initial users (super admin, admin, owner business, cashiers)
 func (s *InitialDataSeeder) SeedUsers() error {
 	ctx := context.Background()
 
@@ -101,20 +160,56 @@ func (s *InitialDataSeeder) SeedUsers() error {
 
 	users := []entities.User{
 		{
-			LicenseID: nil, // Super admin doesn't need license
-			Email:     strPtr("superadmin@example.com"),
-			Username:  strPtr("superadmin"),
-			Name:      "Super Admin",
-			Pin:       strPtr(string(hashedPin)),
-			Password:  string(hashedPassword),
+			ID:       SuperAdminID,
+			Email:    strPtr("superadmin@example.com"),
+			Username: strPtr("superadmin"),
+			Name:     "Super Admin",
+			Pin:      strPtr(string(hashedPin)),
+			Password: string(hashedPassword),
 		},
 		{
-			LicenseID: nil, // Admin doesn't need license
-			Email:     strPtr("admin@example.com"),
-			Username:  strPtr("admin"),
-			Name:      "Admin User",
-			Pin:       strPtr(string(hashedPin)),
-			Password:  string(hashedPassword),
+			ID:       Admin1ID,
+			Email:    strPtr("admin@example.com"),
+			Username: strPtr("admin"),
+			Name:     "Admin User",
+			Pin:      strPtr(string(hashedPin)),
+			Password: string(hashedPassword),
+		},
+		{
+			ID:         Owner1ID,
+			LicenseID:  &License1ID,
+			Email:      strPtr("owner1@example.com"),
+			Username:   strPtr("owner1"),
+			Name:       "Owner Business 1",
+			Pin:        strPtr(string(hashedPin)),
+			Password:   string(hashedPassword),
+		},
+		{
+			ID:         Owner2ID,
+			LicenseID:  &License2ID,
+			Email:      strPtr("owner2@example.com"),
+			Username:   strPtr("owner2"),
+			Name:       "Owner Business 2",
+			Pin:        strPtr(string(hashedPin)),
+			Password:   string(hashedPassword),
+		},
+		{
+			ID:         Cashier1ID,
+			LicenseID:  &License1ID,
+			Email:      strPtr("cashier1@example.com"),
+			Username:   strPtr("cashier1"),
+			Name:       "Cashier 1",
+			Pin:        strPtr(string(hashedPin)),
+			Password:   string(hashedPassword),
+		},
+		{
+			ID:         Cashier2ID,
+			LicenseID:  &License2ID,
+			Email:      strPtr("cashier2@example.com"),
+			Username:   strPtr("cashier2"),
+			Name:       "Cashier 2",
+			Pin:        strPtr(string(hashedPin)),
+			Password:   string(hashedPassword),
 		},
 	}
 
@@ -158,6 +253,30 @@ func (s *InitialDataSeeder) SeedUserRoles() error {
 		return err
 	}
 
+	owner1, err := s.userRepo.GetByEmail(ctx, "owner1@example.com")
+	if err != nil {
+		log.Printf("Failed to get owner1 user: %v", err)
+		return err
+	}
+
+	owner2, err := s.userRepo.GetByEmail(ctx, "owner2@example.com")
+	if err != nil {
+		log.Printf("Failed to get owner2 user: %v", err)
+		return err
+	}
+
+	cashier1, err := s.userRepo.GetByEmail(ctx, "cashier1@example.com")
+	if err != nil {
+		log.Printf("Failed to get cashier1 user: %v", err)
+		return err
+	}
+
+	cashier2, err := s.userRepo.GetByEmail(ctx, "cashier2@example.com")
+	if err != nil {
+		log.Printf("Failed to get cashier2 user: %v", err)
+		return err
+	}
+
 	// Get roles
 	superAdminRole, err := s.roleRepo.GetByName(ctx, "super_admin")
 	if err != nil {
@@ -168,6 +287,18 @@ func (s *InitialDataSeeder) SeedUserRoles() error {
 	adminRole, err := s.roleRepo.GetByName(ctx, "admin")
 	if err != nil {
 		log.Printf("Failed to get admin role: %v", err)
+		return err
+	}
+
+	ownerRole, err := s.roleRepo.GetByName(ctx, "owner_business")
+	if err != nil {
+		log.Printf("Failed to get owner_business role: %v", err)
+		return err
+	}
+
+	cashierRole, err := s.roleRepo.GetByName(ctx, "cashier")
+	if err != nil {
+		log.Printf("Failed to get cashier role: %v", err)
 		return err
 	}
 
@@ -186,6 +317,34 @@ func (s *InitialDataSeeder) SeedUserRoles() error {
 	}
 	log.Printf("Assigned admin role to admin user")
 
+	owner1.RoleID = &ownerRole.ID
+	if err := s.userRepo.Update(ctx, owner1); err != nil {
+		log.Printf("Failed to assign role to owner1: %v", err)
+		return err
+	}
+	log.Printf("Assigned owner_business role to owner1 user")
+
+	owner2.RoleID = &ownerRole.ID
+	if err := s.userRepo.Update(ctx, owner2); err != nil {
+		log.Printf("Failed to assign role to owner2: %v", err)
+		return err
+	}
+	log.Printf("Assigned owner_business role to owner2 user")
+
+	cashier1.RoleID = &cashierRole.ID
+	if err := s.userRepo.Update(ctx, cashier1); err != nil {
+		log.Printf("Failed to assign role to cashier1: %v", err)
+		return err
+	}
+	log.Printf("Assigned cashier role to cashier1 user")
+
+	cashier2.RoleID = &cashierRole.ID
+	if err := s.userRepo.Update(ctx, cashier2); err != nil {
+		log.Printf("Failed to assign role to cashier2: %v", err)
+		return err
+	}
+	log.Printf("Assigned cashier role to cashier2 user")
+
 	return nil
 }
 
@@ -193,34 +352,49 @@ func (s *InitialDataSeeder) SeedUserRoles() error {
 func (s *InitialDataSeeder) SeedShops() error {
 	ctx := context.Background()
 
-	// Get the admin user
+	// Get users
 	admin, err := s.userRepo.GetByEmail(ctx, "admin@example.com")
 	if err != nil {
 		log.Printf("Failed to get admin user: %v", err)
 		return err
 	}
 
-	// Get the license for the shop
-	license, err := s.licenseRepo.GetBySerialNumber(ctx, "LIC-001-DEMO")
+	owner1, err := s.userRepo.GetByEmail(ctx, "owner1@example.com")
 	if err != nil {
-		log.Printf("Failed to get license: %v", err)
+		log.Printf("Failed to get owner1 user: %v", err)
+		return err
+	}
+
+	owner2, err := s.userRepo.GetByEmail(ctx, "owner2@example.com")
+	if err != nil {
+		log.Printf("Failed to get owner2 user: %v", err)
 		return err
 	}
 
 	shops := []entities.Shop{
 		{
-			LicenseID: license.ID,
+			ID:       Shop1ID,
+			LicenseID: License1ID,
 			UserID:    admin.ID,
-			Name:      "Demo Shop",
+			Name:      "Demo Shop Jakarta",
 			Address:   strPtr("Jl. Demo No. 123, Jakarta"),
-			Slogan:    strPtr("Your Trusted Partner"),
+			Slogan:    strPtr("Your Trusted Partner in Jakarta"),
 		},
 		{
-			LicenseID: license.ID,
-			UserID:    admin.ID,
-			Name:      "Demo Shop 2",
-			Address:   strPtr("Jl. Demo No. 123sda, Semarang"),
-			Slogan:    strPtr("Your Trusted Partner"),
+			ID:       Shop2ID,
+			LicenseID: License2ID,
+			UserID:    owner1.ID,
+			Name:      "Demo Shop Bandung",
+			Address:   strPtr("Jl. Demo No. 456, Bandung"),
+			Slogan:    strPtr("Quality Service in Bandung"),
+		},
+		{
+			ID:       Shop3ID,
+			LicenseID: License3ID,
+			UserID:    owner2.ID,
+			Name:      "Demo Shop Surabaya",
+			Address:   strPtr("Jl. Demo No. 789, Surabaya"),
+			Slogan:    strPtr("Excellence in Surabaya"),
 		},
 	}
 
@@ -260,15 +434,8 @@ func (s *InitialDataSeeder) SeedShops() error {
 func (s *InitialDataSeeder) SeedCategories() error {
 	ctx := context.Background()
 
-	// Get the license
-	license, err := s.licenseRepo.GetBySerialNumber(ctx, "LIC-001-DEMO")
-	if err != nil {
-		log.Printf("Failed to get license: %v", err)
-		return err
-	}
-
-	// Get shops for the license
-	shops, err := s.shopRepo.GetByLicenseID(ctx, license.ID)
+	// Get all shops
+	shops, err := s.shopRepo.List(ctx, 1000, 0) // Get up to 1000 shops
 	if err != nil {
 		log.Printf("Failed to get shops: %v", err)
 		return err
@@ -279,42 +446,100 @@ func (s *InitialDataSeeder) SeedCategories() error {
 		return nil
 	}
 
-	shop := shops[0] // Use the first shop
+	// Create categories for each shop
+	for _, shop := range shops {
+		var categories []entities.Category
 
-	categories := []entities.Category{
-		{
-			ShopID: shop.ID,
-			Name:   "Food & Beverages",
-		},
-		{
-			ShopID: shop.ID,
-			Name:   "Electronics",
-		},
-		{
-			ShopID: shop.ID,
-			Name:   "Clothing",
-		},
-		{
-			ShopID: shop.ID,
-			Name:   "Household",
-		},
-	}
-
-	for _, category := range categories {
-		// Check if category already exists by name and shop
-		existing, err := s.categoryRepo.GetByName(ctx, category.Name, category.ShopID)
-		if err == gorm.ErrRecordNotFound {
-			// Create the category
-			if err := s.categoryRepo.Create(ctx, &category); err != nil {
-				log.Printf("Failed to create category %s: %v", category.Name, err)
-				return err
+		switch shop.ID {
+		case Shop1ID:
+			categories = []entities.Category{
+				{
+					ID:     FoodCat1ID,
+					ShopID: shop.ID,
+					Name:   "Food & Beverages",
+				},
+				{
+					ID:     ElectronicsCat1ID,
+					ShopID: shop.ID,
+					Name:   "Electronics",
+				},
+				{
+					ID:     ClothingCat1ID,
+					ShopID: shop.ID,
+					Name:   "Clothing",
+				},
+				{
+					ID:     HouseholdCat1ID,
+					ShopID: shop.ID,
+					Name:   "Household",
+				},
 			}
-			log.Printf("Created category: %s", category.Name)
-		} else if err != nil {
-			log.Printf("Error checking category %s: %v", category.Name, err)
-			return err
-		} else {
-			log.Printf("Category %s already exists", existing.Name)
+		case Shop2ID:
+			categories = []entities.Category{
+				{
+					ID:     FoodCat2ID,
+					ShopID: shop.ID,
+					Name:   "Food & Beverages",
+				},
+				{
+					ID:     ElectronicsCat2ID,
+					ShopID: shop.ID,
+					Name:   "Electronics",
+				},
+				{
+					ID:     ClothingCat2ID,
+					ShopID: shop.ID,
+					Name:   "Clothing",
+				},
+				{
+					ID:     HouseholdCat2ID,
+					ShopID: shop.ID,
+					Name:   "Household",
+				},
+			}
+		case Shop3ID:
+			categories = []entities.Category{
+				{
+					ID:     FoodCat3ID,
+					ShopID: shop.ID,
+					Name:   "Food & Beverages",
+				},
+				{
+					ID:     ElectronicsCat3ID,
+					ShopID: shop.ID,
+					Name:   "Electronics",
+				},
+				{
+					ID:     ClothingCat3ID,
+					ShopID: shop.ID,
+					Name:   "Clothing",
+				},
+				{
+					ID:     HouseholdCat3ID,
+					ShopID: shop.ID,
+					Name:   "Household",
+				},
+			}
+		default:
+			continue
+		}
+
+		for _, category := range categories {
+			// Check if category already exists by name and shop
+			existing, err := s.categoryRepo.GetByName(ctx, category.Name, category.ShopID)
+			if err == gorm.ErrRecordNotFound {
+				// Create the category
+				if err := s.categoryRepo.Create(ctx, &category); err != nil {
+					log.Printf("Failed to create category %s: %v", category.Name, err)
+					return err
+				}
+				log.Printf("Created category: %s for shop %s", category.Name, shop.Name)
+			} else if err != nil {
+				log.Printf("Error checking category %s: %v", category.Name, err)
+				return err
+			} else {
+				log.Printf("Category %s already exists for shop %s", existing.Name, shop.Name)
+			}
 		}
 	}
 
@@ -325,14 +550,8 @@ func (s *InitialDataSeeder) SeedCategories() error {
 func (s *InitialDataSeeder) SeedProducts() error {
 	ctx := context.Background()
 
-	// Get the demo shop
-	license, err := s.licenseRepo.GetBySerialNumber(ctx, "LIC-001-DEMO")
-	if err != nil {
-		log.Printf("Failed to get license: %v", err)
-		return err
-	}
-
-	shops, err := s.shopRepo.GetByLicenseID(ctx, license.ID)
+	// Get all shops
+	shops, err := s.shopRepo.List(ctx, 1000, 0)
 	if err != nil {
 		log.Printf("Failed to get shops: %v", err)
 		return err
@@ -343,127 +562,219 @@ func (s *InitialDataSeeder) SeedProducts() error {
 		return nil
 	}
 
-	shop := shops[0]
-
-	// Get categories
-	categories, err := s.categoryRepo.GetByShopID(ctx, shop.ID)
-	if err != nil {
-		log.Printf("Failed to get categories: %v", err)
-		return err
-	}
-
-	if len(categories) == 0 {
-		log.Printf("No categories found")
-		return nil
-	}
-
-	// Map category names to IDs
-	categoryMap := make(map[string]uuid.UUID)
-	for _, cat := range categories {
-		categoryMap[cat.Name] = cat.ID
-	}
-
-	// Get category IDs
-	foodCatID := categoryMap["Food & Beverages"]
-	electronicsCatID := categoryMap["Electronics"]
-	clothingCatID := categoryMap["Clothing"]
-	householdCatID := categoryMap["Household"]
-
-	products := []entities.Product{
-		{
-			ShopID:      shop.ID,
-			CatID:       &foodCatID,
-			Name:        "Nasi Goreng Special",
-			Barcode:     strPtr("1234567890123"),
-			Unit:        strPtr("portion"),
-			Sale:        25000,
-			Buy:         15000,
-			Stock:       50,
-			IsHaveStock: true,
-		},
-		{
-			ShopID:      shop.ID,
-			CatID:       &foodCatID,
-			Name:        "Ayam Bakar",
-			Barcode:     strPtr("1234567890124"),
-			Unit:        strPtr("portion"),
-			Sale:        30000,
-			Buy:         18000,
-			Stock:       30,
-			IsHaveStock: true,
-		},
-		{
-			ShopID:      shop.ID,
-			CatID:       &electronicsCatID,
-			Name:        "Wireless Mouse",
-			Barcode:     strPtr("9876543210987"),
-			Unit:        strPtr("pcs"),
-			Sale:        150000,
-			Buy:         100000,
-			Stock:       20,
-			IsHaveStock: true,
-		},
-		{
-			ShopID:      shop.ID,
-			CatID:       &electronicsCatID,
-			Name:        "USB Cable",
-			Barcode:     strPtr("9876543210988"),
-			Unit:        strPtr("pcs"),
-			Sale:        25000,
-			Buy:         15000,
-			Stock:       100,
-			IsHaveStock: true,
-		},
-		{
-			ShopID:      shop.ID,
-			CatID:       &clothingCatID,
-			Name:        "T-Shirt Basic",
-			Barcode:     strPtr("5556667778889"),
-			Unit:        strPtr("pcs"),
-			Sale:        75000,
-			Buy:         45000,
-			Stock:       25,
-			IsHaveStock: true,
-		},
-		{
-			ShopID:      shop.ID,
-			CatID:       &householdCatID,
-			Name:        "Laundry Detergent",
-			Barcode:     strPtr("1112223334445"),
-			Unit:        strPtr("bottle"),
-			Sale:        35000,
-			Buy:         25000,
-			Stock:       15,
-			IsHaveStock: true,
-		},
-	}
-
-	for _, product := range products {
-		// Check if product already exists by name
-		// Get all products for the shop and check names
-		existingProducts, err := s.productRepo.GetByShopID(ctx, product.ShopID)
+	// Create products for each shop
+	for _, shop := range shops {
+		// Get categories for this shop
+		categories, err := s.categoryRepo.GetByShopID(ctx, shop.ID)
 		if err != nil {
-			log.Printf("Error checking products: %v", err)
+			log.Printf("Failed to get categories for shop %s: %v", shop.Name, err)
 			return err
 		}
 
-		exists := false
-		for _, existing := range existingProducts {
-			if existing.Name == product.Name {
-				exists = true
-				break
-			}
+		if len(categories) == 0 {
+			log.Printf("No categories found for shop %s", shop.Name)
+			continue
 		}
 
-		if !exists {
-			// Create the product
-			if err := s.productRepo.Create(ctx, &product); err != nil {
-				log.Printf("Failed to create product %s: %v", product.Name, err)
+		// Map category names to IDs
+		categoryMap := make(map[string]uuid.UUID)
+		for _, cat := range categories {
+			categoryMap[cat.Name] = cat.ID
+		}
+
+		var products []entities.Product
+
+		switch shop.ID {
+		case Shop1ID:
+			foodCatID := categoryMap["Food & Beverages"]
+			electronicsCatID := categoryMap["Electronics"]
+			products = []entities.Product{
+				{
+					ID:        Product1ID,
+					ShopID:    shop.ID,
+					CatID:     &foodCatID,
+					Name:      "Nasi Goreng Special Jakarta",
+					Barcode:   strPtr("1234567890123"),
+					Unit:      strPtr("portion"),
+					Sale:      25000,
+					Buy:       15000,
+					Stock:     50,
+					IsHaveStock: true,
+				},
+				{
+					ID:        Product2ID,
+					ShopID:    shop.ID,
+					CatID:     &foodCatID,
+					Name:      "Ayam Bakar Jakarta",
+					Barcode:   strPtr("1234567890124"),
+					Unit:      strPtr("portion"),
+					Sale:      30000,
+					Buy:       18000,
+					Stock:     30,
+					IsHaveStock: true,
+				},
+				{
+					ID:        Product3ID,
+					ShopID:    shop.ID,
+					CatID:     &electronicsCatID,
+					Name:      "Wireless Mouse Jakarta",
+					Barcode:   strPtr("9876543210987"),
+					Unit:      strPtr("pcs"),
+					Sale:      150000,
+					Buy:       100000,
+					Stock:     20,
+					IsHaveStock: true,
+				},
+				{
+					ID:        Product4ID,
+					ShopID:    shop.ID,
+					CatID:     &electronicsCatID,
+					Name:      "USB Cable Jakarta",
+					Barcode:   strPtr("9876543210988"),
+					Unit:      strPtr("pcs"),
+					Sale:      25000,
+					Buy:       15000,
+					Stock:     100,
+					IsHaveStock: true,
+				},
+			}
+		case Shop2ID:
+			foodCatID := categoryMap["Food & Beverages"]
+			electronicsCatID := categoryMap["Electronics"]
+			products = []entities.Product{
+				{
+					ID:        Product5ID,
+					ShopID:    shop.ID,
+					CatID:     &foodCatID,
+					Name:      "Sate Ayam Bandung",
+					Barcode:   strPtr("1111111111111"),
+					Unit:      strPtr("portion"),
+					Sale:      35000,
+					Buy:       20000,
+					Stock:     40,
+					IsHaveStock: true,
+				},
+				{
+					ID:        Product6ID,
+					ShopID:    shop.ID,
+					CatID:     &foodCatID,
+					Name:      "Es Teh Manis Bandung",
+					Barcode:   strPtr("2222222222222"),
+					Unit:      strPtr("glass"),
+					Sale:      8000,
+					Buy:       4000,
+					Stock:     80,
+					IsHaveStock: true,
+				},
+				{
+					ID:        Product7ID,
+					ShopID:    shop.ID,
+					CatID:     &electronicsCatID,
+					Name:      "Bluetooth Speaker Bandung",
+					Barcode:   strPtr("3333333333333"),
+					Unit:      strPtr("pcs"),
+					Sale:      200000,
+					Buy:       150000,
+					Stock:     15,
+					IsHaveStock: true,
+				},
+				{
+					ID:        Product8ID,
+					ShopID:    shop.ID,
+					CatID:     &electronicsCatID,
+					Name:      "Power Bank Bandung",
+					Barcode:   strPtr("4444444444444"),
+					Unit:      strPtr("pcs"),
+					Sale:      120000,
+					Buy:       80000,
+					Stock:     25,
+					IsHaveStock: true,
+				},
+			}
+		case Shop3ID:
+			foodCatID := categoryMap["Food & Beverages"]
+			electronicsCatID := categoryMap["Electronics"]
+			products = []entities.Product{
+				{
+					ID:        Product9ID,
+					ShopID:    shop.ID,
+					CatID:     &foodCatID,
+					Name:      "Rawon Surabaya",
+					Barcode:   strPtr("5555555555555"),
+					Unit:      strPtr("portion"),
+					Sale:      28000,
+					Buy:       16000,
+					Stock:     35,
+					IsHaveStock: true,
+				},
+				{
+					ID:        Product10ID,
+					ShopID:    shop.ID,
+					CatID:     &foodCatID,
+					Name:      "Tahu Tek Surabaya",
+					Barcode:   strPtr("6666666666666"),
+					Unit:      strPtr("portion"),
+					Sale:      15000,
+					Buy:       8000,
+					Stock:     60,
+					IsHaveStock: true,
+				},
+				{
+					ID:        Product11ID,
+					ShopID:    shop.ID,
+					CatID:     &electronicsCatID,
+					Name:      "Smartphone Case Surabaya",
+					Barcode:   strPtr("7777777777777"),
+					Unit:      strPtr("pcs"),
+					Sale:      50000,
+					Buy:       30000,
+					Stock:     45,
+					IsHaveStock: true,
+				},
+				{
+					ID:        Product12ID,
+					ShopID:    shop.ID,
+					CatID:     &electronicsCatID,
+					Name:      "Screen Protector Surabaya",
+					Barcode:   strPtr("8888888888888"),
+					Unit:      strPtr("pcs"),
+					Sale:      30000,
+					Buy:       15000,
+					Stock:     70,
+					IsHaveStock: true,
+				},
+			}
+		default:
+			continue
+		}
+
+		for _, product := range products {
+			// Check if product already exists by name
+			// Get all products for the shop and check names
+			existingProducts, err := s.productRepo.GetByShopID(ctx, product.ShopID)
+			if err != nil {
+				log.Printf("Error checking products: %v", err)
 				return err
 			}
-			log.Printf("Created product: %s", product.Name)
-		} else {
-			log.Printf("Product %s already exists", product.Name)
+
+			exists := false
+			for _, existing := range existingProducts {
+				if existing.Name == product.Name {
+					exists = true
+					break
+				}
+			}
+
+			if !exists {
+				// Create the product
+				if err := s.productRepo.Create(ctx, &product); err != nil {
+					log.Printf("Failed to create product %s: %v", product.Name, err)
+					return err
+				}
+				log.Printf("Created product: %s for shop %s", product.Name, shop.Name)
+			} else {
+				log.Printf("Product %s already exists for shop %s", product.Name, shop.Name)
+			}
 		}
 	}
 
@@ -487,32 +798,90 @@ func (s *InitialDataSeeder) SeedUserDomains() error {
 		return err
 	}
 
-	// Get license for domain
-	license, err := s.licenseRepo.GetBySerialNumber(ctx, "LIC-001-DEMO")
+	owner1, err := s.userRepo.GetByEmail(ctx, "owner1@example.com")
 	if err != nil {
-		log.Printf("Failed to get license: %v", err)
+		log.Printf("Failed to get owner1 user: %v", err)
 		return err
 	}
 
-	domain := license.SerialNumber
+	owner2, err := s.userRepo.GetByEmail(ctx, "owner2@example.com")
+	if err != nil {
+		log.Printf("Failed to get owner2 user: %v", err)
+		return err
+	}
+
+	cashier1, err := s.userRepo.GetByEmail(ctx, "cashier1@example.com")
+	if err != nil {
+		log.Printf("Failed to get cashier1 user: %v", err)
+		return err
+	}
+
+	cashier2, err := s.userRepo.GetByEmail(ctx, "cashier2@example.com")
+	if err != nil {
+		log.Printf("Failed to get cashier2 user: %v", err)
+		return err
+	}
 
 	// Create user domains
 	userDomains := []entities.UserDomain{
+		// Super admin gets access to all domains
 		{
 			UserID: superAdmin.ID,
-			Domain: "*", // Super admin gets global domain access
+			Domain: "*", // Global domain access
 		},
 		{
 			UserID: superAdmin.ID,
-			Domain: domain, // Super admin also gets specific domain access
+			Domain: "LIC-001-DEMO",
+		},
+		{
+			UserID: superAdmin.ID,
+			Domain: "LIC-002-DEMO",
+		},
+		{
+			UserID: superAdmin.ID,
+			Domain: "LIC-003-DEMO",
+		},
+
+		// Admin gets access to all domains
+		{
+			UserID: admin.ID,
+			Domain: "*", // Global domain access
 		},
 		{
 			UserID: admin.ID,
-			Domain: "*", // Admin gets global domain access
+			Domain: "LIC-001-DEMO",
 		},
 		{
 			UserID: admin.ID,
-			Domain: domain, // Admin also gets specific domain access
+			Domain: "LIC-002-DEMO",
+		},
+		{
+			UserID: admin.ID,
+			Domain: "LIC-003-DEMO",
+		},
+
+		// Owner1 gets access to their license domain
+		{
+			UserID: owner1.ID,
+			Domain: "LIC-001-DEMO",
+		},
+
+		// Owner2 gets access to their license domain
+		{
+			UserID: owner2.ID,
+			Domain: "LIC-002-DEMO",
+		},
+
+		// Cashier1 gets access to their license domain
+		{
+			UserID: cashier1.ID,
+			Domain: "LIC-001-DEMO",
+		},
+
+		// Cashier2 gets access to their license domain
+		{
+			UserID: cashier2.ID,
+			Domain: "LIC-002-DEMO",
 		},
 	}
 
@@ -554,17 +923,32 @@ func (s *InitialDataSeeder) SeedCasbinRules() error {
 		return err
 	}
 
-	// Get license for domain
-	license, err := s.licenseRepo.GetBySerialNumber(ctx, "LIC-001-DEMO")
+	owner1, err := s.userRepo.GetByEmail(ctx, "owner1@example.com")
 	if err != nil {
-		log.Printf("Failed to get license: %v", err)
+		log.Printf("Failed to get owner1 user: %v", err)
 		return err
 	}
 
-	domain := license.SerialNumber
+	owner2, err := s.userRepo.GetByEmail(ctx, "owner2@example.com")
+	if err != nil {
+		log.Printf("Failed to get owner2 user: %v", err)
+		return err
+	}
 
-	// Assign roles to users in domain
-	// Super admin gets super_admin role in global domain "*" and specific domain
+	cashier1, err := s.userRepo.GetByEmail(ctx, "cashier1@example.com")
+	if err != nil {
+		log.Printf("Failed to get cashier1 user: %v", err)
+		return err
+	}
+
+	cashier2, err := s.userRepo.GetByEmail(ctx, "cashier2@example.com")
+	if err != nil {
+		log.Printf("Failed to get cashier2 user: %v", err)
+		return err
+	}
+
+	// Assign roles to users in domains
+	// Super admin gets super_admin role in all domains
 	_, err = s.enforcerService.AddRoleForUser(superAdmin.ID.String(), "super_admin", "*")
 	if err != nil {
 		log.Printf("Failed to assign super_admin role to super admin in global domain: %v", err)
@@ -572,14 +956,28 @@ func (s *InitialDataSeeder) SeedCasbinRules() error {
 	}
 	log.Printf("Assigned super_admin role to super admin in global domain *")
 
-	_, err = s.enforcerService.AddRoleForUser(superAdmin.ID.String(), "super_admin", domain)
+	_, err = s.enforcerService.AddRoleForUser(superAdmin.ID.String(), "super_admin", "LIC-001-DEMO")
 	if err != nil {
-		log.Printf("Failed to assign super_admin role to super admin in domain %s: %v", domain, err)
+		log.Printf("Failed to assign super_admin role to super admin in LIC-001-DEMO: %v", err)
 		return err
 	}
-	log.Printf("Assigned super_admin role to super admin in domain %s", domain)
+	log.Printf("Assigned super_admin role to super admin in LIC-001-DEMO")
 
-	// Admin gets admin role in global domain and specific domain
+	_, err = s.enforcerService.AddRoleForUser(superAdmin.ID.String(), "super_admin", "LIC-002-DEMO")
+	if err != nil {
+		log.Printf("Failed to assign super_admin role to super admin in LIC-002-DEMO: %v", err)
+		return err
+	}
+	log.Printf("Assigned super_admin role to super admin in LIC-002-DEMO")
+
+	_, err = s.enforcerService.AddRoleForUser(superAdmin.ID.String(), "super_admin", "LIC-003-DEMO")
+	if err != nil {
+		log.Printf("Failed to assign super_admin role to super admin in LIC-003-DEMO: %v", err)
+		return err
+	}
+	log.Printf("Assigned super_admin role to super admin in LIC-003-DEMO")
+
+	// Admin gets admin role in all domains
 	_, err = s.enforcerService.AddRoleForUser(admin.ID.String(), "admin", "*")
 	if err != nil {
 		log.Printf("Failed to assign admin role to admin in global domain: %v", err)
@@ -587,12 +985,58 @@ func (s *InitialDataSeeder) SeedCasbinRules() error {
 	}
 	log.Printf("Assigned admin role to admin in global domain *")
 
-	_, err = s.enforcerService.AddRoleForUser(admin.ID.String(), "admin", domain)
+	_, err = s.enforcerService.AddRoleForUser(admin.ID.String(), "admin", "LIC-001-DEMO")
 	if err != nil {
-		log.Printf("Failed to assign admin role to admin in domain %s: %v", domain, err)
+		log.Printf("Failed to assign admin role to admin in LIC-001-DEMO: %v", err)
 		return err
 	}
-	log.Printf("Assigned admin role to admin in domain %s", domain)
+	log.Printf("Assigned admin role to admin in LIC-001-DEMO")
+
+	_, err = s.enforcerService.AddRoleForUser(admin.ID.String(), "admin", "LIC-002-DEMO")
+	if err != nil {
+		log.Printf("Failed to assign admin role to admin in LIC-002-DEMO: %v", err)
+		return err
+	}
+	log.Printf("Assigned admin role to admin in LIC-002-DEMO")
+
+	_, err = s.enforcerService.AddRoleForUser(admin.ID.String(), "admin", "LIC-003-DEMO")
+	if err != nil {
+		log.Printf("Failed to assign admin role to admin in LIC-003-DEMO: %v", err)
+		return err
+	}
+	log.Printf("Assigned admin role to admin in LIC-003-DEMO")
+
+	// Owner1 gets owner_business role in their domain
+	_, err = s.enforcerService.AddRoleForUser(owner1.ID.String(), "owner_business", "LIC-001-DEMO")
+	if err != nil {
+		log.Printf("Failed to assign owner_business role to owner1 in LIC-001-DEMO: %v", err)
+		return err
+	}
+	log.Printf("Assigned owner_business role to owner1 in LIC-001-DEMO")
+
+	// Owner2 gets owner_business role in their domain
+	_, err = s.enforcerService.AddRoleForUser(owner2.ID.String(), "owner_business", "LIC-002-DEMO")
+	if err != nil {
+		log.Printf("Failed to assign owner_business role to owner2 in LIC-002-DEMO: %v", err)
+		return err
+	}
+	log.Printf("Assigned owner_business role to owner2 in LIC-002-DEMO")
+
+	// Cashier1 gets cashier role in their domain
+	_, err = s.enforcerService.AddRoleForUser(cashier1.ID.String(), "cashier", "LIC-001-DEMO")
+	if err != nil {
+		log.Printf("Failed to assign cashier role to cashier1 in LIC-001-DEMO: %v", err)
+		return err
+	}
+	log.Printf("Assigned cashier role to cashier1 in LIC-001-DEMO")
+
+	// Cashier2 gets cashier role in their domain
+	_, err = s.enforcerService.AddRoleForUser(cashier2.ID.String(), "cashier", "LIC-002-DEMO")
+	if err != nil {
+		log.Printf("Failed to assign cashier role to cashier2 in LIC-002-DEMO: %v", err)
+		return err
+	}
+	log.Printf("Assigned cashier role to cashier2 in LIC-002-DEMO")
 
 	return nil
 }
