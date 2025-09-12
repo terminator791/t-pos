@@ -10,7 +10,7 @@ import (
 // User represents an application user (owner, admin, cashier, client)
 type User struct {
 	ID               uuid.UUID      `gorm:"type:uuid;primary_key;default:uuid_generate_v4()" json:"id"`
-	LicenseID        *uuid.UUID     `gorm:"type:uuid" json:"license_id"`
+	LicenseID        *uuid.UUID     `gorm:"type:uuid;index:idx_users_license_updated,priority:1" json:"license_id"`
 	RoleID           *uuid.UUID     `gorm:"type:uuid" json:"role_id"`
 	ShopID           *uuid.UUID     `gorm:"type:uuid" json:"shop_id"` // Shop binding for cashiers
 	Email            *string        `gorm:"size:255;uniqueIndex" json:"email"`
@@ -23,7 +23,7 @@ type User struct {
 	FCMToken         *string        `gorm:"size:255" json:"fcm_token"`
 	RememberToken    *string        `gorm:"size:100" json:"-"`
 	CreatedAt        time.Time      `json:"created_at"`
-	UpdatedAt        time.Time      `json:"updated_at"`
+	UpdatedAt        time.Time      `gorm:"index:idx_users_updated_at;index:idx_users_license_updated,priority:2" json:"updated_at"`
 	DeletedAt        gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Relationships

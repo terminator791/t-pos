@@ -10,10 +10,10 @@ import (
 // Receipt represents a receipt record pointing to a payment
 type Receipt struct {
 	ID         uuid.UUID      `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
-	ShopID     uuid.UUID      `gorm:"type:uuid;not null" json:"shop_id"`
-	PaymentsID uuid.UUID      `gorm:"type:uuid;not null" json:"payments_id"`
+	ShopID     uuid.UUID      `gorm:"type:uuid;not null;index:idx_receipts_shop_updated,priority:1" json:"shop_id"`
+	PaymentsID uuid.UUID      `gorm:"type:uuid;not null;index:idx_receipts_payment_updated,priority:1" json:"payments_id"`
 	CreatedAt  time.Time      `json:"created_at"`
-	UpdatedAt  time.Time      `json:"updated_at"`
+	UpdatedAt  time.Time      `gorm:"index:idx_receipts_updated_at;index:idx_receipts_shop_updated,priority:2;index:idx_receipts_payment_updated,priority:2" json:"updated_at"`
 	DeletedAt  gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Relationships

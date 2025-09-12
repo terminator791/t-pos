@@ -124,6 +124,7 @@ func main() {
 		transactionRepo,
 		transactionProductRepo,
 		userRepo,
+		cfg.Sync,
 	)
 
 	// Initialize handlers

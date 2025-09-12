@@ -10,12 +10,12 @@ import (
 // Cart represents a user shopping cart (pre-transaction basket)
 type Cart struct {
 	ID        uuid.UUID      `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
-	ShopID    uuid.UUID      `gorm:"type:uuid;not null" json:"shop_id"`
+	ShopID    uuid.UUID      `gorm:"type:uuid;not null;index:idx_carts_shop_updated,priority:1" json:"shop_id"`
 	ProductID uuid.UUID      `gorm:"type:uuid;not null" json:"product_id"`
-	UserID    uuid.UUID      `gorm:"type:uuid;not null" json:"user_id"`
+	UserID    uuid.UUID      `gorm:"type:uuid;not null;index:idx_carts_user_shop_updated,priority:1" json:"user_id"`
 	Quantity  int            `gorm:"not null;default:1" json:"quantity"`
 	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
+	UpdatedAt time.Time      `gorm:"index:idx_carts_updated_at;index:idx_carts_shop_updated,priority:2;index:idx_carts_user_shop_updated,priority:2" json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Relationships

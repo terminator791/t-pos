@@ -7,8 +7,8 @@ make deps
 4. **Configure environment**
 
    ```bash
-   cp backend/.env.example backend/.env
-   # Edit backend/.env with your database credentials
+   cp .env.example .env
+   # Edit .env with your database credentials and configuration
    ```
 
 5. **Setup database and run migrations**A modern Point of Sale system with a Golang backend and React frontend, designed with Clean Architecture principles for scalability and maintainability.
@@ -120,6 +120,61 @@ For detailed API documentation, see [backend/docs/BACKEND.md](backend/docs/BACKE
 - **Build Tool**: Vite
 - **Styling**: Tailwind CSS
 - **Package Manager**: Yarn
+
+## Configuration
+
+### Environment Variables
+
+The application uses environment variables for configuration. Copy `.env.example` to `.env` and adjust the values:
+
+#### Database Configuration
+
+```bash
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=password
+DB_NAME=tpos_db
+DB_SSL_MODE=disable
+```
+
+#### Server Configuration
+
+```bash
+SERVER_HOST=localhost
+SERVER_PORT=8080
+```
+
+#### JWT Configuration
+
+```bash
+JWT_SECRET=your-secret-key
+JWT_EXPIRY_HOUR=720
+```
+
+#### Sync Optimization Configuration
+
+```bash
+# Batch processing - controls how many entities are processed at once
+SYNC_BATCH_SIZE=100
+SYNC_MAX_ENTITIES_PER_SYNC=1000
+
+# Transaction configuration
+SYNC_TRANSACTION_TIMEOUT=30s
+SYNC_MAX_TRANSACTION_SIZE=500
+
+# Retry configuration for failed operations
+SYNC_MAX_RETRIES=3
+SYNC_BASE_RETRY_DELAY=100ms
+
+# Performance monitoring
+SYNC_ENABLE_PERFORMANCE_LOG=true
+SYNC_PERFORMANCE_THRESHOLD=10.0
+
+# Query optimization
+SYNC_MAX_RESULTS_PER_QUERY=1000
+SYNC_QUERY_TIMEOUT=10s
+```
 
 ## Documentation
 

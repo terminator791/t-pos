@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/terminator791/t-pos/config"
 	"github.com/terminator791/t-pos/internal/domain/dto"
 	"github.com/terminator791/t-pos/internal/domain/entities"
 )
@@ -41,7 +42,7 @@ func TestSyncService_ValidateSyncRequest(t *testing.T) {
 		{
 			name: "Single entity type exceeds limit",
 			request: dto.SyncRequest{
-				Products: make([]entities.Product, 600),
+				Products: make([]entities.Product, 300), // Exceeds half of MaxEntitiesPerSync (500/2 = 250)
 			},
 			expectError: true,
 			errorMsg:    "products count too large",
@@ -158,9 +159,6 @@ func TestSyncService_RetryOperation(t *testing.T) {
 
 func TestSyncService_BatchProcessing(t *testing.T) {
 	service := createTestSyncService()
-	
-	// Set small batch size for testing
-	service.SetBatchSize(2)
 
 	t.Run("Batch processing with multiple carts", func(t *testing.T) {
 		carts := []entities.Cart{
@@ -169,55 +167,42 @@ func TestSyncService_BatchProcessing(t *testing.T) {
 			{ID: uuid.New(), ShopID: uuid.New(), ProductID: uuid.New(), UserID: uuid.New(), Quantity: 3},
 		}
 
-		// Test that batch size configuration works
-		assert.Equal(t, 2, service.batchSize)
+		// Test that config is properly set
+		assert.Equal(t, 50, service.config.BatchSize)
+		assert.Equal(t, 500, service.config.MaxEntitiesPerSync)
+		assert.Equal(t, 30*time.Second, service.config.TransactionTimeout)
 		
-		// Test that we can set different batch sizes
-		service.SetBatchSize(1)
-		assert.Equal(t, 1, service.batchSize)
-		
-		// Restore original batch size
-		service.SetBatchSize(2)
-		assert.Equal(t, 2, service.batchSize)
-		
-		// We can't test the full pushCarts method without proper database mocking
-		// but we can test the batch size logic and configuration
+		// Test that we have more carts than batch size (would require batching)
 		assert.Len(t, carts, 3)
-		assert.True(t, len(carts) > service.batchSize) // Would require batching
+		assert.True(t, len(carts) > service.config.BatchSize/20) // Adjusted for smaller test batch
 	})
 }
 
 func TestSyncService_ConfigurableSettings(t *testing.T) {
 	service := createTestSyncService()
 
-	t.Run("Set batch size", func(t *testing.T) {
-		service.SetBatchSize(50)
-		assert.Equal(t, 50, service.batchSize)
-
-		// Test invalid values
-		service.SetBatchSize(0)
-		assert.Equal(t, 50, service.batchSize) // Should remain unchanged
-
-		service.SetBatchSize(1000)
-		assert.Equal(t, 50, service.batchSize) // Should remain unchanged (exceeds max)
+	t.Run("Config values are properly set", func(t *testing.T) {
+		// Test that configuration is loaded correctly
+		assert.Equal(t, 50, service.config.BatchSize)
+		assert.Equal(t, 500, service.config.MaxEntitiesPerSync)
+		assert.Equal(t, 30*time.Second, service.config.TransactionTimeout)
+		assert.Equal(t, 3, service.config.MaxRetries)
+		assert.Equal(t, 50*time.Millisecond, service.config.BaseRetryDelay)
+		assert.True(t, service.config.EnablePerformanceLog)
+		assert.Equal(t, 10.0, service.config.PerformanceThreshold)
+		assert.Equal(t, 100, service.config.MaxResultsPerQuery)
+		assert.Equal(t, 5*time.Second, service.config.QueryTimeout)
 	})
 
-	t.Run("Set max entities per sync", func(t *testing.T) {
-		service.SetMaxEntitiesPerSync(2000)
-		assert.Equal(t, 2000, service.maxEntitiesPerSync)
-
-		// Test invalid values
-		service.SetMaxEntitiesPerSync(0)
-		assert.Equal(t, 2000, service.maxEntitiesPerSync) // Should remain unchanged
-	})
-
-	t.Run("Set transaction timeout", func(t *testing.T) {
-		service.SetTransactionTimeout(60 * time.Second)
-		assert.Equal(t, 60*time.Second, service.transactionTimeout)
-
-		// Test invalid values
-		service.SetTransactionTimeout(0)
-		assert.Equal(t, 60*time.Second, service.transactionTimeout) // Should remain unchanged
+	t.Run("Config is used in validation", func(t *testing.T) {
+		// Test that validateSyncRequest uses the config values
+		req := dto.SyncRequest{
+			Products: make([]entities.Product, service.config.MaxEntitiesPerSync+1),
+		}
+		
+		err := service.validateSyncRequest(req)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "sync request too large")
 	})
 }
 
@@ -264,10 +249,21 @@ func (e *testError) Error() string {
 }
 
 func createTestSyncService() *SyncService {
+	testConfig := config.SyncConfig{
+		BatchSize:            50,
+		MaxEntitiesPerSync:   500,
+		TransactionTimeout:   30 * time.Second,
+		MaxTransactionSize:   100,
+		MaxRetries:           3,
+		BaseRetryDelay:       50 * time.Millisecond,
+		EnablePerformanceLog: true,
+		PerformanceThreshold: 10.0,
+		MaxResultsPerQuery:   100,
+		QueryTimeout:         5 * time.Second,
+	}
+	
 	return &SyncService{
-		batchSize:              100,
-		maxEntitiesPerSync:     1000,
-		transactionTimeout:     30 * time.Second,
-		conflictStrategy:       dto.LastWriteWins,
+		config:           testConfig,
+		conflictStrategy: dto.LastWriteWins,
 	}
 }

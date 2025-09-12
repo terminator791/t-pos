@@ -15,7 +15,7 @@ type StockHistory struct {
 	LastStock int            `gorm:"not null" json:"last_stock"`
 	StockedAt time.Time      `gorm:"not null" json:"stocked_at"`
 	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
+	UpdatedAt time.Time      `gorm:"index:idx_stock_histories_updated_at" json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Relationships

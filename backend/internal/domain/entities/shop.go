@@ -10,7 +10,7 @@ import (
 // Shop represents a merchant shop operating under a license
 type Shop struct {
 	ID               uuid.UUID      `gorm:"type:uuid;primaryKey" json:"id"`
-	LicenseID        uuid.UUID      `gorm:"type:uuid;not null" json:"license_id"`
+	LicenseID        uuid.UUID      `gorm:"type:uuid;not null;index:idx_shops_license_updated,priority:1" json:"license_id"`
 	UserID           uuid.UUID      `gorm:"type:uuid;not null" json:"user_id"` // owner_user_id
 	Name             string         `gorm:"size:255;not null" json:"name"`
 	Domain           string         `gorm:"size:100;not null;uniqueIndex" json:"domain"` // unique domain for multi-tenancy
@@ -19,7 +19,7 @@ type Shop struct {
 	Slogan           *string        `gorm:"size:255" json:"slogan"`
 	ProfitCalculate  int64          `gorm:"default:0" json:"profit_calculate"` // toggle_or_mode
 	CreatedAt        time.Time      `json:"created_at"`
-	UpdatedAt        time.Time      `json:"updated_at"`
+	UpdatedAt        time.Time      `gorm:"index:idx_shops_license_updated,priority:2" json:"updated_at"`
 	DeletedAt        gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Relationships

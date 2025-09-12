@@ -10,7 +10,7 @@ import (
 // Product represents a sellable item
 type Product struct {
 	ID           uuid.UUID            `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
-	ShopID       uuid.UUID            `gorm:"type:uuid;not null" json:"shop_id"`
+	ShopID       uuid.UUID            `gorm:"type:uuid;not null;index:idx_products_shop_updated,priority:1" json:"shop_id"`
 	CatID        *uuid.UUID           `gorm:"type:uuid" json:"cat_id"` // category ID
 	Photo        *string              `gorm:"size:255" json:"photo"`
 	Name         string               `gorm:"size:255;not null" json:"name"`
@@ -26,7 +26,7 @@ type Product struct {
 	Qty          *int                 `json:"qty"`
 	IsHaveStock  bool                 `gorm:"default:true" json:"is_have_stock"` // alias: has_stock
 	CreatedAt    time.Time            `json:"created_at"`
-	UpdatedAt    time.Time            `json:"updated_at"`
+	UpdatedAt    time.Time            `gorm:"index:idx_products_updated_at;index:idx_products_shop_updated,priority:2" json:"updated_at"`
 	DeletedAt    gorm.DeletedAt       `gorm:"index" json:"-"`
 
 	// Relationships

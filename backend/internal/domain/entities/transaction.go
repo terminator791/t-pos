@@ -20,8 +20,8 @@ const (
 // Transaction represents a sales transaction header
 type Transaction struct {
 	ID                    uuid.UUID         `gorm:"type:uuid;primary_key;default:uuid_generate_v4()" json:"id"`
-	ShopID                uuid.UUID         `gorm:"type:uuid;not null" json:"shop_id"`
-	CashierID             uuid.UUID         `gorm:"type:uuid;not null" json:"cashier_id"`
+	ShopID                uuid.UUID         `gorm:"type:uuid;not null;index:idx_transactions_shop_updated,priority:1" json:"shop_id"`
+	CashierID             uuid.UUID         `gorm:"type:uuid;not null;index:idx_transactions_cashier_updated,priority:1" json:"cashier_id"`
 	CustomerName          *string           `gorm:"size:255" json:"customer_name"`
 	Discount              float64           `gorm:"type:decimal(10,2);default:0" json:"discount"`
 	DiscountPercentage    float64           `gorm:"type:decimal(5,2);default:0" json:"discount_percentage"`
@@ -34,7 +34,7 @@ type Transaction struct {
 	Amount                int64             `gorm:"default:0" json:"amount"` // amount_paid
 	InitialPaymentStatus  *string           `gorm:"size:255" json:"initial_payment_status"`
 	CreatedAt             time.Time         `json:"created_at"`
-	UpdatedAt             time.Time         `json:"updated_at"`
+	UpdatedAt             time.Time         `gorm:"index:idx_transactions_updated_at;index:idx_transactions_shop_updated,priority:2;index:idx_transactions_cashier_updated,priority:2" json:"updated_at"`
 	DeletedAt             gorm.DeletedAt    `gorm:"index" json:"-"`
 
 	// Relationships

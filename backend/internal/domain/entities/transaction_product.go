@@ -11,12 +11,12 @@ import (
 type TransactionProduct struct {
 	ID            uuid.UUID      `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
 	TransactionID uuid.UUID      `gorm:"type:uuid;not null" json:"transaction_id"`
-	ProductID     uuid.UUID      `gorm:"type:uuid;not null" json:"product_id"`
+	ProductID     uuid.UUID      `gorm:"type:uuid;not null;index:idx_transaction_products_product_updated,priority:1" json:"product_id"`
 	Quantity      int            `gorm:"not null" json:"quantity"`
 	UnitPrice     float64        `gorm:"type:decimal(10,2);not null" json:"unit_price"`
 	TotalPrice    float64        `gorm:"type:decimal(10,2);not null" json:"total_price"`
 	CreatedAt     time.Time      `json:"created_at"`
-	UpdatedAt     time.Time      `json:"updated_at"`
+	UpdatedAt     time.Time      `gorm:"index:idx_transaction_products_updated_at;index:idx_transaction_products_product_updated,priority:2" json:"updated_at"`
 	DeletedAt     gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Relationships

@@ -10,10 +10,10 @@ import (
 // History represents a lightweight link between shop and transaction for history views
 type History struct {
 	ID            uuid.UUID      `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
-	ShopID        uuid.UUID      `gorm:"type:uuid;not null" json:"shop_id"`
-	TransactionID uuid.UUID      `gorm:"type:uuid;not null" json:"transaction_id"`
+	ShopID        uuid.UUID      `gorm:"type:uuid;not null;index:idx_histories_shop_updated,priority:1" json:"shop_id"`
+	TransactionID uuid.UUID      `gorm:"type:uuid;not null;index:idx_histories_transaction_updated,priority:1" json:"transaction_id"`
 	CreatedAt     time.Time      `json:"created_at"`
-	UpdatedAt     time.Time      `json:"updated_at"`
+	UpdatedAt     time.Time      `gorm:"index:idx_histories_updated_at;index:idx_histories_shop_updated,priority:2;index:idx_histories_transaction_updated,priority:2" json:"updated_at"`
 	DeletedAt     gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Relationships

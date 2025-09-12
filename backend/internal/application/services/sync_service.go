@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/terminator791/t-pos/config"
 	"github.com/terminator791/t-pos/internal/domain/dto"
 	"github.com/terminator791/t-pos/internal/domain/entities"
 	"github.com/terminator791/t-pos/internal/domain/repositories"
@@ -46,9 +47,7 @@ type SyncService struct {
 	transactionProductRepo  repositories.TransactionProductRepository
 	userRepo                repositories.UserRepository
 	conflictStrategy        dto.ConflictResolutionStrategy
-	batchSize               int
-	maxEntitiesPerSync      int
-	transactionTimeout      time.Duration
+	config                  config.SyncConfig
 }
 
 // NewSyncService creates a new sync service instance
@@ -66,6 +65,7 @@ func NewSyncService(
 	transactionRepo repositories.TransactionRepository,
 	transactionProductRepo repositories.TransactionProductRepository,
 	userRepo repositories.UserRepository,
+	syncConfig config.SyncConfig,
 ) *SyncService {
 	return &SyncService{
 		db:                     db,
@@ -82,30 +82,7 @@ func NewSyncService(
 		transactionProductRepo: transactionProductRepo,
 		userRepo:               userRepo,
 		conflictStrategy:       dto.LastWriteWins,
-		batchSize:              DefaultBatchSize,
-		maxEntitiesPerSync:     MaxEntitiesPerSync,
-		transactionTimeout:     DefaultTransactionTimeout,
-	}
-}
-
-// SetBatchSize allows configuration of batch size for processing
-func (s *SyncService) SetBatchSize(size int) {
-	if size > 0 && size <= 500 {
-		s.batchSize = size
-	}
-}
-
-// SetMaxEntitiesPerSync sets the maximum entities allowed per sync operation
-func (s *SyncService) SetMaxEntitiesPerSync(max int) {
-	if max > 0 && max <= 10000 {
-		s.maxEntitiesPerSync = max
-	}
-}
-
-// SetTransactionTimeout sets the database transaction timeout
-func (s *SyncService) SetTransactionTimeout(timeout time.Duration) {
-	if timeout > 0 && timeout <= MaxTransactionTimeout {
-		s.transactionTimeout = timeout
+		config:                 syncConfig,
 	}
 }
 
@@ -130,7 +107,7 @@ func (s *SyncService) ProcessSync(ctx context.Context, req dto.SyncRequest, lice
 	}
 
 	// Create context with timeout for database operations
-	ctxWithTimeout, cancel := context.WithTimeout(ctx, s.transactionTimeout)
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, s.config.TransactionTimeout)
 	defer cancel()
 
 	// Start a database transaction with proper timeout and isolation level
@@ -187,9 +164,9 @@ func (s *SyncService) validateSyncRequest(req dto.SyncRequest) error {
 		len(req.Receipts) + len(req.Histories) + len(req.Shops) + 
 		len(req.StockHistories) + len(req.TransactionProducts) + len(req.Users)
 	
-	if totalEntities > s.maxEntitiesPerSync {
+	if totalEntities > s.config.MaxEntitiesPerSync {
 		return fmt.Errorf("sync request too large: %d entities exceeds maximum of %d", 
-			totalEntities, s.maxEntitiesPerSync)
+			totalEntities, s.config.MaxEntitiesPerSync)
 	}
 	
 	// Validate individual entity type limits
@@ -209,9 +186,9 @@ func (s *SyncService) validateSyncRequest(req dto.SyncRequest) error {
 	}
 	
 	for entityType, count := range entityLimits {
-		if count > s.maxEntitiesPerSync/2 { // No single entity type should exceed half the limit
+		if count > s.config.MaxEntitiesPerSync/2 { // No single entity type should exceed half the limit
 			return fmt.Errorf("%s count too large: %d exceeds maximum of %d", 
-				entityType, count, s.maxEntitiesPerSync/2)
+				entityType, count, s.config.MaxEntitiesPerSync/2)
 		}
 	}
 	
@@ -350,10 +327,10 @@ func (s *SyncService) pushCarts(ctx context.Context, tx *gorm.DB, carts []entiti
 		return nil
 	}
 	
-	log.Printf("Processing %d carts in batches of %d", totalCarts, s.batchSize)
+	log.Printf("Processing %d carts in batches of %d", totalCarts, s.config.BatchSize)
 	
-	for i := 0; i < totalCarts; i += s.batchSize {
-		end := i + s.batchSize
+	for i := 0; i < totalCarts; i += s.config.BatchSize {
+		end := i + s.config.BatchSize
 		if end > totalCarts {
 			end = totalCarts
 		}
@@ -399,9 +376,9 @@ func (s *SyncService) processSingleCart(ctx context.Context, tx *gorm.DB, cart e
 		return err
 	}
 	
-	if retryErr := s.retryOperation(ctx, operation, 2, 50*time.Millisecond, fmt.Sprintf("find_cart_%s", cart.ID)); retryErr != nil {
+	if retryErr := s.retryOperation(ctx, operation, s.config.MaxRetries, s.config.BaseRetryDelay, fmt.Sprintf("find_cart_%s", cart.ID)); retryErr != nil {
 		s.addDetailedError(response, "carts", cart.ID, "database_error", retryErr.Error(), 
-			map[string]interface{}{"operation": "find", "retry_attempts": 2})
+			map[string]interface{}{"operation": "find", "retry_attempts": s.config.MaxRetries})
 		return nil // Continue processing other entities
 	}
 
@@ -411,9 +388,9 @@ func (s *SyncService) processSingleCart(ctx context.Context, tx *gorm.DB, cart e
 			return s.createCart(ctx, tx, cart)
 		}
 		
-		if err := s.retryOperation(ctx, createOperation, 3, 100*time.Millisecond, fmt.Sprintf("create_cart_%s", cart.ID)); err != nil {
+		if err := s.retryOperation(ctx, createOperation, s.config.MaxRetries, s.config.BaseRetryDelay, fmt.Sprintf("create_cart_%s", cart.ID)); err != nil {
 			s.addDetailedError(response, "carts", cart.ID, "create_failed", err.Error(), 
-				map[string]interface{}{"operation": "create", "retry_attempts": 3})
+				map[string]interface{}{"operation": "create", "retry_attempts": s.config.MaxRetries})
 			return nil // Continue processing other entities
 		}
 		s.incrementStat(response.Stats.CreatedEntities, "carts")
@@ -433,9 +410,9 @@ func (s *SyncService) processSingleCart(ctx context.Context, tx *gorm.DB, cart e
 			return s.updateCart(ctx, tx, cart)
 		}
 		
-		if err := s.retryOperation(ctx, updateOperation, 3, 100*time.Millisecond, fmt.Sprintf("update_cart_%s", cart.ID)); err != nil {
+		if err := s.retryOperation(ctx, updateOperation, s.config.MaxRetries, s.config.BaseRetryDelay, fmt.Sprintf("update_cart_%s", cart.ID)); err != nil {
 			s.addDetailedError(response, "carts", cart.ID, "update_failed", err.Error(), 
-				map[string]interface{}{"operation": "update", "retry_attempts": 3})
+				map[string]interface{}{"operation": "update", "retry_attempts": s.config.MaxRetries})
 			return nil // Continue processing other entities
 		}
 		s.incrementStat(response.Stats.UpdatedEntities, "carts")
@@ -459,8 +436,8 @@ func (s *SyncService) pullCarts(ctx context.Context, tx *gorm.DB, lastSync time.
 		Order("carts.updated_at ASC") // Order by updated_at for consistent pagination
 	
 	// Add pagination to prevent memory issues with large datasets
-	const maxResultsPerType = 1000
-	err := query.Limit(maxResultsPerType).Find(&carts).Error
+	maxResults := s.config.MaxResultsPerQuery
+	err := query.Limit(maxResults).Find(&carts).Error
 	
 	if err != nil {
 		return fmt.Errorf("failed to query carts: %w", err)
@@ -470,10 +447,10 @@ func (s *SyncService) pullCarts(ctx context.Context, tx *gorm.DB, lastSync time.
 	log.Printf("Retrieved %d carts for license %s since %v", len(carts), licenseID, lastSync)
 	
 	// If we hit the limit, log a warning about potential incomplete sync
-	if len(carts) == maxResultsPerType {
-		log.Printf("WARNING: Cart sync hit result limit (%d), some data may be missing. Consider using smaller sync intervals.", maxResultsPerType)
+	if len(carts) == maxResults {
+		log.Printf("WARNING: Cart sync hit result limit (%d), some data may be missing. Consider using smaller sync intervals.", maxResults)
 		s.addError(response, "carts", uuid.Nil, "result_limit_reached", 
-			fmt.Sprintf("Retrieved maximum %d carts. Some data may be missing due to result size limits.", maxResultsPerType))
+			fmt.Sprintf("Retrieved maximum %d carts. Some data may be missing due to result size limits.", maxResults))
 	}
 
 	response.Carts = carts

@@ -20,14 +20,14 @@ const (
 // Expense represents shop expenses/outflows
 type Expense struct {
 	ID        uuid.UUID      `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
-	ShopID    uuid.UUID      `gorm:"type:uuid;not null" json:"shop_id"`
+	ShopID    uuid.UUID      `gorm:"type:uuid;not null;index:idx_expenses_shop_updated,priority:1" json:"shop_id"`
 	Nominal   float64        `gorm:"type:decimal(10,2);not null" json:"nominal"`
 	Status    ExpenseStatus  `gorm:"default:pending" json:"status"`
 	Date      time.Time      `gorm:"type:date;not null" json:"date"`
 	Label     *string        `gorm:"size:255" json:"label"`
 	Desc      *string        `gorm:"type:text" json:"desc"`
 	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
+	UpdatedAt time.Time      `gorm:"index:idx_expenses_updated_at;index:idx_expenses_shop_updated,priority:2" json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Relationships
