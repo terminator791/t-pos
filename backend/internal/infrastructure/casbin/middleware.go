@@ -408,12 +408,47 @@ func (m *AuthzMiddleware) ValidateResourceAccess(c *gin.Context, resourceID uuid
 		return nil
 	default:
 		// For tenant-specific users, implement resource-specific validation
-		// For now, we'll log the validation and allow access
-		// TODO: Implement specific validation per resource type when needed
-		log.Printf("Resource access validation for %s:%s by user %s (domain: %s) - requires implementation", 
-			resourceType, resourceID, user.ID, domain)
+		switch resourceType {
+		case "transaction":
+			// For transactions, we need to validate the transaction belongs to an accessible shop
+			return m.validateTransactionAccess(c.Request.Context(), user, domain, resourceID)
+		case "shop":
+			// For shops, validate direct shop access
+			return m.ValidateShopAccess(c, resourceID)
+		default:
+			// For other resource types, log and allow (can be extended as needed)
+			log.Printf("Resource access validation for %s:%s by user %s (domain: %s) - allowing access (validation not implemented)", 
+				resourceType, resourceID, user.ID, domain)
+			return nil
+		}
+	}
+}
+
+// validateTransactionAccess validates if a user can access a specific transaction
+func (m *AuthzMiddleware) validateTransactionAccess(ctx context.Context, user *entities.User, domain string, transactionID uuid.UUID) error {
+	// For this implementation, we need to check the transaction's shop
+	// Since we don't have the transaction repository in middleware yet, 
+	// we'll implement a simpler approach by checking user permissions
+	
+	// If user has shop assignment (cashier), they can only access transactions from their shop
+	if user.ShopID != nil {
+		// For cashiers, we would need to query the transaction to check its shop_id
+		// For now, we'll allow access and log it for implementation
+		log.Printf("Transaction access validation needed for cashier %s accessing transaction %s", user.ID, transactionID)
+		// TODO: Implement transaction shop validation when transaction repository is available
 		return nil
 	}
+	
+	// For owner_business, they can access transactions from shops under their license
+	if user.LicenseID != nil && domain != "*" {
+		// Owner business users can access transactions from their license shops
+		log.Printf("Transaction access validation for owner business %s accessing transaction %s", user.ID, transactionID)
+		// TODO: Implement license-based transaction validation
+		return nil
+	}
+	
+	// For other cases, allow access
+	return nil
 }
 
 // getUserRole gets the role for a user by role ID
