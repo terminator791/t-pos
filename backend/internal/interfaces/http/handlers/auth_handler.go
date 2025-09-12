@@ -11,6 +11,7 @@ import (
 	"github.com/terminator791/t-pos/internal/domain/repositories"
 	"github.com/terminator791/t-pos/internal/infrastructure/auth"
 	"github.com/terminator791/t-pos/internal/infrastructure/casbin"
+	"github.com/terminator791/t-pos/internal/infrastructure/seeders"
 	"github.com/terminator791/t-pos/pkg/response"
 	"gorm.io/gorm"
 )
@@ -25,6 +26,7 @@ type AuthHandler struct {
 	jwtService      *auth.JWTService
 	passwordService *auth.PasswordService
 	enforcerService *casbin.EnforcerService
+	authSeeder      *seeders.AuthSeeder
 }
 
 // LoginRequest represents login request payload
@@ -79,6 +81,7 @@ func NewAuthHandler(
 	jwtService *auth.JWTService,
 	passwordService *auth.PasswordService,
 	enforcerService *casbin.EnforcerService,
+	authSeeder *seeders.AuthSeeder,
 ) *AuthHandler {
 	return &AuthHandler{
 		userRepo:        userRepo,
@@ -89,6 +92,7 @@ func NewAuthHandler(
 		jwtService:      jwtService,
 		passwordService: passwordService,
 		enforcerService: enforcerService,
+		authSeeder:      authSeeder,
 	}
 }
 
@@ -307,6 +311,12 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	case "owner_business":
 		// Owner business gets access to their license domain (can access all shops under it)
 		domains = []string{license.SerialNumber}
+		
+		// Assign domain-specific policies for owner_business
+		if err := h.authSeeder.AssignPoliciesForRole("owner_business", license.SerialNumber); err != nil {
+			log.Printf("Failed to assign policies for owner_business %s: %v", user.ID, err)
+			// Don't fail registration, but log the error
+		}
 	case "cashier":
 		// Cashier needs to be assigned to specific shop - this would be done by owner_business later
 		// For now, give no domain access (will be assigned by owner)
@@ -469,6 +479,12 @@ func (h *AuthHandler) RegisterCashier(c *gin.Context) {
 
 	if err := h.userDomainRepo.Create(context.Background(), userDomain); err != nil {
 		log.Printf("Failed to create user domain %s for cashier %s: %v", domain, user.ID, err)
+	}
+
+	// Assign domain-specific policies for cashier
+	if err := h.authSeeder.AssignPoliciesForRole("cashier", domain); err != nil {
+		log.Printf("Failed to assign policies for cashier %s: %v", user.ID, err)
+		// Don't fail registration, but log the error
 	}
 
 	// Add role to Casbin for this shop domain

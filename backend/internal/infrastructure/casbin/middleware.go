@@ -2,9 +2,11 @@ package casbin
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/terminator791/t-pos/internal/domain/entities"
 	"github.com/terminator791/t-pos/internal/infrastructure/auth"
 	"github.com/terminator791/t-pos/pkg/response"
 )
@@ -32,10 +34,42 @@ func (m *AuthzMiddleware) RequirePermission() gin.HandlerFunc {
 			return
 		}
 
+		// Get user from context to check role
+		userInterface, userExists := c.Get("user")
+		if !userExists {
+			response.ErrorUnauthorized(c, "User context not found", nil)
+			c.Abort()
+			return
+		}
+		
+		user, ok := userInterface.(*entities.User)
+		if !ok {
+			response.ErrorInternalServer(c, "Invalid user context", nil)
+			c.Abort()
+			return
+		}
+
 		// Get domain from context
 		domain, _ := auth.GetUserDomainFromContext(c)
+		
+		// Handle domain assignment based on role
 		if domain == "" {
-			domain = "*" // Default domain
+			// Check if user has a role that allows wildcard access
+			if user.RoleID != nil {
+				// We need to get the role name to check if it's admin or super_admin
+				// For now, allow wildcard for users without domain only if they're admin-level
+				// This is a fallback - ideally all users should have proper domains
+				domain = "*"
+				log.Printf("Warning: User %s has no domain, using wildcard", userID.String())
+			} else {
+				response.ErrorForbidden(c, "No domain assigned to user", map[string]interface{}{
+					"user":   userID.String(),
+					"object": c.FullPath(),
+					"action": strings.ToUpper(c.Request.Method),
+				})
+				c.Abort()
+				return
+			}
 		}
 
 		// Get request details

@@ -128,7 +128,7 @@ func main() {
 	)
 
 	// Initialize handlers
-	authHandler := handlers.NewAuthHandler(userRepo, userDomainRepo, roleRepo, licenseRepo, shopRepo, jwtService, passwordService, enforcerService)
+	authHandler := handlers.NewAuthHandler(userRepo, userDomainRepo, roleRepo, licenseRepo, shopRepo, jwtService, passwordService, enforcerService, authSeeder)
 	productHandler := handlers.NewProductHandler(productUseCase)
 	checkoutHandler := handlers.NewCheckoutHandler(checkoutUseCase)
 	categoryHandler := handlers.NewCategoryHandler(categoryUseCase)
