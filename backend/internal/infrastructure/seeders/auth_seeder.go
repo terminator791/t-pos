@@ -246,6 +246,10 @@ func (s *AuthSeeder) SeedPolicies() error {
 		{"owner_business", "*", "/api/v1/customers", "POST"},
 		{"owner_business", "*", "/api/v1/customers/*", "DELETE"},
 
+		// sync
+		{"owner_business", "*", "/api/v1/sync", "POST"},
+		{"owner_business", "*", "/api/v1/sync/*", "GET"},
+
 		// ================== CASHIER - Shop-specific POS operations ==================
 		// Products - Full CRUD within shop
 		{"cashier", "shop:*", "/api/v1/products", "GET"},
@@ -308,6 +312,10 @@ func (s *AuthSeeder) SeedPolicies() error {
 		// Customers - Read only (cannot create/delete)
 		{"cashier", "shop:*", "/api/v1/customers", "GET"},
 		{"cashier", "shop:*", "/api/v1/customers/*", "GET"},
+
+		// sync
+		{"cashier", "shop:*", "/api/v1/sync", "POST"},
+		{"cashier", "shop:*", "/api/v1/sync/*", "GET"},
 
 		// ================== AUTH ENDPOINTS FOR ALL ROLES ==================
 		{"super_admin", "*", "/api/v1/auth/profile", "GET"},
