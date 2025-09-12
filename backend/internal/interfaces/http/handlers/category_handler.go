@@ -6,19 +6,25 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/terminator791/t-pos/internal/domain/entities"
+	"github.com/terminator791/t-pos/internal/domain/repositories"
 	"github.com/terminator791/t-pos/internal/domain/usecases"
+	"github.com/terminator791/t-pos/internal/infrastructure/auth"
 	"github.com/terminator791/t-pos/pkg/response"
 )
 
 // CategoryHandler handles category-related HTTP requests
 type CategoryHandler struct {
 	categoryUseCase *usecases.CategoryUseCase
+	roleRepo        repositories.RoleRepository
+	shopRepo        repositories.ShopRepository
 }
 
 // NewCategoryHandler creates a new CategoryHandler
-func NewCategoryHandler(categoryUseCase *usecases.CategoryUseCase) *CategoryHandler {
+func NewCategoryHandler(categoryUseCase *usecases.CategoryUseCase, roleRepo repositories.RoleRepository, shopRepo repositories.ShopRepository) *CategoryHandler {
 	return &CategoryHandler{
 		categoryUseCase: categoryUseCase,
+		roleRepo:        roleRepo,
+		shopRepo:        shopRepo,
 	}
 }
 
@@ -90,15 +96,55 @@ func (h *CategoryHandler) ListCategories(c *gin.Context) {
 
 	var categories []*entities.Category
 
+	// If specific shop_id is requested, validate access and filter by that shop
 	if shopIDStr != "" {
 		shopID, err := uuid.Parse(shopIDStr)
 		if err != nil {
 			response.ErrorBadRequest(c, "Invalid shop ID", err.Error())
 			return
 		}
+
+		// Get domain access info to validate shop access
+		domainAccess, err := auth.GetUserDomainAccess(c, h.roleRepo, h.shopRepo)
+		if err != nil {
+			response.ErrorInternalServer(c, "Failed to get user access info", err.Error())
+			return
+		}
+
+		// Check if user can access the requested shop
+		if !domainAccess.CanAccessShop(shopID) {
+			response.ErrorForbidden(c, "Cannot access categories for this shop", map[string]interface{}{
+				"requested_shop_id": shopID,
+				"user_role":        domainAccess.Role,
+				"accessible_shops": domainAccess.AccessibleShopIDs,
+			})
+			return
+		}
+
 		categories, err = h.categoryUseCase.GetCategoriesByShop(c.Request.Context(), shopID)
 	} else {
-		categories, err = h.categoryUseCase.ListCategories(c.Request.Context(), limit, offset)
+		// List all categories with domain-specific filtering
+		domainAccess, err := auth.GetUserDomainAccess(c, h.roleRepo, h.shopRepo)
+		if err != nil {
+			response.ErrorInternalServer(c, "Failed to get user access info", err.Error())
+			return
+		}
+
+		// Apply domain-specific filtering
+		if domainAccess.HasGlobalAccess {
+			// Super admin and admin can see all categories
+			categories, err = h.categoryUseCase.ListCategories(c.Request.Context(), limit, offset)
+		} else {
+			// Filter by accessible shop IDs for tenant users
+			shopFilter := domainAccess.GetShopFilter()
+			if len(shopFilter) == 0 {
+				// User has no accessible shops
+				categories = []*entities.Category{}
+				err = nil
+			} else {
+				categories, err = h.categoryUseCase.ListCategoriesFiltered(c.Request.Context(), shopFilter, limit, offset)
+			}
+		}
 	}
 
 	if err != nil {

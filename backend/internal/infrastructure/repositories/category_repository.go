@@ -66,3 +66,23 @@ func (r *CategoryRepositoryImpl) List(ctx context.Context, limit, offset int) ([
 	err := r.db.WithContext(ctx).Limit(limit).Offset(offset).Find(&categories).Error
 	return categories, err
 }
+
+// GetByShopIDs retrieves categories by multiple shop IDs
+func (r *CategoryRepositoryImpl) GetByShopIDs(ctx context.Context, shopIDs []uuid.UUID) ([]*entities.Category, error) {
+	var categories []*entities.Category
+	if len(shopIDs) == 0 {
+		return categories, nil
+	}
+	err := r.db.WithContext(ctx).Where("shop_id IN ?", shopIDs).Find(&categories).Error
+	return categories, err
+}
+
+// ListByShopIDs retrieves a list of categories filtered by shop IDs with pagination
+func (r *CategoryRepositoryImpl) ListByShopIDs(ctx context.Context, shopIDs []uuid.UUID, limit, offset int) ([]*entities.Category, error) {
+	var categories []*entities.Category
+	if len(shopIDs) == 0 {
+		return categories, nil
+	}
+	err := r.db.WithContext(ctx).Where("shop_id IN ?", shopIDs).Limit(limit).Offset(offset).Find(&categories).Error
+	return categories, err
+}

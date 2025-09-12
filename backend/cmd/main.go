@@ -76,26 +76,9 @@ func main() {
 	authMiddleware := auth.NewAuthMiddleware(jwtService, userRepo)
 	authzMiddleware := casbin.NewAuthzMiddleware(enforcerService, shopRepo, userRepo, roleRepo)
 
-	// Initialize seeders and seed data
-	authSeeder := seeders.NewAuthSeeder(roleRepo, policyRepo, enforcerService)
-	if err := authSeeder.SeedAll(); err != nil {
-		log.Printf("Warning: Failed to seed auth data: %v", err)
-	}
-
-	initialDataSeeder := seeders.NewInitialDataSeeder(
-		licenseRepo,
-		userRepo,
-		roleRepo,
-		shopRepo,
-		categoryRepo,
-		productRepo,
-		userDomainRepo,
-		policyRepo,
-		enforcerService,
-	)
-	if err := initialDataSeeder.SeedAll(); err != nil {
-		log.Printf("Warning: Failed to seed initial data: %v", err)
-	}
+	// Note: Database seeding is now handled separately via `make seed` command
+	// This prevents unnecessary seeding operations on every application startup
+	// To seed the database, run: `make seed` or `go run cmd/migrate/main.go seed`
 
 	// Initialize use cases
 	productUseCase := usecases.NewProductUseCase(productRepo, categoryRepo, shopRepo)
@@ -129,10 +112,11 @@ func main() {
 	)
 
 	// Initialize handlers
+	authSeeder := seeders.NewAuthSeeder(roleRepo, policyRepo, enforcerService)  // Create auth seeder for auth handler
 	authHandler := handlers.NewAuthHandler(userRepo, userDomainRepo, roleRepo, licenseRepo, shopRepo, jwtService, passwordService, enforcerService, authSeeder)
 	productHandler := handlers.NewProductHandler(productUseCase)
 	checkoutHandler := handlers.NewCheckoutHandler(checkoutUseCase)
-	categoryHandler := handlers.NewCategoryHandler(categoryUseCase)
+	categoryHandler := handlers.NewCategoryHandler(categoryUseCase, roleRepo, shopRepo)
 	cartHandler := handlers.NewCartHandler(cartUseCase)
 	transactionHandler := handlers.NewTransactionHandler(transactionUseCase)
 	expenseHandler := handlers.NewExpenseHandler(expenseRepo)

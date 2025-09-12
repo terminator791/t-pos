@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/terminator791/t-pos/internal/domain/entities"
 	"github.com/terminator791/t-pos/internal/domain/repositories"
 	"github.com/terminator791/t-pos/pkg/response"
 )
@@ -136,6 +137,16 @@ func GetUserShopIDFromContext(c *gin.Context) (*uuid.UUID, bool) {
 	if shopID, exists := c.Get("user_shop_id"); exists {
 		if id, ok := shopID.(*uuid.UUID); ok {
 			return id, true
+		}
+	}
+	return nil, false
+}
+
+// GetUserFromContext retrieves user entity from gin context
+func GetUserFromContext(c *gin.Context) (*entities.User, bool) {
+	if user, exists := c.Get("user"); exists {
+		if u, ok := user.(*entities.User); ok {
+			return u, true
 		}
 	}
 	return nil, false

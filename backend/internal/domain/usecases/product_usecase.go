@@ -132,3 +132,30 @@ func (uc *ProductUseCase) GetLowStockProducts(ctx context.Context, shopID uuid.U
 func (uc *ProductUseCase) SearchProducts(ctx context.Context, query string, shopID uuid.UUID) ([]*entities.Product, error) {
 	return uc.productRepo.Search(ctx, query, shopID)
 }
+
+// ListProductsFiltered retrieves a list of products filtered by accessible shop IDs
+func (uc *ProductUseCase) ListProductsFiltered(ctx context.Context, shopIDs []uuid.UUID, limit, offset int) ([]*entities.Product, error) {
+	if len(shopIDs) == 0 {
+		// If no shop IDs provided, return empty list
+		return []*entities.Product{}, nil
+	}
+	return uc.productRepo.ListByShopIDs(ctx, shopIDs, limit, offset)
+}
+
+// GetLowStockProductsFiltered retrieves low stock products filtered by accessible shop IDs
+func (uc *ProductUseCase) GetLowStockProductsFiltered(ctx context.Context, shopIDs []uuid.UUID) ([]*entities.Product, error) {
+	if len(shopIDs) == 0 {
+		// If no shop IDs provided, return empty list
+		return []*entities.Product{}, nil
+	}
+	return uc.productRepo.GetLowStockProductsByShopIDs(ctx, shopIDs)
+}
+
+// SearchProductsFiltered searches for products by name or barcode within accessible shops
+func (uc *ProductUseCase) SearchProductsFiltered(ctx context.Context, query string, shopIDs []uuid.UUID) ([]*entities.Product, error) {
+	if len(shopIDs) == 0 {
+		// If no shop IDs provided, return empty list
+		return []*entities.Product{}, nil
+	}
+	return uc.productRepo.SearchByShopIDs(ctx, query, shopIDs)
+}

@@ -148,3 +148,64 @@ func (r *ProductRepositoryImpl) Search(ctx context.Context, query string, shopID
 		Where("shop_id = ? AND (name ILIKE ? OR barcode ILIKE ?)", shopID, searchQuery, searchQuery).Find(&products).Error
 	return products, err
 }
+
+// GetByShopIDs retrieves products by multiple shop IDs
+func (r *ProductRepositoryImpl) GetByShopIDs(ctx context.Context, shopIDs []uuid.UUID) ([]*entities.Product, error) {
+	var products []*entities.Product
+	if len(shopIDs) == 0 {
+		return products, nil
+	}
+	err := r.db.WithContext(ctx).
+		Preload("Shop").
+		Preload("Shop.License").
+		Preload("Shop.Owner").
+		Preload("Category").
+		Where("shop_id IN ?", shopIDs).Find(&products).Error
+	return products, err
+}
+
+// ListByShopIDs retrieves a list of products filtered by shop IDs with pagination
+func (r *ProductRepositoryImpl) ListByShopIDs(ctx context.Context, shopIDs []uuid.UUID, limit, offset int) ([]*entities.Product, error) {
+	var products []*entities.Product
+	if len(shopIDs) == 0 {
+		return products, nil
+	}
+	err := r.db.WithContext(ctx).
+		Preload("Shop").
+		Preload("Shop.License").
+		Preload("Shop.Owner").
+		Preload("Category").
+		Where("shop_id IN ?", shopIDs).Limit(limit).Offset(offset).Find(&products).Error
+	return products, err
+}
+
+// GetLowStockProductsByShopIDs retrieves low stock products filtered by multiple shop IDs
+func (r *ProductRepositoryImpl) GetLowStockProductsByShopIDs(ctx context.Context, shopIDs []uuid.UUID) ([]*entities.Product, error) {
+	var products []*entities.Product
+	if len(shopIDs) == 0 {
+		return products, nil
+	}
+	err := r.db.WithContext(ctx).
+		Preload("Shop").
+		Preload("Shop.License").
+		Preload("Shop.Owner").
+		Preload("Category").
+		Where("shop_id IN ? AND stock <= 10 AND is_have_stock = true", shopIDs).Find(&products).Error
+	return products, err
+}
+
+// SearchByShopIDs searches for products by name or barcode within multiple shops
+func (r *ProductRepositoryImpl) SearchByShopIDs(ctx context.Context, query string, shopIDs []uuid.UUID) ([]*entities.Product, error) {
+	var products []*entities.Product
+	if len(shopIDs) == 0 {
+		return products, nil
+	}
+	searchQuery := "%" + query + "%"
+	err := r.db.WithContext(ctx).
+		Preload("Shop").
+		Preload("Shop.License").
+		Preload("Shop.Owner").
+		Preload("Category").
+		Where("shop_id IN ? AND (name ILIKE ? OR barcode ILIKE ?)", shopIDs, searchQuery, searchQuery).Find(&products).Error
+	return products, err
+}

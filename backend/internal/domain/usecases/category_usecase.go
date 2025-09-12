@@ -161,3 +161,12 @@ func (uc *CategoryUseCase) DeleteCategory(ctx context.Context, id uuid.UUID) err
 func (uc *CategoryUseCase) ListCategories(ctx context.Context, limit, offset int) ([]*entities.Category, error) {
 	return uc.categoryRepo.List(ctx, limit, offset)
 }
+
+// ListCategoriesFiltered retrieves a list of categories filtered by accessible shop IDs
+func (uc *CategoryUseCase) ListCategoriesFiltered(ctx context.Context, shopIDs []uuid.UUID, limit, offset int) ([]*entities.Category, error) {
+	if len(shopIDs) == 0 {
+		// If no shop IDs provided, return empty list
+		return []*entities.Category{}, nil
+	}
+	return uc.categoryRepo.ListByShopIDs(ctx, shopIDs, limit, offset)
+}
