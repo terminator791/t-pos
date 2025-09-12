@@ -35,10 +35,18 @@ func SetupRoutes(
 	v1 := router.Group("/api/v1")
 	{
 		// Public authentication routes
-		auth := v1.Group("/auth")
+		auth := v1.Group("/auth/owner")
 		{
 			auth.POST("/login", authHandler.Login)
 			auth.POST("/register", authHandler.Register)
+		}
+
+		// Cashier authentication routes
+		cashierAuth := v1.Group("/auth/cashier")
+		{
+			// Cashier registration requires owner_business authentication
+			cashierAuth.POST("/register", authMiddleware.RequireAuth(), authzMiddleware.RequirePermission(), authHandler.RegisterCashier)
+			cashierAuth.POST("/login", authHandler.LoginCashier)
 		}
 
 		// Protected authentication routes
