@@ -420,16 +420,6 @@ func (s *AuthSeeder) AssignPoliciesForRole(roleName, domain string) error {
 			// Shop-specific transaction product endpoints
 			{roleName, domain, "/api/v1/transaction-products/shop/*", "GET"},
 
-			// Customers
-			{roleName, domain, "/api/v1/customers", "GET"},
-			{roleName, domain, "/api/v1/customers", "POST"},
-			{roleName, domain, "/api/v1/customers", "PUT"},
-			{roleName, domain, "/api/v1/customers", "DELETE"},
-			{roleName, domain, "/api/v1/customers/*", "GET"},
-			{roleName, domain, "/api/v1/customers/*", "POST"},
-			{roleName, domain, "/api/v1/customers/*", "PUT"},
-			{roleName, domain, "/api/v1/customers/*", "DELETE"},
-
 			// Auth endpoints
 			{roleName, domain, "/api/v1/auth/*", "GET"},
 			{roleName, domain, "/api/v1/auth/*", "POST"},
@@ -455,21 +445,46 @@ func (s *AuthSeeder) AssignPoliciesForRole(roleName, domain string) error {
 			object   string
 			action   string
 		}{
-			// Products - Read only for POS
+			// Products
 			{roleName, domain, "/api/v1/products", "GET"},
+			{roleName, domain, "/api/v1/products", "POST"},
+			{roleName, domain, "/api/v1/products", "PUT"},
+			{roleName, domain, "/api/v1/products", "DELETE"},
 			{roleName, domain, "/api/v1/products/*", "GET"},
+			{roleName, domain, "/api/v1/products/*", "POST"},
+			{roleName, domain, "/api/v1/products/*", "PUT"},
+			{roleName, domain, "/api/v1/products/*", "DELETE"},
 
-			// Categories - Read only
+			// Categories
 			{roleName, domain, "/api/v1/categories", "GET"},
+			{roleName, domain, "/api/v1/categories", "POST"},
+			{roleName, domain, "/api/v1/categories", "PUT"},
+			{roleName, domain, "/api/v1/categories", "DELETE"},
 			{roleName, domain, "/api/v1/categories/*", "GET"},
+			{roleName, domain, "/api/v1/categories/*", "POST"},
+			{roleName, domain, "/api/v1/categories/*", "PUT"},
+			{roleName, domain, "/api/v1/categories/*", "DELETE"},
 
-			// Shops - Read only for their shop
+			// Shops
 			{roleName, domain, "/api/v1/shops", "GET"},
+			{roleName, domain, "/api/v1/shops", "POST"},
+			{roleName, domain, "/api/v1/shops", "PUT"},
+			{roleName, domain, "/api/v1/shops", "DELETE"},
 			{roleName, domain, "/api/v1/shops/*", "GET"},
+			{roleName, domain, "/api/v1/shops/*", "POST"},
+			{roleName, domain, "/api/v1/shops/*", "PUT"},
+			{roleName, domain, "/api/v1/shops/*", "DELETE"},
+			// Shop license-specific endpoints
+			{roleName, domain, "/api/v1/shops/license/*", "GET"},
+			{roleName, domain, "/api/v1/shops/license/*", "POST"},
+			{roleName, domain, "/api/v1/shops/license/*", "PUT"},
+			{roleName, domain, "/api/v1/shops/license/*", "DELETE"},
 
-			// Transactions - Full CRUD for their shop (both individual and shop-specific endpoints)
+			// Transactions (both individual and shop-specific)
 			{roleName, domain, "/api/v1/transactions", "GET"},
 			{roleName, domain, "/api/v1/transactions", "POST"},
+			{roleName, domain, "/api/v1/transactions", "PUT"},
+			{roleName, domain, "/api/v1/transactions", "DELETE"},
 			{roleName, domain, "/api/v1/transactions/*", "GET"},
 			{roleName, domain, "/api/v1/transactions/*", "POST"},
 			{roleName, domain, "/api/v1/transactions/*", "PUT"},
@@ -480,7 +495,7 @@ func (s *AuthSeeder) AssignPoliciesForRole(roleName, domain string) error {
 			{roleName, domain, "/api/v1/transactions/shop/*", "PUT"},
 			{roleName, domain, "/api/v1/transactions/shop/*", "DELETE"},
 
-			// Carts - Full CRUD for their shop
+			// Carts
 			{roleName, domain, "/api/v1/carts", "GET"},
 			{roleName, domain, "/api/v1/carts", "POST"},
 			{roleName, domain, "/api/v1/carts", "PUT"},
@@ -490,46 +505,54 @@ func (s *AuthSeeder) AssignPoliciesForRole(roleName, domain string) error {
 			{roleName, domain, "/api/v1/carts/*", "PUT"},
 			{roleName, domain, "/api/v1/carts/*", "DELETE"},
 
-			// Expenses - Shop-specific access
+			// Expenses
+			{roleName, domain, "/api/v1/expenses", "GET"},
+			{roleName, domain, "/api/v1/expenses", "POST"},
+			{roleName, domain, "/api/v1/expenses", "PUT"},
+			{roleName, domain, "/api/v1/expenses", "DELETE"},
 			{roleName, domain, "/api/v1/expenses/*", "GET"},
 			{roleName, domain, "/api/v1/expenses/*", "POST"},
+			{roleName, domain, "/api/v1/expenses/*", "PUT"},
+			{roleName, domain, "/api/v1/expenses/*", "DELETE"},
+			// Shop-specific expense endpoints
 			{roleName, domain, "/api/v1/expenses/shop/*", "GET"},
 			{roleName, domain, "/api/v1/expenses/shop/*", "POST"},
+			{roleName, domain, "/api/v1/expenses/shop/*", "PUT"},
+			{roleName, domain, "/api/v1/expenses/shop/*", "DELETE"},
 
-			// Payments - Can create payments for their transactions
+			// Payments
 			{roleName, domain, "/api/v1/payments", "GET"},
 			{roleName, domain, "/api/v1/payments", "POST"},
+			{roleName, domain, "/api/v1/payments", "PUT"},
+			{roleName, domain, "/api/v1/payments", "DELETE"},
 			{roleName, domain, "/api/v1/payments/*", "GET"},
 			{roleName, domain, "/api/v1/payments/*", "POST"},
+			{roleName, domain, "/api/v1/payments/*", "PUT"},
+			{roleName, domain, "/api/v1/payments/*", "DELETE"},
 			// Shop-specific payment endpoints
 			{roleName, domain, "/api/v1/payments/shop/*", "GET"},
 			{roleName, domain, "/api/v1/payments/shop/*", "POST"},
+			{roleName, domain, "/api/v1/payments/shop/*", "PUT"},
+			{roleName, domain, "/api/v1/payments/shop/*", "DELETE"},
 
-			// Histories - Shop-specific access
+			// Histories
+			{roleName, domain, "/api/v1/histories", "GET"},
 			{roleName, domain, "/api/v1/histories/*", "GET"},
+			// Shop-specific history endpoints
 			{roleName, domain, "/api/v1/histories/shop/*", "GET"},
 
-			// Receipts - Can generate receipts for their transactions
+			// Receipts
 			{roleName, domain, "/api/v1/receipts", "GET"},
-			{roleName, domain, "/api/v1/receipts", "POST"},
 			{roleName, domain, "/api/v1/receipts/*", "GET"},
-			{roleName, domain, "/api/v1/receipts/*", "POST"},
 			// Shop-specific receipt endpoints
 			{roleName, domain, "/api/v1/receipts/shop/*", "GET"},
 			{roleName, domain, "/api/v1/receipts/shop/*", "POST"},
 
-			// Transaction Products - Can access for their transactions
+			// Transaction Products
 			{roleName, domain, "/api/v1/transaction-products", "GET"},
-			{roleName, domain, "/api/v1/transaction-products", "POST"},
 			{roleName, domain, "/api/v1/transaction-products/*", "GET"},
-			{roleName, domain, "/api/v1/transaction-products/*", "POST"},
 			// Shop-specific transaction product endpoints
 			{roleName, domain, "/api/v1/transaction-products/shop/*", "GET"},
-			{roleName, domain, "/api/v1/transaction-products/shop/*", "POST"},
-
-			// Customers - Read only
-			{roleName, domain, "/api/v1/customers", "GET"},
-			{roleName, domain, "/api/v1/customers/*", "GET"},
 
 			// Auth endpoints for cashier
 			{roleName, domain, "/api/v1/auth/cashier", "GET"},
@@ -544,6 +567,16 @@ func (s *AuthSeeder) AssignPoliciesForRole(roleName, domain string) error {
 			{roleName, domain, "/api/v1/auth/pin", "POST"},
 			{roleName, domain, "/api/v1/auth/pin", "PUT"},
 			{roleName, domain, "/api/v1/auth/pin", "DELETE"},
+
+			// Sync
+			{roleName, domain, "/api/v1/sync", "GET"},
+			{roleName, domain, "/api/v1/sync", "POST"},
+			{roleName, domain, "/api/v1/sync", "PUT"},
+			{roleName, domain, "/api/v1/sync", "DELETE"},
+			{roleName, domain, "/api/v1/sync/*", "GET"},
+			{roleName, domain, "/api/v1/sync/*", "POST"},
+			{roleName, domain, "/api/v1/sync/*", "PUT"},
+			{roleName, domain, "/api/v1/sync/*", "DELETE"},
 		}
 
 	default:
