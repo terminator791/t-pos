@@ -209,3 +209,26 @@ func (r *ProductRepositoryImpl) SearchByShopIDs(ctx context.Context, query strin
 		Where("shop_id IN ? AND (name ILIKE ? OR barcode ILIKE ?)", shopIDs, searchQuery, searchQuery).Find(&products).Error
 	return products, err
 }
+
+// ListForDTO retrieves a list of products with limited preloading for DTO conversion
+func (r *ProductRepositoryImpl) ListForDTO(ctx context.Context, limit, offset int) ([]*entities.Product, error) {
+	var products []*entities.Product
+	err := r.db.WithContext(ctx).
+		Preload("Shop").     // Only preload Shop without License/Owner
+		Preload("Category"). // Only preload Category without Shop
+		Limit(limit).Offset(offset).Find(&products).Error
+	return products, err
+}
+
+// ListByShopIDsForDTO retrieves a list of products filtered by shop IDs with limited preloading
+func (r *ProductRepositoryImpl) ListByShopIDsForDTO(ctx context.Context, shopIDs []uuid.UUID, limit, offset int) ([]*entities.Product, error) {
+	var products []*entities.Product
+	if len(shopIDs) == 0 {
+		return products, nil
+	}
+	err := r.db.WithContext(ctx).
+		Preload("Shop").     // Only preload Shop without License/Owner
+		Preload("Category"). // Only preload Category without Shop
+		Where("shop_id IN ?", shopIDs).Limit(limit).Offset(offset).Find(&products).Error
+	return products, err
+}

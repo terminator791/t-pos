@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
+	"github.com/terminator791/t-pos/internal/domain/dto"
 	"github.com/terminator791/t-pos/internal/domain/entities"
 	"github.com/terminator791/t-pos/internal/domain/repositories"
 	"gorm.io/gorm"
@@ -70,6 +71,15 @@ func (uc *CategoryUseCase) CreateCategory(ctx context.Context, category *entitie
 // GetCategory retrieves a category by ID
 func (uc *CategoryUseCase) GetCategory(ctx context.Context, id uuid.UUID) (*entities.Category, error) {
 	return uc.categoryRepo.GetByID(ctx, id)
+}
+
+// GetCategoryForDTO retrieves a category by ID as DTO
+func (uc *CategoryUseCase) GetCategoryForDTO(ctx context.Context, id uuid.UUID) (*dto.CategoryListDTO, error) {
+	category, err := uc.categoryRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return dto.CategoryToListDTO(category), nil
 }
 
 // GetCategoriesByShop retrieves categories by shop ID
@@ -169,4 +179,26 @@ func (uc *CategoryUseCase) ListCategoriesFiltered(ctx context.Context, shopIDs [
 		return []*entities.Category{}, nil
 	}
 	return uc.categoryRepo.ListByShopIDs(ctx, shopIDs, limit, offset)
+}
+
+// ListCategoriesForDTO retrieves a list of categories as DTOs
+func (uc *CategoryUseCase) ListCategoriesForDTO(ctx context.Context, limit, offset int) ([]*dto.CategoryListDTO, error) {
+	categories, err := uc.categoryRepo.List(ctx, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	return dto.CategoriesToListDTO(categories), nil
+}
+
+// ListCategoriesFilteredForDTO retrieves a list of categories filtered by accessible shop IDs as DTOs
+func (uc *CategoryUseCase) ListCategoriesFilteredForDTO(ctx context.Context, shopIDs []uuid.UUID, limit, offset int) ([]*dto.CategoryListDTO, error) {
+	if len(shopIDs) == 0 {
+		// If no shop IDs provided, return empty list
+		return []*dto.CategoryListDTO{}, nil
+	}
+	categories, err := uc.categoryRepo.ListByShopIDs(ctx, shopIDs, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	return dto.CategoriesToListDTO(categories), nil
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/terminator791/t-pos/internal/domain/dto"
 	"github.com/terminator791/t-pos/internal/domain/entities"
 	"github.com/terminator791/t-pos/internal/domain/repositories"
 	"github.com/terminator791/t-pos/internal/domain/usecases"
@@ -458,21 +459,21 @@ func (h *ProductHandler) ListProducts(c *gin.Context) {
 		return
 	}
 
-	var products []*entities.Product
+	var products []*dto.ProductListDTO
 
 	// Apply domain-specific filtering
 	if domainAccess.HasGlobalAccess {
 		// Super admin and admin can see all products
-		products, err = h.productUseCase.ListProducts(c.Request.Context(), limit, offset)
+		products, err = h.productUseCase.ListProductsForDTO(c.Request.Context(), limit, offset)
 	} else {
 		// Filter by accessible shop IDs for tenant users
 		shopFilter := domainAccess.GetShopFilter()
 		if len(shopFilter) == 0 {
 			// User has no accessible shops
-			products = []*entities.Product{}
+			products = []*dto.ProductListDTO{}
 			err = nil
 		} else {
-			products, err = h.productUseCase.ListProductsFiltered(c.Request.Context(), shopFilter, limit, offset)
+			products, err = h.productUseCase.ListProductsFilteredForDTO(c.Request.Context(), shopFilter, limit, offset)
 		}
 	}
 

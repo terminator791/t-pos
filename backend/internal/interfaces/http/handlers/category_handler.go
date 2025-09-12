@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/terminator791/t-pos/internal/domain/dto"
 	"github.com/terminator791/t-pos/internal/domain/entities"
 	"github.com/terminator791/t-pos/internal/domain/repositories"
 	"github.com/terminator791/t-pos/internal/domain/usecases"
@@ -69,7 +70,7 @@ func (h *CategoryHandler) GetCategory(c *gin.Context) {
 		return
 	}
 
-	category, err := h.categoryUseCase.GetCategory(c.Request.Context(), id)
+	category, err := h.categoryUseCase.GetCategoryForDTO(c.Request.Context(), id)
 	if err != nil {
 		response.ErrorNotFound(c, "Category not found", err.Error())
 		return
@@ -94,7 +95,7 @@ func (h *CategoryHandler) ListCategories(c *gin.Context) {
 		offset = 0
 	}
 
-	var categories []*entities.Category
+	var categories []*dto.CategoryListDTO
 
 	// If specific shop_id is requested, validate access and filter by that shop
 	if shopIDStr != "" {
@@ -121,7 +122,13 @@ func (h *CategoryHandler) ListCategories(c *gin.Context) {
 			return
 		}
 
-		categories, err = h.categoryUseCase.GetCategoriesByShop(c.Request.Context(), shopID)
+		// For single shop request, we still need to get entities first since GetCategoriesByShop returns entities
+		entities, err := h.categoryUseCase.GetCategoriesByShop(c.Request.Context(), shopID)
+		if err != nil {
+			response.ErrorInternalServer(c, "Failed to retrieve categories", err.Error())
+			return
+		}
+		categories = dto.CategoriesToListDTO(entities)
 	} else {
 		// List all categories with domain-specific filtering
 		domainAccess, err := auth.GetUserDomainAccess(c, h.roleRepo, h.shopRepo)
@@ -133,16 +140,16 @@ func (h *CategoryHandler) ListCategories(c *gin.Context) {
 		// Apply domain-specific filtering
 		if domainAccess.HasGlobalAccess {
 			// Super admin and admin can see all categories
-			categories, err = h.categoryUseCase.ListCategories(c.Request.Context(), limit, offset)
+			categories, err = h.categoryUseCase.ListCategoriesForDTO(c.Request.Context(), limit, offset)
 		} else {
 			// Filter by accessible shop IDs for tenant users
 			shopFilter := domainAccess.GetShopFilter()
 			if len(shopFilter) == 0 {
 				// User has no accessible shops
-				categories = []*entities.Category{}
+				categories = []*dto.CategoryListDTO{}
 				err = nil
 			} else {
-				categories, err = h.categoryUseCase.ListCategoriesFiltered(c.Request.Context(), shopFilter, limit, offset)
+				categories, err = h.categoryUseCase.ListCategoriesFilteredForDTO(c.Request.Context(), shopFilter, limit, offset)
 			}
 		}
 	}

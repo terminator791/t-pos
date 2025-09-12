@@ -21,6 +21,8 @@ type ProductRepository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 	List(ctx context.Context, limit, offset int) ([]*entities.Product, error)
 	ListByShopIDs(ctx context.Context, shopIDs []uuid.UUID, limit, offset int) ([]*entities.Product, error)
+	ListForDTO(ctx context.Context, limit, offset int) ([]*entities.Product, error)
+	ListByShopIDsForDTO(ctx context.Context, shopIDs []uuid.UUID, limit, offset int) ([]*entities.Product, error)
 	Search(ctx context.Context, query string, shopID uuid.UUID) ([]*entities.Product, error)
 	SearchByShopIDs(ctx context.Context, query string, shopIDs []uuid.UUID) ([]*entities.Product, error)
 	UpdateStock(ctx context.Context, productID uuid.UUID, quantity int) error

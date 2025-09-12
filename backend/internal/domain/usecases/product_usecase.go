@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
+	"github.com/terminator791/t-pos/internal/domain/dto"
 	"github.com/terminator791/t-pos/internal/domain/entities"
 	"github.com/terminator791/t-pos/internal/domain/repositories"
 )
@@ -158,4 +159,26 @@ func (uc *ProductUseCase) SearchProductsFiltered(ctx context.Context, query stri
 		return []*entities.Product{}, nil
 	}
 	return uc.productRepo.SearchByShopIDs(ctx, query, shopIDs)
+}
+
+// ListProductsForDTO retrieves a list of products as DTOs
+func (uc *ProductUseCase) ListProductsForDTO(ctx context.Context, limit, offset int) ([]*dto.ProductListDTO, error) {
+	products, err := uc.productRepo.ListForDTO(ctx, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	return dto.ProductsToListDTO(products), nil
+}
+
+// ListProductsFilteredForDTO retrieves a list of products filtered by accessible shop IDs as DTOs
+func (uc *ProductUseCase) ListProductsFilteredForDTO(ctx context.Context, shopIDs []uuid.UUID, limit, offset int) ([]*dto.ProductListDTO, error) {
+	if len(shopIDs) == 0 {
+		// If no shop IDs provided, return empty list
+		return []*dto.ProductListDTO{}, nil
+	}
+	products, err := uc.productRepo.ListByShopIDsForDTO(ctx, shopIDs, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	return dto.ProductsToListDTO(products), nil
 }
