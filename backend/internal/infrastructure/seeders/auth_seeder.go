@@ -101,251 +101,421 @@ func (s *AuthSeeder) SeedPolicies() error {
 
 		// ================== ADMIN - Multi-shop management ==================
 		// Products
-		{"admin", "*", "/api/v1/products", "GET"},
 		{"admin", "*", "/api/v1/products/*", "GET"},
-		{"admin", "*", "/api/v1/products", "POST"},
+		{"admin", "*", "/api/v1/products/*", "POST"},
 		{"admin", "*", "/api/v1/products/*", "PUT"},
 		{"admin", "*", "/api/v1/products/*", "DELETE"},
-		{"admin", "*", "/api/v1/products/search", "GET"},
-		{"admin", "*", "/api/v1/products/barcode/*", "GET"},
-		{"admin", "*", "/api/v1/products/low-stock", "GET"},
-		{"admin", "*", "/api/v1/products/upload", "POST"},
+
+		{"admin", "*", "/api/v1/products", "GET"},
+		{"admin", "*", "/api/v1/products", "POST"},
+		{"admin", "*", "/api/v1/products", "PUT"},
+		{"admin", "*", "/api/v1/products", "DELETE"},
 
 		// Categories
 		{"admin", "*", "/api/v1/categories", "GET"},
-		{"admin", "*", "/api/v1/categories/*", "GET"},
 		{"admin", "*", "/api/v1/categories", "POST"},
+		{"admin", "*", "/api/v1/categories", "PUT"},
+		{"admin", "*", "/api/v1/categories", "DELETE`"},
+
+		{"admin", "*", "/api/v1/categories/*", "GET"},
+		{"admin", "*", "/api/v1/categories/*", "POST"},
 		{"admin", "*", "/api/v1/categories/*", "PUT"},
 		{"admin", "*", "/api/v1/categories/*", "DELETE"},
 
-		// Carts
-		{"admin", "*", "/api/v1/carts", "GET"},
-		{"admin", "*", "/api/v1/carts/*", "GET"},
-		{"admin", "*", "/api/v1/carts", "POST"},
-		{"admin", "*", "/api/v1/carts/*", "PUT"},
-		{"admin", "*", "/api/v1/carts/*", "DELETE"},
-		{"admin", "*", "/api/v1/carts/all", "GET"},
-
-		// Transactions
-		{"admin", "*", "/api/v1/transactions", "GET"},
-		{"admin", "*", "/api/v1/transactions/*", "GET"},
-		{"admin", "*", "/api/v1/transactions", "POST"},
-		{"admin", "*", "/api/v1/transactions/*/pay", "POST"},
-		{"admin", "*", "/api/v1/transactions/*/cancel", "POST"},
-		{"admin", "*", "/api/v1/transactions/shop/*", "GET"},
-		{"admin", "*", "/api/v1/transactions/shop/*/status/*", "GET"},
-		{"admin", "*", "/api/v1/transactions/shop/*/today", "GET"},
-
-		// Expenses
-		{"admin", "*", "/api/v1/expenses", "GET"},
-		{"admin", "*", "/api/v1/expenses/*", "GET"},
-		{"admin", "*", "/api/v1/expenses/shop/*", "GET"},
-		{"admin", "*", "/api/v1/expenses/shop/*/status/*", "GET"},
-
-		// Payments
-		{"admin", "*", "/api/v1/payments", "GET"},
-		{"admin", "*", "/api/v1/payments/*", "GET"},
-		{"admin", "*", "/api/v1/payments/shop/*", "GET"},
-		{"admin", "*", "/api/v1/payments/shop/*/status/*", "GET"},
-
-		// Histories
-		{"admin", "*", "/api/v1/histories", "GET"},
-		{"admin", "*", "/api/v1/histories/*", "GET"},
-		{"admin", "*", "/api/v1/histories/shop/*", "GET"},
-
-		// Receipts
-		{"admin", "*", "/api/v1/receipts", "GET"},
-		{"admin", "*", "/api/v1/receipts/*", "GET"},
-		{"admin", "*", "/api/v1/receipts/shop/*", "GET"},
-
-		// Transaction Products
-		{"admin", "*", "/api/v1/transaction-products", "GET"},
-		{"admin", "*", "/api/v1/transaction-products/*", "GET"},
-		{"admin", "*", "/api/v1/transaction-products/transaction/*", "GET"},
-		{"admin", "*", "/api/v1/transaction-products/shop/*", "GET"},
-
-		// Customers
-		{"admin", "*", "/api/v1/customers", "GET"},
-		{"admin", "*", "/api/v1/customers/*", "GET"},
-		{"admin", "*", "/api/v1/customers", "POST"},
-		{"admin", "*", "/api/v1/customers/*", "DELETE"},
-
-		// User Management
-		{"admin", "*", "/api/v1/users", "GET"},
-		{"admin", "*", "/api/v1/users/*", "GET"},
-		{"admin", "*", "/api/v1/users/*", "PUT"},
-
-		// Roles
-		{"admin", "*", "/api/v1/roles", "GET"},
-		{"admin", "*", "/api/v1/roles/*", "GET"},
-		{"admin", "*", "/api/v1/roles/name/*", "GET"},
-
 		// shops
 		{"admin", "*", "/api/v1/shops", "GET"},
-		{"admin", "*", "/api/v1/shops/*", "GET"},
 		{"admin", "*", "/api/v1/shops", "POST"},
+		{"admin", "*", "/api/v1/shops", "PUT"},
+		{"admin", "*", "/api/v1/shops", "DELETE"},
+
+		{"admin", "*", "/api/v1/shops/*", "GET"},
+		{"admin", "*", "/api/v1/shops/*", "POST"},
 		{"admin", "*", "/api/v1/shops/*", "PUT"},
 		{"admin", "*", "/api/v1/shops/*", "DELETE"},
 
+		// Carts
+		{"admin", "*", "/api/v1/carts", "GET"},
+		{"admin", "*", "/api/v1/carts", "POST"},
+		{"admin", "*", "/api/v1/carts", "PUT"},
+		{"admin", "*", "/api/v1/carts", "DELETE"},
+
+		{"admin", "*", "/api/v1/carts/*", "GET"},
+		{"admin", "*", "/api/v1/carts/*", "POST"},
+		{"admin", "*", "/api/v1/carts/*", "PUT"},
+		{"admin", "*", "/api/v1/carts/*", "DELETE"},
+
+		// Transactions
+		{"admin", "*", "/api/v1/transactions", "GET"},
+		{"admin", "*", "/api/v1/transactions", "POST"},
+		{"admin", "*", "/api/v1/transactions", "PUT"},
+		{"admin", "*", "/api/v1/transactions", "DELETE"},
+
+		{"admin", "*", "/api/v1/transactions/*", "GET"},
+		{"admin", "*", "/api/v1/transactions/*", "POST"},
+		{"admin", "*", "/api/v1/transactions/*", "PUT"},
+		{"admin", "*", "/api/v1/transactions/*", "DELETE"},
+
+		// Expenses
+		{"admin", "*", "/api/v1/expenses", "GET"},
+		{"admin", "*", "/api/v1/expenses", "POST"},
+		{"admin", "*", "/api/v1/expenses", "PUT"},
+		{"admin", "*", "/api/v1/expenses", "DELETE"},
+
+		{"admin", "*", "/api/v1/expenses/*", "GET"},
+		{"admin", "*", "/api/v1/expenses/*", "POST"},
+		{"admin", "*", "/api/v1/expenses/*", "PUT"},
+		{"admin", "*", "/api/v1/expenses/*", "DELETE"},
+
+		// Payments
+		{"admin", "*", "/api/v1/payments", "GET"},
+		{"admin", "*", "/api/v1/payments", "POST"},
+		{"admin", "*", "/api/v1/payments", "PUT"},
+		{"admin", "*", "/api/v1/payments", "DELETE"},
+
+		{"admin", "*", "/api/v1/payments/*", "GET"},
+		{"admin", "*", "/api/v1/payments/*", "POST"},
+		{"admin", "*", "/api/v1/payments/*", "PUT"},
+		{"admin", "*", "/api/v1/payments/*", "DELETE"},
+
+		// Histories
+		{"admin", "*", "/api/v1/histories", "GET"},
+		{"admin", "*", "/api/v1/histories", "POST"},
+		{"admin", "*", "/api/v1/histories", "PUT"},
+		{"admin", "*", "/api/v1/histories", "DELETE"},
+
+		{"admin", "*", "/api/v1/histories/*", "GET"},
+		{"admin", "*", "/api/v1/histories/*", "POST"},
+		{"admin", "*", "/api/v1/histories/*", "PUT"},
+		{"admin", "*", "/api/v1/histories/*", "DELETE"},
+
+		// Receipts
+		{"admin", "*", "/api/v1/receipts", "GET"},
+		{"admin", "*", "/api/v1/receipts", "POST"},
+		{"admin", "*", "/api/v1/receipts", "PUT"},
+		{"admin", "*", "/api/v1/receipts", "DELETE"},
+
+		{"admin", "*", "/api/v1/receipts/*", "GET"},
+		{"admin", "*", "/api/v1/receipts/*", "POST"},
+		{"admin", "*", "/api/v1/receipts/*", "PUT"},
+		{"admin", "*", "/api/v1/receipts/*", "DELETE"},
+
+		// Transaction Products
+		{"admin", "*", "/api/v1/transaction-products", "GET"},
+		{"admin", "*", "/api/v1/transaction-products", "POST"},
+		{"admin", "*", "/api/v1/transaction-products", "PUT"},
+		{"admin", "*", "/api/v1/transaction-products", "DELETE"},
+
+		{"admin", "*", "/api/v1/transaction-products/*", "GET"},
+		{"admin", "*", "/api/v1/transaction-products/*", "POST"},
+		{"admin", "*", "/api/v1/transaction-products/*", "PUT"},
+		{"admin", "*", "/api/v1/transaction-products/*", "DELETE"},
+
+		// Licenses
+		{"admin", "*", "/api/v1/licenses", "GET"},
+		{"admin", "*", "/api/v1/licenses", "POST"},
+		{"admin", "*", "/api/v1/licenses", "PUT"},
+		{"admin", "*", "/api/v1/licenses", "DELETE"},
+
+		{"admin", "*", "/api/v1/licenses/*", "GET"},
+		{"admin", "*", "/api/v1/licenses/*", "POST"},
+		{"admin", "*", "/api/v1/licenses/*", "PUT"},
+		{"admin", "*", "/api/v1/licenses/*", "DELETE"},
+
+		// Customers
+		{"admin", "*", "/api/v1/customers", "GET"},
+		{"admin", "*", "/api/v1/customers", "POST"},
+		{"admin", "*", "/api/v1/customers", "PUT"},
+		{"admin", "*", "/api/v1/customers", "DELETE"},
+
+		{"admin", "*", "/api/v1/customers/*", "GET"},
+		{"admin", "*", "/api/v1/customers/*", "POST"},
+		{"admin", "*", "/api/v1/customers/*", "PUT"},
+		{"admin", "*", "/api/v1/customers/*", "DELETE"},
+
+		// User Management
+
+		// Roles
+
+		// ACL Management
+
 		// Sync
+		{"admin", "*", "/api/v1/sync", "GET"},
 		{"admin", "*", "/api/v1/sync", "POST"},
+		{"admin", "*", "/api/v1/sync", "PUT"},
+		{"admin", "*", "/api/v1/sync", "DELETE"},
+
 		{"admin", "*", "/api/v1/sync/*", "GET"},
+		{"admin", "*", "/api/v1/sync/*", "POST"},
+		{"admin", "*", "/api/v1/sync/*", "PUT"},
+		{"admin", "*", "/api/v1/sync/*", "DELETE"},
 
 		// ================== OWNER BUSINESS - License-based shop management ==================
 		// Products - Full CRUD within license domain
-		{"owner_business", "*", "/api/v1/products", "GET"},
+		// Products
 		{"owner_business", "*", "/api/v1/products/*", "GET"},
-		{"owner_business", "*", "/api/v1/products", "POST"},
+		{"owner_business", "*", "/api/v1/products/*", "POST"},
 		{"owner_business", "*", "/api/v1/products/*", "PUT"},
 		{"owner_business", "*", "/api/v1/products/*", "DELETE"},
-		{"owner_business", "*", "/api/v1/products/search", "GET"},
-		{"owner_business", "*", "/api/v1/products/barcode/*", "GET"},
-		{"owner_business", "*", "/api/v1/products/low-stock", "GET"},
-		{"owner_business", "*", "/api/v1/products/upload", "POST"},
 
-		// Categories - Full CRUD
+		{"owner_business", "*", "/api/v1/products", "GET"},
+		{"owner_business", "*", "/api/v1/products", "POST"},
+		{"owner_business", "*", "/api/v1/products", "PUT"},
+		{"owner_business", "*", "/api/v1/products", "DELETE"},
+
+		// Categories
 		{"owner_business", "*", "/api/v1/categories", "GET"},
-		{"owner_business", "*", "/api/v1/categories/*", "GET"},
 		{"owner_business", "*", "/api/v1/categories", "POST"},
+		{"owner_business", "*", "/api/v1/categories", "PUT"},
+		{"owner_business", "*", "/api/v1/categories", "DELETE"},
+
+		{"owner_business", "*", "/api/v1/categories/*", "GET"},
+		{"owner_business", "*", "/api/v1/categories/*", "POST"},
 		{"owner_business", "*", "/api/v1/categories/*", "PUT"},
 		{"owner_business", "*", "/api/v1/categories/*", "DELETE"},
 
-		// Carts - Full CRUD
+		// shops
+		{"owner_business", "*", "/api/v1/shops", "GET"},
+		{"owner_business", "*", "/api/v1/shops", "POST"},
+		{"owner_business", "*", "/api/v1/shops", "PUT"},
+		{"owner_business", "*", "/api/v1/shops", "DELETE"},
+
+		{"owner_business", "*", "/api/v1/shops/*", "GET"},
+		{"owner_business", "*", "/api/v1/shops/*", "POST"},
+		{"owner_business", "*", "/api/v1/shops/*", "PUT"},
+		{"owner_business", "*", "/api/v1/shops/*", "DELETE"},
+
+		// Carts
 		{"owner_business", "*", "/api/v1/carts", "GET"},
-		{"owner_business", "*", "/api/v1/carts/*", "GET"},
 		{"owner_business", "*", "/api/v1/carts", "POST"},
+		{"owner_business", "*", "/api/v1/carts", "PUT"},
+		{"owner_business", "*", "/api/v1/carts", "DELETE"},
+
+		{"owner_business", "*", "/api/v1/carts/*", "GET"},
+		{"owner_business", "*", "/api/v1/carts/*", "POST"},
 		{"owner_business", "*", "/api/v1/carts/*", "PUT"},
 		{"owner_business", "*", "/api/v1/carts/*", "DELETE"},
-		{"owner_business", "*", "/api/v1/carts/all", "GET"},
 
-		// Transactions - Full CRUD
+		// Transactions
 		{"owner_business", "*", "/api/v1/transactions", "GET"},
-		{"owner_business", "*", "/api/v1/transactions/*", "GET"},
 		{"owner_business", "*", "/api/v1/transactions", "POST"},
-		{"owner_business", "*", "/api/v1/transactions/*/pay", "POST"},
-		{"owner_business", "*", "/api/v1/transactions/*/cancel", "POST"},
-		{"owner_business", "*", "/api/v1/transactions/shop/*", "GET"},
-		{"owner_business", "*", "/api/v1/transactions/shop/*/status/*", "GET"},
-		{"owner_business", "*", "/api/v1/transactions/shop/*/today", "GET"},
+		{"owner_business", "*", "/api/v1/transactions", "PUT"},
+		{"owner_business", "*", "/api/v1/transactions", "DELETE"},
 
-		// Expenses - Read only within license
-		{"owner_business", "*", "/api/v1/expenses/shop/*", "GET"},
-		{"owner_business", "*", "/api/v1/expenses/shop/*/status/*", "GET"},
+		{"owner_business", "*", "/api/v1/transactions/*", "GET"},
+		{"owner_business", "*", "/api/v1/transactions/*", "POST"},
+		{"owner_business", "*", "/api/v1/transactions/*", "PUT"},
+		{"owner_business", "*", "/api/v1/transactions/*", "DELETE"},
+
+		// Expenses
+		{"owner_business", "*", "/api/v1/expenses", "GET"},
+		{"owner_business", "*", "/api/v1/expenses", "POST"},
+		{"owner_business", "*", "/api/v1/expenses", "PUT"},
+		{"owner_business", "*", "/api/v1/expenses", "DELETE"},
+
 		{"owner_business", "*", "/api/v1/expenses/*", "GET"},
+		{"owner_business", "*", "/api/v1/expenses/*", "POST"},
+		{"owner_business", "*", "/api/v1/expenses/*", "PUT"},
+		{"owner_business", "*", "/api/v1/expenses/*", "DELETE"},
 
-		// Payments - Read only within license
-		{"owner_business", "*", "/api/v1/payments/shop/*", "GET"},
-		{"owner_business", "*", "/api/v1/payments/shop/*/status/*", "GET"},
+		// Payments
+		{"owner_business", "*", "/api/v1/payments", "GET"},
+		{"owner_business", "*", "/api/v1/payments", "POST"},
+		{"owner_business", "*", "/api/v1/payments", "PUT"},
+		{"owner_business", "*", "/api/v1/payments", "DELETE"},
+
 		{"owner_business", "*", "/api/v1/payments/*", "GET"},
+		{"owner_business", "*", "/api/v1/payments/*", "POST"},
+		{"owner_business", "*", "/api/v1/payments/*", "PUT"},
+		{"owner_business", "*", "/api/v1/payments/*", "DELETE"},
 
-		// Histories - Read only within license
-		{"owner_business", "*", "/api/v1/histories/shop/*", "GET"},
+		// Histories
+		{"owner_business", "*", "/api/v1/histories", "GET"},
+		{"owner_business", "*", "/api/v1/histories", "POST"},
+		{"owner_business", "*", "/api/v1/histories", "PUT"},
+		{"owner_business", "*", "/api/v1/histories", "DELETE"},
+
 		{"owner_business", "*", "/api/v1/histories/*", "GET"},
+		{"owner_business", "*", "/api/v1/histories/*", "POST"},
+		{"owner_business", "*", "/api/v1/histories/*", "PUT"},
+		{"owner_business", "*", "/api/v1/histories/*", "DELETE"},
 
-		// Receipts - Read only within license
-		{"owner_business", "*", "/api/v1/receipts/shop/*", "GET"},
+		// Receipts
+		{"owner_business", "*", "/api/v1/receipts", "GET"},
+		{"owner_business", "*", "/api/v1/receipts", "POST"},
+		{"owner_business", "*", "/api/v1/receipts", "PUT"},
+		{"owner_business", "*", "/api/v1/receipts", "DELETE"},
+
 		{"owner_business", "*", "/api/v1/receipts/*", "GET"},
+		{"owner_business", "*", "/api/v1/receipts/*", "POST"},
+		{"owner_business", "*", "/api/v1/receipts/*", "PUT"},
+		{"owner_business", "*", "/api/v1/receipts/*", "DELETE"},
 
-		// Transaction Products - Read only within license
-		{"owner_business", "*", "/api/v1/transaction-products/transaction/*", "GET"},
-		{"owner_business", "*", "/api/v1/transaction-products/shop/*", "GET"},
+		// Transaction Products
+		{"owner_business", "*", "/api/v1/transaction-products", "GET"},
+		{"owner_business", "*", "/api/v1/transaction-products", "POST"},
+		{"owner_business", "*", "/api/v1/transaction-products", "PUT"},
+		{"owner_business", "*", "/api/v1/transaction-products", "DELETE"},
+
 		{"owner_business", "*", "/api/v1/transaction-products/*", "GET"},
+		{"owner_business", "*", "/api/v1/transaction-products/*", "POST"},
+		{"owner_business", "*", "/api/v1/transaction-products/*", "PUT"},
+		{"owner_business", "*", "/api/v1/transaction-products/*", "DELETE"},
 
-		// Customers - Create and Delete (not cashier)
-		{"owner_business", "*", "/api/v1/customers", "GET"},
-		{"owner_business", "*", "/api/v1/customers/*", "GET"},
-		{"owner_business", "*", "/api/v1/customers", "POST"},
-		{"owner_business", "*", "/api/v1/customers/*", "DELETE"},
+		// Licenses
 
-		// sync
+		// Customers
+
+		// User Management
+
+		// Roles
+
+		// ACL Management
+
+		// Sync
+		{"owner_business", "*", "/api/v1/sync", "GET"},
 		{"owner_business", "*", "/api/v1/sync", "POST"},
+		{"owner_business", "*", "/api/v1/sync", "PUT"},
+		{"owner_business", "*", "/api/v1/sync", "DELETE"},
+
 		{"owner_business", "*", "/api/v1/sync/*", "GET"},
+		{"owner_business", "*", "/api/v1/sync/*", "POST"},
+		{"owner_business", "*", "/api/v1/sync/*", "PUT"},
+		{"owner_business", "*", "/api/v1/sync/*", "DELETE"},
 
-		// Cashier management (create cashiers for their shops)
-		{"owner_business", "*", "/api/v1/auth/*", "POST"},
-
-		// ================== CASHIER - Shop-based POS operations ==================
-		// Products - Full CRUD within assigned shop only
-		{"cashier", "*", "/api/v1/products", "GET"},
+		// ================== CASHIER - Shop-specific POS operations ==================
+		// Products
 		{"cashier", "*", "/api/v1/products/*", "GET"},
-		{"cashier", "*", "/api/v1/products", "POST"},
+		{"cashier", "*", "/api/v1/products/*", "POST"},
 		{"cashier", "*", "/api/v1/products/*", "PUT"},
 		{"cashier", "*", "/api/v1/products/*", "DELETE"},
-		{"cashier", "*", "/api/v1/products/search", "GET"},
-		{"cashier", "*", "/api/v1/products/barcode/*", "GET"},
-		{"cashier", "*", "/api/v1/products/low-stock", "GET"},
-		{"cashier", "*", "/api/v1/products/upload", "POST"},
 
-		// Categories - Full CRUD within assigned shop only
+		{"cashier", "*", "/api/v1/products", "GET"},
+		{"cashier", "*", "/api/v1/products", "POST"},
+		{"cashier", "*", "/api/v1/products", "PUT"},
+		{"cashier", "*", "/api/v1/products", "DELETE"},
+
+		// Categories
 		{"cashier", "*", "/api/v1/categories", "GET"},
-		{"cashier", "*", "/api/v1/categories/*", "GET"},
 		{"cashier", "*", "/api/v1/categories", "POST"},
+		{"cashier", "*", "/api/v1/categories", "PUT"},
+		{"cashier", "*", "/api/v1/categories", "DELETE"},
+
+		{"cashier", "*", "/api/v1/categories/*", "GET"},
+		{"cashier", "*", "/api/v1/categories/*", "POST"},
 		{"cashier", "*", "/api/v1/categories/*", "PUT"},
 		{"cashier", "*", "/api/v1/categories/*", "DELETE"},
 
-		// Carts - Full CRUD within assigned shop only
+		// shops
+		{"cashier", "*", "/api/v1/shops", "GET"},
+		{"cashier", "*", "/api/v1/shops", "POST"},
+		{"cashier", "*", "/api/v1/shops", "PUT"},
+		{"cashier", "*", "/api/v1/shops", "DELETE"},
+
+		{"cashier", "*", "/api/v1/shops/*", "GET"},
+		{"cashier", "*", "/api/v1/shops/*", "POST"},
+		{"cashier", "*", "/api/v1/shops/*", "PUT"},
+		{"cashier", "*", "/api/v1/shops/*", "DELETE"},
+
+		// Carts
 		{"cashier", "*", "/api/v1/carts", "GET"},
-		{"cashier", "*", "/api/v1/carts/*", "GET"},
 		{"cashier", "*", "/api/v1/carts", "POST"},
+		{"cashier", "*", "/api/v1/carts", "PUT"},
+		{"cashier", "*", "/api/v1/carts", "DELETE"},
+
+		{"cashier", "*", "/api/v1/carts/*", "GET"},
+		{"cashier", "*", "/api/v1/carts/*", "POST"},
 		{"cashier", "*", "/api/v1/carts/*", "PUT"},
 		{"cashier", "*", "/api/v1/carts/*", "DELETE"},
-		{"cashier", "*", "/api/v1/carts/all", "GET"},
 
-		// Shops - Read access to their assigned shop only
-		{"cashier", "*", "/api/v1/shops/*", "GET"},
-
-		// Transactions - Full CRUD within assigned shop only
+		// Transactions
+		{"cashier", "*", "/api/v1/transactions", "GET"},
 		{"cashier", "*", "/api/v1/transactions", "POST"},
+		{"cashier", "*", "/api/v1/transactions", "PUT"},
+		{"cashier", "*", "/api/v1/transactions", "DELETE"},
+
 		{"cashier", "*", "/api/v1/transactions/*", "GET"},
-		{"cashier", "*", "/api/v1/transactions/*/pay", "POST"},
-		{"cashier", "*", "/api/v1/transactions/*/cancel", "POST"},
-		{"cashier", "*", "/api/v1/transactions/shop/*", "GET"},
-		{"cashier", "*", "/api/v1/transactions/shop/*/status/*", "GET"},
-		{"cashier", "*", "/api/v1/transactions/shop/*/today", "GET"},
+		{"cashier", "*", "/api/v1/transactions/*", "POST"},
+		{"cashier", "*", "/api/v1/transactions/*", "PUT"},
+		{"cashier", "*", "/api/v1/transactions/*", "DELETE"},
 
-		// Expenses - Read only within assigned shop
-		{"cashier", "*", "/api/v1/expenses/shop/*", "GET"},
-		{"cashier", "*", "/api/v1/expenses/shop/*/status/*", "GET"},
+		// Expenses
+		{"cashier", "*", "/api/v1/expenses", "GET"},
+		{"cashier", "*", "/api/v1/expenses", "POST"},
+		{"cashier", "*", "/api/v1/expenses", "PUT"},
+		{"cashier", "*", "/api/v1/expenses", "DELETE"},
+
 		{"cashier", "*", "/api/v1/expenses/*", "GET"},
+		{"cashier", "*", "/api/v1/expenses/*", "POST"},
+		{"cashier", "*", "/api/v1/expenses/*", "PUT"},
+		{"cashier", "*", "/api/v1/expenses/*", "DELETE"},
 
-		// Payments - Read only within assigned shop
-		{"cashier", "*", "/api/v1/payments/shop/*", "GET"},
-		{"cashier", "*", "/api/v1/payments/shop/*/status/*", "GET"},
+		// Payments
+		{"cashier", "*", "/api/v1/payments", "GET"},
+		{"cashier", "*", "/api/v1/payments", "POST"},
+		{"cashier", "*", "/api/v1/payments", "PUT"},
+		{"cashier", "*", "/api/v1/payments", "DELETE"},
+
 		{"cashier", "*", "/api/v1/payments/*", "GET"},
+		{"cashier", "*", "/api/v1/payments/*", "POST"},
+		{"cashier", "*", "/api/v1/payments/*", "PUT"},
+		{"cashier", "*", "/api/v1/payments/*", "DELETE"},
 
-		// Histories - Read only within assigned shop
-		{"cashier", "*", "/api/v1/histories/shop/*", "GET"},
+		// Histories
+		{"cashier", "*", "/api/v1/histories", "GET"},
+		{"cashier", "*", "/api/v1/histories", "POST"},
+		{"cashier", "*", "/api/v1/histories", "PUT"},
+		{"cashier", "*", "/api/v1/histories", "DELETE"},
+
 		{"cashier", "*", "/api/v1/histories/*", "GET"},
+		{"cashier", "*", "/api/v1/histories/*", "POST"},
+		{"cashier", "*", "/api/v1/histories/*", "PUT"},
+		{"cashier", "*", "/api/v1/histories/*", "DELETE"},
 
-		// Receipts - Read only within assigned shop
-		{"cashier", "*", "/api/v1/receipts/shop/*", "GET"},
+		// Receipts
+		{"cashier", "*", "/api/v1/receipts", "GET"},
+		{"cashier", "*", "/api/v1/receipts", "POST"},
+		{"cashier", "*", "/api/v1/receipts", "PUT"},
+		{"cashier", "*", "/api/v1/receipts", "DELETE"},
+
 		{"cashier", "*", "/api/v1/receipts/*", "GET"},
+		{"cashier", "*", "/api/v1/receipts/*", "POST"},
+		{"cashier", "*", "/api/v1/receipts/*", "PUT"},
+		{"cashier", "*", "/api/v1/receipts/*", "DELETE"},
 
-		// Transaction Products - Read only within assigned shop
-		{"cashier", "*", "/api/v1/transaction-products/transaction/*", "GET"},
-		{"cashier", "*", "/api/v1/transaction-products/shop/*", "GET"},
+		// Transaction Products
+		{"cashier", "*", "/api/v1/transaction-products", "GET"},
+		{"cashier", "*", "/api/v1/transaction-products", "POST"},
+		{"cashier", "*", "/api/v1/transaction-products", "PUT"},
+		{"cashier", "*", "/api/v1/transaction-products", "DELETE"},
+
 		{"cashier", "*", "/api/v1/transaction-products/*", "GET"},
+		{"cashier", "*", "/api/v1/transaction-products/*", "POST"},
+		{"cashier", "*", "/api/v1/transaction-products/*", "PUT"},
+		{"cashier", "*", "/api/v1/transaction-products/*", "DELETE"},
 
-		// Customers - Read only (cannot create/delete)
-		{"cashier", "*", "/api/v1/customers", "GET"},
-		{"cashier", "*", "/api/v1/customers/*", "GET"},
+		// Licenses
 
-		// Sync within assigned shop only
-		{"cashier", "*", "/api/v1/sync", "POST"},
-		{"cashier", "*", "/api/v1/sync/*", "GET"},
+		// Customers
+
+		// User Management
+
+		// Roles
+
+		// ACL Management
+
+		// Sync
+		{"owner_business", "*", "/api/v1/sync", "GET"},
+		{"owner_business", "*", "/api/v1/sync", "POST"},
+		{"owner_business", "*", "/api/v1/sync", "PUT"},
+		{"owner_business", "*", "/api/v1/sync", "DELETE"},
+
+		{"owner_business", "*", "/api/v1/sync/*", "GET"},
+		{"owner_business", "*", "/api/v1/sync/*", "POST"},
+		{"owner_business", "*", "/api/v1/sync/*", "PUT"},
+		{"owner_business", "*", "/api/v1/sync/*", "DELETE"},
 
 		// ================== AUTH ENDPOINTS FOR ALL ROLES ==================
-		{"super_admin", "*", "/api/v1/auth/*", "GET"},
-		{"super_admin", "*", "/api/v1/auth/*", "POST"},
-		{"super_admin", "*", "/api/v1/auth/*", "POST"},
-		{"super_admin", "*", "/api/v1/auth/*", "GET"},
-		{"super_admin", "*", "/api/v1/auth/*", "POST"},
-		{"super_admin", "*", "/api/v1/auth/*", "PUT"},
-		{"super_admin", "*", "/api/v1/auth/*", "DELETE"},
 
-		{"admin", "*", "/api/v1/auth/*", "GET"},
-		{"admin", "*", "/api/v1/auth/*", "POST"},
-		{"admin", "*", "/api/v1/auth/*", "POST"},
 		{"admin", "*", "/api/v1/auth/*", "GET"},
 		{"admin", "*", "/api/v1/auth/*", "POST"},
 		{"admin", "*", "/api/v1/auth/*", "PUT"},
@@ -353,19 +523,30 @@ func (s *AuthSeeder) SeedPolicies() error {
 
 		{"owner_business", "*", "/api/v1/auth/*", "GET"},
 		{"owner_business", "*", "/api/v1/auth/*", "POST"},
-		{"owner_business", "*", "/api/v1/auth/*", "POST"},
-		{"owner_business", "*", "/api/v1/auth/*", "GET"},
-		{"owner_business", "*", "/api/v1/auth/*", "POST"},
 		{"owner_business", "*", "/api/v1/auth/*", "PUT"},
 		{"owner_business", "*", "/api/v1/auth/*", "DELETE"},
 
-		{"cashier", "*", "/api/v1/auth/*", "GET"},
-		{"cashier", "*", "/api/v1/auth/*", "POST"},
-		{"cashier", "*", "/api/v1/auth/*", "POST"},
-		{"cashier", "*", "/api/v1/auth/*", "GET"},
-		{"cashier", "*", "/api/v1/auth/*", "POST"},
-		{"cashier", "*", "/api/v1/auth/*", "PUT"},
-		{"cashier", "*", "/api/v1/auth/*", "DELETE"},
+
+		{"cashier", "*", "/api/v1/auth/cashier", "GET"},
+		{"cashier", "*", "/api/v1/auth/cashier", "POST"},
+		{"cashier", "*", "/api/v1/auth/cashier", "PUT"},
+		{"cashier", "*", "/api/v1/auth/cashier", "DELETE"},
+
+		{"cashier", "*", "/api/v1/auth/cashier/*", "GET"},
+		{"cashier", "*", "/api/v1/auth/cashier/*", "POST"},
+		{"cashier", "*", "/api/v1/auth/cashier/*", "PUT"},
+		{"cashier", "*", "/api/v1/auth/cashier/*", "DELETE"},
+
+		{"cashier", "*", "/api/v1/auth/logout", "POST"},
+		{"cashier", "*", "/api/v1/auth/refresh", "POST"},
+		{"cashier", "*", "/api/v1/auth/profile", "GET"},
+		{"cashier", "*", "/api/v1/auth/permissions", "GET"},
+
+		{"cashier", "*", "/api/v1/auth/pin", "GET"},
+		{"cashier", "*", "/api/v1/auth/pin", "POST"},
+		{"cashier", "*", "/api/v1/auth/pin", "PUT"},
+		{"cashier", "*", "/api/v1/auth/pin", "DELETE"},
+		
 	}
 
 	for _, p := range policies {
