@@ -157,3 +157,33 @@ func (e *EnforcerService) GetAllRoles() [][]string {
 	roles, _ := e.enforcer.GetGroupingPolicy()
 	return roles
 }
+
+// AddPolicies adds multiple policy rules in batch
+func (e *EnforcerService) AddPolicies(policies [][]string) (bool, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	return e.enforcer.AddPolicies(policies)
+}
+
+// AddPoliciesForRole adds multiple policies for a specific role and domain
+func (e *EnforcerService) AddPoliciesForRole(role, domain string, permissions [][]string) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	// Convert permissions to full policy format
+	var policies [][]string
+	for _, perm := range permissions {
+		if len(perm) >= 2 { // object, action
+			policy := []string{role, domain, perm[0], perm[1]}
+			policies = append(policies, policy)
+		}
+	}
+
+	if len(policies) > 0 {
+		_, err := e.enforcer.AddPolicies(policies)
+		return err
+	}
+
+	return nil
+}

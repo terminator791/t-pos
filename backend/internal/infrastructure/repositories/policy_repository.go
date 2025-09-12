@@ -94,3 +94,10 @@ func (r *PolicyRepositoryImpl) GetActivePolicies(ctx context.Context) ([]*entiti
 	err := r.db.WithContext(ctx).Where("is_active = ?", true).Preload("Role").Find(&policies).Error
 	return policies, err
 }
+
+// GetByRoleAndDomain retrieves policies by role ID and domain
+func (r *PolicyRepositoryImpl) GetByRoleAndDomain(ctx context.Context, roleID uuid.UUID, domain string) ([]*entities.Policy, error) {
+	var policies []*entities.Policy
+	err := r.db.WithContext(ctx).Preload("Role").Where("role_id = ? AND domain = ?", roleID, domain).Find(&policies).Error
+	return policies, err
+}

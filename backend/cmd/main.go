@@ -74,7 +74,7 @@ func main() {
 
 	// Initialize middleware
 	authMiddleware := auth.NewAuthMiddleware(jwtService, userRepo)
-	authzMiddleware := casbin.NewAuthzMiddleware(enforcerService)
+	authzMiddleware := casbin.NewAuthzMiddleware(enforcerService, shopRepo, userRepo)
 
 	// Initialize seeders and seed data
 	authSeeder := seeders.NewAuthSeeder(roleRepo, policyRepo, enforcerService)

@@ -99,8 +99,14 @@ func SetupRoutes(
 				shops.GET("/:id", shopHandler.GetShop)
 				shops.PUT("/:id", shopHandler.UpdateShop)
 				shops.DELETE("/:id", shopHandler.DeleteShop)
-				shops.GET("/license/:licenseId", shopHandler.GetShopsByLicense)
 				shops.GET("/owner/:ownerId", shopHandler.GetShopsByOwner)
+				
+				// License-specific routes with access validation
+				licenseShops := shops.Group("/license/:licenseId")
+				licenseShops.Use(authzMiddleware.RequireLicenseAccess())
+				{
+					licenseShops.GET("", shopHandler.GetShopsByLicense)
+				}
 			}
 
 			// Cart routes
@@ -124,44 +130,73 @@ func SetupRoutes(
 				transactions.POST("/:id/cancel", transactionHandler.CancelTransaction)
 				// List routes
 				transactions.GET("", transactionHandler.ListTransactions) // super admin and admin only
-				transactions.GET("/shop/:shopId", transactionHandler.ListTransactionsByShop)
-				transactions.GET("/shop/:shopId/status/:status", transactionHandler.ListTransactionsByShopAndStatus)
-				// Today's transactions
-				transactions.GET("/shop/:shopId/today", transactionHandler.GetTodaysTransactions)
+				
+				// Shop-specific routes with access validation
+				shopTransactions := transactions.Group("/shop/:shopId")
+				shopTransactions.Use(authzMiddleware.RequireShopAccess())
+				{
+					shopTransactions.GET("", transactionHandler.ListTransactionsByShop)
+					shopTransactions.GET("/status/:status", transactionHandler.ListTransactionsByShopAndStatus)
+					shopTransactions.GET("/today", transactionHandler.GetTodaysTransactions)
+				}
 			}
 
 			// Expense routes
 			expenses := protected.Group("/expenses")
 			{
 				expenses.GET("", expenseHandler.ListExpenses) // super admin and admin only
-				expenses.GET("/shop/:shopId", expenseHandler.ListExpensesByShop)
-				expenses.GET("/shop/:shopId/status/:status", expenseHandler.ListExpensesByShopAndStatus)
 				expenses.GET("/:id", expenseHandler.GetExpense)
+				
+				// Shop-specific routes with access validation
+				shopExpenses := expenses.Group("/shop/:shopId")
+				shopExpenses.Use(authzMiddleware.RequireShopAccess())
+				{
+					shopExpenses.GET("", expenseHandler.ListExpensesByShop)
+					shopExpenses.GET("/status/:status", expenseHandler.ListExpensesByShopAndStatus)
+				}
 			}
 
 			// Payment routes
 			payments := protected.Group("/payments")
 			{
 				payments.GET("", paymentHandler.ListPayments) // super admin and admin only
-				payments.GET("/shop/:shopId", paymentHandler.ListPaymentsByShop)
-				payments.GET("/shop/:shopId/status/:status", paymentHandler.ListPaymentsByShopAndStatus)
 				payments.GET("/:id", paymentHandler.GetPayment)
+				
+				// Shop-specific routes with access validation
+				shopPayments := payments.Group("/shop/:shopId")
+				shopPayments.Use(authzMiddleware.RequireShopAccess())
+				{
+					shopPayments.GET("", paymentHandler.ListPaymentsByShop)
+					shopPayments.GET("/status/:status", paymentHandler.ListPaymentsByShopAndStatus)
+				}
 			}
 
 			// History routes
 			histories := protected.Group("/histories")
 			{
 				histories.GET("", historyHandler.ListHistories) // super admin and admin only
-				histories.GET("/shop/:shopId", historyHandler.ListHistoriesByShop)
 				histories.GET("/:id", historyHandler.GetHistory)
+				
+				// Shop-specific routes with access validation
+				shopHistories := histories.Group("/shop/:shopId")
+				shopHistories.Use(authzMiddleware.RequireShopAccess())
+				{
+					shopHistories.GET("", historyHandler.ListHistoriesByShop)
+				}
 			}
 
 			// Receipt routes
 			receipts := protected.Group("/receipts")
 			{
 				receipts.GET("", receiptHandler.ListReceipts) // super admin and admin only
-				receipts.GET("/shop/:shopId", receiptHandler.ListReceiptsByShop)
 				receipts.GET("/:id", receiptHandler.GetReceipt)
+				
+				// Shop-specific routes with access validation
+				shopReceipts := receipts.Group("/shop/:shopId")
+				shopReceipts.Use(authzMiddleware.RequireShopAccess())
+				{
+					shopReceipts.GET("", receiptHandler.ListReceiptsByShop)
+				}
 			}
 
 			// Transaction Product routes
@@ -169,8 +204,14 @@ func SetupRoutes(
 			{
 				transactionProducts.GET("", transactionProductHandler.ListTransactionProducts) // super admin and admin only
 				transactionProducts.GET("/transaction/:transactionId", transactionProductHandler.ListTransactionProductsByTransaction)
-				transactionProducts.GET("/shop/:shopId", transactionProductHandler.ListTransactionProductsByShop)
 				transactionProducts.GET("/:id", transactionProductHandler.GetTransactionProduct)
+				
+				// Shop-specific routes with access validation
+				shopTransactionProducts := transactionProducts.Group("/shop/:shopId")
+				shopTransactionProducts.Use(authzMiddleware.RequireShopAccess())
+				{
+					shopTransactionProducts.GET("", transactionProductHandler.ListTransactionProductsByShop)
+				}
 			}
 
 			// Checkout and transaction routes (existing, deprecated)

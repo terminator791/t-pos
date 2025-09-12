@@ -22,11 +22,13 @@ type RoleRepository interface {
 // PolicyRepository defines the interface for policy data access
 type PolicyRepository interface {
 	Create(ctx context.Context, policy *entities.Policy) error
+	CreateBatch(ctx context.Context, policies []*entities.Policy) error
 	GetByID(ctx context.Context, id uuid.UUID) (*entities.Policy, error)
 	GetAll(ctx context.Context) ([]*entities.Policy, error)
 	List(ctx context.Context, limit, offset int) ([]*entities.Policy, error)
 	GetByRole(ctx context.Context, roleID uuid.UUID) ([]*entities.Policy, error)
 	GetByDomain(ctx context.Context, domain string) ([]*entities.Policy, error)
+	GetByRoleAndDomain(ctx context.Context, roleID uuid.UUID, domain string) ([]*entities.Policy, error)
 	Update(ctx context.Context, policy *entities.Policy) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	GetActivePolicies(ctx context.Context) ([]*entities.Policy, error)

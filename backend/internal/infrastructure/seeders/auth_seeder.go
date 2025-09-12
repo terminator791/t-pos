@@ -507,9 +507,22 @@ func (s *AuthSeeder) AssignPoliciesForRole(roleName, domain string) error {
 		return fmt.Errorf("failed to find role %s: %w", roleName, err)
 	}
 
+	// Check if policies already exist for this role and domain to avoid duplicates
+	existingPolicies, err := s.policyRepo.GetByRoleAndDomain(ctx, role.ID, domain)
+	if err != nil {
+		log.Printf("Warning: Failed to check existing policies for role %s, domain %s: %v", roleName, domain, err)
+	} else if len(existingPolicies) > 0 {
+		log.Printf("Policies already exist for role %s, domain %s (%d existing). Skipping creation.", roleName, domain, len(existingPolicies))
+		return nil
+	}
+
 	// Create and assign policies
+	var policyEntities []*entities.Policy
+	var casbinPolicies [][]string
+
+	// Prepare all policies for bulk operations
 	for _, p := range policies {
-		// Create policy entity
+		// Create policy entity for database
 		policy := &entities.Policy{
 			RoleID:   &role.ID,
 			Subject:  p.roleName,
@@ -519,21 +532,25 @@ func (s *AuthSeeder) AssignPoliciesForRole(roleName, domain string) error {
 			Effect:   "allow",
 			IsActive: true,
 		}
+		policyEntities = append(policyEntities, policy)
 
-		// Create policy in database
-		if err := s.policyRepo.Create(ctx, policy); err != nil {
-			log.Printf("Failed to create policy for role %s, domain %s: %v", p.roleName, p.domain, err)
-			continue
-		}
-
-		// Add policy to Casbin
-		if _, err := s.enforcerService.AddPolicy(p.roleName, p.domain, p.object, p.action); err != nil {
-			log.Printf("Failed to add Casbin policy for role %s, domain %s: %v", p.roleName, p.domain, err)
-			continue
-		}
-
-		log.Printf("Created domain-specific policy: %s -> %s %s %s", p.roleName, p.domain, p.object, p.action)
+		// Create Casbin policy format [role, domain, object, action]
+		casbinPolicy := []string{p.roleName, p.domain, p.object, p.action}
+		casbinPolicies = append(casbinPolicies, casbinPolicy)
 	}
+
+	// Bulk create policies in database
+	if err := s.policyRepo.CreateBatch(ctx, policyEntities); err != nil {
+		return fmt.Errorf("failed to create policies in batch for role %s, domain %s: %w", roleName, domain, err)
+	}
+
+	// Bulk add policies to Casbin
+	if _, err := s.enforcerService.AddPolicies(casbinPolicies); err != nil {
+		log.Printf("Failed to add Casbin policies in batch for role %s, domain %s: %v", roleName, domain, err)
+		// Note: We could implement rollback here, but for now just log the error
+	}
+
+	log.Printf("Created %d domain-specific policies in batch for role %s, domain %s", len(policies), roleName, domain)
 
 	return nil
 }
