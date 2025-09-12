@@ -196,6 +196,7 @@ func (s *InitialDataSeeder) SeedUsers() error {
 		{
 			ID:         Cashier1ID,
 			LicenseID:  &License1ID,
+			ShopID:     &Shop1ID, // Assign Cashier1 to Shop1 (Jakarta)
 			Email:      strPtr("cashier1@example.com"),
 			Username:   strPtr("cashier1"),
 			Name:       "Cashier 1",
@@ -205,6 +206,7 @@ func (s *InitialDataSeeder) SeedUsers() error {
 		{
 			ID:         Cashier2ID,
 			LicenseID:  &License2ID,
+			ShopID:     &Shop2ID, // Assign Cashier2 to Shop2 (Bandung)
 			Email:      strPtr("cashier2@example.com"),
 			Username:   strPtr("cashier2"),
 			Name:       "Cashier 2",
@@ -822,6 +824,19 @@ func (s *InitialDataSeeder) SeedUserDomains() error {
 		return err
 	}
 
+	// Get shop domains for cashiers (shop domains are "shop-{uuid}")
+	shop1, err := s.shopRepo.GetByID(ctx, Shop1ID)
+	if err != nil {
+		log.Printf("Failed to get shop1: %v", err)
+		return err
+	}
+
+	shop2, err := s.shopRepo.GetByID(ctx, Shop2ID)
+	if err != nil {
+		log.Printf("Failed to get shop2: %v", err)
+		return err
+	}
+
 	// Create user domains
 	userDomains := []entities.UserDomain{
 		// Super admin gets access to all domains
@@ -841,6 +856,14 @@ func (s *InitialDataSeeder) SeedUserDomains() error {
 			UserID: superAdmin.ID,
 			Domain: "LIC-003-DEMO",
 		},
+		{
+			UserID: superAdmin.ID,
+			Domain: shop1.Domain, // Access to shop1 domain
+		},
+		{
+			UserID: superAdmin.ID,
+			Domain: shop2.Domain, // Access to shop2 domain
+		},
 
 		// Admin gets access to all domains
 		{
@@ -859,6 +882,14 @@ func (s *InitialDataSeeder) SeedUserDomains() error {
 			UserID: admin.ID,
 			Domain: "LIC-003-DEMO",
 		},
+		{
+			UserID: admin.ID,
+			Domain: shop1.Domain, // Access to shop1 domain
+		},
+		{
+			UserID: admin.ID,
+			Domain: shop2.Domain, // Access to shop2 domain
+		},
 
 		// Owner1 gets access to their license domain
 		{
@@ -872,16 +903,16 @@ func (s *InitialDataSeeder) SeedUserDomains() error {
 			Domain: "LIC-002-DEMO",
 		},
 
-		// Cashier1 gets access to their license domain
+		// Cashier1 gets access to their shop domain only (not license domain)
 		{
 			UserID: cashier1.ID,
-			Domain: "LIC-001-DEMO",
+			Domain: shop1.Domain, // shop-{Shop1ID}
 		},
 
-		// Cashier2 gets access to their license domain
+		// Cashier2 gets access to their shop domain only (not license domain)
 		{
 			UserID: cashier2.ID,
-			Domain: "LIC-002-DEMO",
+			Domain: shop2.Domain, // shop-{Shop2ID}
 		},
 	}
 
@@ -944,6 +975,19 @@ func (s *InitialDataSeeder) SeedCasbinRules() error {
 	cashier2, err := s.userRepo.GetByEmail(ctx, "cashier2@example.com")
 	if err != nil {
 		log.Printf("Failed to get cashier2 user: %v", err)
+		return err
+	}
+
+	// Get shop domains for cashiers
+	shop1, err := s.shopRepo.GetByID(ctx, Shop1ID)
+	if err != nil {
+		log.Printf("Failed to get shop1: %v", err)
+		return err
+	}
+
+	shop2, err := s.shopRepo.GetByID(ctx, Shop2ID)
+	if err != nil {
+		log.Printf("Failed to get shop2: %v", err)
 		return err
 	}
 
@@ -1022,21 +1066,21 @@ func (s *InitialDataSeeder) SeedCasbinRules() error {
 	}
 	log.Printf("Assigned owner_business role to owner2 in LIC-002-DEMO")
 
-	// Cashier1 gets cashier role in their domain
-	_, err = s.enforcerService.AddRoleForUser(cashier1.ID.String(), "cashier", "LIC-001-DEMO")
+	// Cashier1 gets cashier role in their shop domain (not license domain)
+	_, err = s.enforcerService.AddRoleForUser(cashier1.ID.String(), "cashier", shop1.Domain)
 	if err != nil {
-		log.Printf("Failed to assign cashier role to cashier1 in LIC-001-DEMO: %v", err)
+		log.Printf("Failed to assign cashier role to cashier1 in %s: %v", shop1.Domain, err)
 		return err
 	}
-	log.Printf("Assigned cashier role to cashier1 in LIC-001-DEMO")
+	log.Printf("Assigned cashier role to cashier1 in shop domain %s", shop1.Domain)
 
-	// Cashier2 gets cashier role in their domain
-	_, err = s.enforcerService.AddRoleForUser(cashier2.ID.String(), "cashier", "LIC-002-DEMO")
+	// Cashier2 gets cashier role in their shop domain (not license domain)
+	_, err = s.enforcerService.AddRoleForUser(cashier2.ID.String(), "cashier", shop2.Domain)
 	if err != nil {
-		log.Printf("Failed to assign cashier role to cashier2 in LIC-002-DEMO: %v", err)
+		log.Printf("Failed to assign cashier role to cashier2 in %s: %v", shop2.Domain, err)
 		return err
 	}
-	log.Printf("Assigned cashier role to cashier2 in LIC-002-DEMO")
+	log.Printf("Assigned cashier role to cashier2 in shop domain %s", shop2.Domain)
 
 	return nil
 }

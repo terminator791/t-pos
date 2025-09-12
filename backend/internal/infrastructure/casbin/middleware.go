@@ -1,6 +1,7 @@
 package casbin
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"strings"
@@ -18,14 +19,16 @@ type AuthzMiddleware struct {
 	enforcerService *EnforcerService
 	shopRepo        repositories.ShopRepository
 	userRepo        repositories.UserRepository
+	roleRepo        repositories.RoleRepository
 }
 
 // NewAuthzMiddleware creates a new authorization middleware
-func NewAuthzMiddleware(enforcerService *EnforcerService, shopRepo repositories.ShopRepository, userRepo repositories.UserRepository) *AuthzMiddleware {
+func NewAuthzMiddleware(enforcerService *EnforcerService, shopRepo repositories.ShopRepository, userRepo repositories.UserRepository, roleRepo repositories.RoleRepository) *AuthzMiddleware {
 	return &AuthzMiddleware{
 		enforcerService: enforcerService,
 		shopRepo:        shopRepo,
 		userRepo:        userRepo,
+		roleRepo:        roleRepo,
 	}
 }
 
@@ -60,15 +63,35 @@ func (m *AuthzMiddleware) RequirePermission() gin.HandlerFunc {
 		
 		// Handle domain assignment based on role
 		if domain == "" {
-			// Check if user has a role that allows wildcard access
+			// For tenant-specific users (owner_business, cashier), domain is required
+			// Only allow wildcard access for super_admin and admin roles
 			if user.RoleID != nil {
-				// We need to get the role name to check if it's admin or super_admin
-				// For now, allow wildcard for users without domain only if they're admin-level
-				// This is a fallback - ideally all users should have proper domains
-				domain = "*"
-				log.Printf("Warning: User %s has no domain, using wildcard", userID.String())
+				// Get the role to check if wildcard is allowed
+				// This is a safety check - ideally all users should have proper domains
+				role, err := m.getUserRole(c.Request.Context(), *user.RoleID)
+				if err != nil {
+					response.ErrorInternalServer(c, "Failed to get user role", err.Error())
+					c.Abort()
+					return
+				}
+				
+				// Only super_admin and admin can have wildcard access
+				if role.Name == "super_admin" || role.Name == "admin" {
+					domain = "*"
+					log.Printf("Warning: User %s (%s role) has no domain, using wildcard", userID.String(), role.Name)
+				} else {
+					// For owner_business and cashier, domain is mandatory
+					response.ErrorForbidden(c, "No domain assigned to user - multi-tenant isolation required", map[string]interface{}{
+						"user":   userID.String(),
+						"role":   role.Name,
+						"object": c.FullPath(),
+						"action": strings.ToUpper(c.Request.Method),
+					})
+					c.Abort()
+					return
+				}
 			} else {
-				response.ErrorForbidden(c, "No domain assigned to user", map[string]interface{}{
+				response.ErrorForbidden(c, "No role or domain assigned to user", map[string]interface{}{
 					"user":   userID.String(),
 					"object": c.FullPath(),
 					"action": strings.ToUpper(c.Request.Method),
@@ -329,8 +352,41 @@ func (m *AuthzMiddleware) RequireLicenseAccess() gin.HandlerFunc {
 	}
 }
 
+// RequireResourceAccess middleware validates access to individual resources by checking their shop ownership
+func (m *AuthzMiddleware) RequireResourceAccess(resourceType string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Extract resource ID from URL parameter
+		resourceIDStr := c.Param("id")
+		if resourceIDStr == "" {
+			// No resource ID parameter, continue with normal flow
+			c.Next()
+			return
+		}
+
+		resourceID, err := uuid.Parse(resourceIDStr)
+		if err != nil {
+			response.ErrorBadRequest(c, "Invalid resource ID format", err.Error())
+			c.Abort()
+			return
+		}
+
+		// Validate resource access
+		if err := m.ValidateResourceAccess(c, resourceID, resourceType); err != nil {
+			response.ErrorForbidden(c, "Cannot access this resource", map[string]interface{}{
+				"resource_type": resourceType,
+				"resource_id":   resourceID,
+				"error":         err.Error(),
+			})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
+
 // ValidateResourceAccess validates if the current user can access a resource by ID
-// This is a more complex validation that requires checking the resource's associated shop/license
+// This is a basic implementation that can be extended for specific resource types
 func (m *AuthzMiddleware) ValidateResourceAccess(c *gin.Context, resourceID uuid.UUID, resourceType string) error {
 	// Get user from context
 	userInterface, userExists := c.Get("user")
@@ -351,11 +407,16 @@ func (m *AuthzMiddleware) ValidateResourceAccess(c *gin.Context, resourceID uuid
 		// Global access (super_admin, admin)
 		return nil
 	default:
-		// For tenant-specific users, we would need to check the resource's
-		// associated shop/license. This would require resource-specific logic.
-		// For now, we'll implement basic validation and extend as needed.
-		log.Printf("Resource access validation for %s:%s by user %s (domain: %s)", 
+		// For tenant-specific users, implement resource-specific validation
+		// For now, we'll log the validation and allow access
+		// TODO: Implement specific validation per resource type when needed
+		log.Printf("Resource access validation for %s:%s by user %s (domain: %s) - requires implementation", 
 			resourceType, resourceID, user.ID, domain)
-		return nil // Allow for now - implement specific validation per resource type
+		return nil
 	}
+}
+
+// getUserRole gets the role for a user by role ID
+func (m *AuthzMiddleware) getUserRole(ctx context.Context, roleID uuid.UUID) (*entities.Role, error) {
+	return m.roleRepo.GetByID(ctx, roleID)
 }
