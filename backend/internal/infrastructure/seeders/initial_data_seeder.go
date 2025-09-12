@@ -140,8 +140,8 @@ func (s *InitialDataSeeder) SeedLicenses() error {
 	return nil
 }
 
-// SeedUsers creates initial users (super admin, admin, owner business, cashiers)
-func (s *InitialDataSeeder) SeedUsers() error {
+// SeedBasicUsers creates initial users without shop references for cashiers
+func (s *InitialDataSeeder) SeedBasicUsers() error {
 	ctx := context.Background()
 
 	// Hash password
@@ -193,10 +193,11 @@ func (s *InitialDataSeeder) SeedUsers() error {
 			Pin:        strPtr(string(hashedPin)),
 			Password:   string(hashedPassword),
 		},
+		// Cashiers without shop references initially
 		{
 			ID:         Cashier1ID,
 			LicenseID:  &License1ID,
-			ShopID:     &Shop1ID, // Assign Cashier1 to Shop1 (Jakarta)
+			// ShopID will be set later
 			Email:      strPtr("cashier1@example.com"),
 			Username:   strPtr("cashier1"),
 			Name:       "Cashier 1",
@@ -206,7 +207,7 @@ func (s *InitialDataSeeder) SeedUsers() error {
 		{
 			ID:         Cashier2ID,
 			LicenseID:  &License2ID,
-			ShopID:     &Shop2ID, // Assign Cashier2 to Shop2 (Bandung)
+			// ShopID will be set later
 			Email:      strPtr("cashier2@example.com"),
 			Username:   strPtr("cashier2"),
 			Name:       "Cashier 2",
@@ -234,6 +235,42 @@ func (s *InitialDataSeeder) SeedUsers() error {
 			}
 		}
 	}
+
+	return nil
+}
+
+// UpdateCashierShopReferences updates cashiers with shop references after shops are created
+func (s *InitialDataSeeder) UpdateCashierShopReferences() error {
+	ctx := context.Background()
+
+	// Get cashiers
+	cashier1, err := s.userRepo.GetByEmail(ctx, "cashier1@example.com")
+	if err != nil {
+		log.Printf("Failed to get cashier1 user: %v", err)
+		return err
+	}
+
+	cashier2, err := s.userRepo.GetByEmail(ctx, "cashier2@example.com")
+	if err != nil {
+		log.Printf("Failed to get cashier2 user: %v", err)
+		return err
+	}
+
+	// Update cashier1 with shop reference
+	cashier1.ShopID = &Shop1ID
+	if err := s.userRepo.Update(ctx, cashier1); err != nil {
+		log.Printf("Failed to update cashier1 with shop reference: %v", err)
+		return err
+	}
+	log.Printf("Updated cashier1 with shop reference")
+
+	// Update cashier2 with shop reference
+	cashier2.ShopID = &Shop2ID
+	if err := s.userRepo.Update(ctx, cashier2); err != nil {
+		log.Printf("Failed to update cashier2 with shop reference: %v", err)
+		return err
+	}
+	log.Printf("Updated cashier2 with shop reference")
 
 	return nil
 }
@@ -1093,15 +1130,21 @@ func (s *InitialDataSeeder) SeedAll() error {
 		return err
 	}
 
-	if err := s.SeedUsers(); err != nil {
-		return err
-	}
-
-	if err := s.SeedUserRoles(); err != nil {
+	// Create basic users first (without shop references for cashiers)
+	if err := s.SeedBasicUsers(); err != nil {
 		return err
 	}
 
 	if err := s.SeedShops(); err != nil {
+		return err
+	}
+
+	// Now update cashiers with shop references
+	if err := s.UpdateCashierShopReferences(); err != nil {
+		return err
+	}
+
+	if err := s.SeedUserRoles(); err != nil {
 		return err
 	}
 
