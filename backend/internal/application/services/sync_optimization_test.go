@@ -171,7 +171,7 @@ func TestSyncService_BatchProcessing(t *testing.T) {
 		assert.Equal(t, 50, service.config.BatchSize)
 		assert.Equal(t, 500, service.config.MaxEntitiesPerSync)
 		assert.Equal(t, 30*time.Second, service.config.TransactionTimeout)
-		
+
 		// Test that we have more carts than batch size (would require batching)
 		assert.Len(t, carts, 3)
 		assert.True(t, len(carts) > service.config.BatchSize/20) // Adjusted for smaller test batch
@@ -199,7 +199,7 @@ func TestSyncService_ConfigurableSettings(t *testing.T) {
 		req := dto.SyncRequest{
 			Products: make([]entities.Product, service.config.MaxEntitiesPerSync+1),
 		}
-		
+
 		err := service.validateSyncRequest(req)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "sync request too large")
@@ -214,7 +214,7 @@ func TestSyncService_AddDetailedError(t *testing.T) {
 
 	entityID := uuid.New()
 	details := map[string]interface{}{
-		"operation": "create",
+		"operation":      "create",
 		"retry_attempts": 3,
 	}
 
@@ -261,7 +261,7 @@ func createTestSyncService() *SyncService {
 		MaxResultsPerQuery:   100,
 		QueryTimeout:         5 * time.Second,
 	}
-	
+
 	return &SyncService{
 		config:           testConfig,
 		conflictStrategy: dto.LastWriteWins,

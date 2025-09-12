@@ -23,7 +23,7 @@ func (r *ProductRepositoryImpl) Create(ctx context.Context, product *entities.Pr
 	if err := r.db.WithContext(ctx).Create(product).Error; err != nil {
 		return err
 	}
-	
+
 	// Reload with relationships
 	return r.db.WithContext(ctx).
 		Preload("Shop").
@@ -104,7 +104,7 @@ func (r *ProductRepositoryImpl) Update(ctx context.Context, product *entities.Pr
 	if err := r.db.WithContext(ctx).Save(product).Error; err != nil {
 		return err
 	}
-	
+
 	// Reload with relationships
 	return r.db.WithContext(ctx).
 		Preload("Shop").

@@ -20,34 +20,34 @@ import (
 const (
 	// Maximum number of entities to process in a single batch
 	DefaultBatchSize = 100
-	
+
 	// Maximum number of entities per sync operation to prevent memory issues
 	MaxEntitiesPerSync = 1000
-	
+
 	// Default transaction timeout
 	DefaultTransactionTimeout = 30 * time.Second
-	
+
 	// Maximum transaction timeout for large syncs
 	MaxTransactionTimeout = 5 * time.Minute
 )
 
 // SyncService handles data synchronization between mobile and server
 type SyncService struct {
-	db                      *gorm.DB
-	cartRepo                repositories.CartRepository
-	categoryRepo            repositories.CategoryRepository
-	expenseRepo             repositories.ExpenseRepository
-	historyRepo             repositories.HistoryRepository
-	paymentRepo             repositories.PaymentRepository
-	productRepo             repositories.ProductRepository
-	receiptRepo             repositories.ReceiptRepository
-	shopRepo                repositories.ShopRepository
-	stockHistoryRepo        repositories.StockHistoryRepository
-	transactionRepo         repositories.TransactionRepository
-	transactionProductRepo  repositories.TransactionProductRepository
-	userRepo                repositories.UserRepository
-	conflictStrategy        dto.ConflictResolutionStrategy
-	config                  config.SyncConfig
+	db                     *gorm.DB
+	cartRepo               repositories.CartRepository
+	categoryRepo           repositories.CategoryRepository
+	expenseRepo            repositories.ExpenseRepository
+	historyRepo            repositories.HistoryRepository
+	paymentRepo            repositories.PaymentRepository
+	productRepo            repositories.ProductRepository
+	receiptRepo            repositories.ReceiptRepository
+	shopRepo               repositories.ShopRepository
+	stockHistoryRepo       repositories.StockHistoryRepository
+	transactionRepo        repositories.TransactionRepository
+	transactionProductRepo repositories.TransactionProductRepository
+	userRepo               repositories.UserRepository
+	conflictStrategy       dto.ConflictResolutionStrategy
+	config                 config.SyncConfig
 }
 
 // NewSyncService creates a new sync service instance
@@ -89,12 +89,12 @@ func NewSyncService(
 // ProcessSync handles the complete synchronization process
 func (s *SyncService) ProcessSync(ctx context.Context, req dto.SyncRequest, licenseID uuid.UUID, userID uuid.UUID) (*dto.SyncResponse, error) {
 	startTime := time.Now()
-	
+
 	// Validate sync request size to prevent memory issues
 	if err := s.validateSyncRequest(req); err != nil {
 		return nil, fmt.Errorf("sync request validation failed: %w", err)
 	}
-	
+
 	response := &dto.SyncResponse{
 		SyncTimestamp: time.Now(),
 		Conflicts:     make([]dto.ConflictInfo, 0),
@@ -151,7 +151,7 @@ func (s *SyncService) ProcessSync(ctx context.Context, req dto.SyncRequest, lice
 	response.Stats.ErrorCount = len(response.Errors)
 
 	log.Printf("Sync completed for license %s: %d conflicts, %d errors, %dms, %d entities processed",
-		licenseID.String(), response.Stats.ConflictCount, response.Stats.ErrorCount, 
+		licenseID.String(), response.Stats.ConflictCount, response.Stats.ErrorCount,
 		response.Stats.ProcessingTimeMs, s.getTotalProcessedEntities(response.Stats))
 
 	return response, nil
@@ -159,39 +159,39 @@ func (s *SyncService) ProcessSync(ctx context.Context, req dto.SyncRequest, lice
 
 // validateSyncRequest validates the sync request to prevent memory and performance issues
 func (s *SyncService) validateSyncRequest(req dto.SyncRequest) error {
-	totalEntities := len(req.Carts) + len(req.Categories) + len(req.Products) + 
+	totalEntities := len(req.Carts) + len(req.Categories) + len(req.Products) +
 		len(req.Transactions) + len(req.Payments) + len(req.Expenses) +
-		len(req.Receipts) + len(req.Histories) + len(req.Shops) + 
+		len(req.Receipts) + len(req.Histories) + len(req.Shops) +
 		len(req.StockHistories) + len(req.TransactionProducts) + len(req.Users)
-	
+
 	if totalEntities > s.config.MaxEntitiesPerSync {
-		return fmt.Errorf("sync request too large: %d entities exceeds maximum of %d", 
+		return fmt.Errorf("sync request too large: %d entities exceeds maximum of %d",
 			totalEntities, s.config.MaxEntitiesPerSync)
 	}
-	
+
 	// Validate individual entity type limits
 	entityLimits := map[string]int{
-		"carts": len(req.Carts),
-		"categories": len(req.Categories),
-		"products": len(req.Products),
-		"transactions": len(req.Transactions),
-		"payments": len(req.Payments),
-		"expenses": len(req.Expenses),
-		"receipts": len(req.Receipts),
-		"histories": len(req.Histories),
-		"shops": len(req.Shops),
-		"stock_histories": len(req.StockHistories),
+		"carts":                len(req.Carts),
+		"categories":           len(req.Categories),
+		"products":             len(req.Products),
+		"transactions":         len(req.Transactions),
+		"payments":             len(req.Payments),
+		"expenses":             len(req.Expenses),
+		"receipts":             len(req.Receipts),
+		"histories":            len(req.Histories),
+		"shops":                len(req.Shops),
+		"stock_histories":      len(req.StockHistories),
 		"transaction_products": len(req.TransactionProducts),
-		"users": len(req.Users),
+		"users":                len(req.Users),
 	}
-	
+
 	for entityType, count := range entityLimits {
 		if count > s.config.MaxEntitiesPerSync/2 { // No single entity type should exceed half the limit
-			return fmt.Errorf("%s count too large: %d exceeds maximum of %d", 
+			return fmt.Errorf("%s count too large: %d exceeds maximum of %d",
 				entityType, count, s.config.MaxEntitiesPerSync/2)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -326,18 +326,18 @@ func (s *SyncService) pushCarts(ctx context.Context, tx *gorm.DB, carts []entiti
 	if totalCarts == 0 {
 		return nil
 	}
-	
+
 	log.Printf("Processing %d carts in batches of %d", totalCarts, s.config.BatchSize)
-	
+
 	for i := 0; i < totalCarts; i += s.config.BatchSize {
 		end := i + s.config.BatchSize
 		if end > totalCarts {
 			end = totalCarts
 		}
-		
+
 		batch := carts[i:end]
 		log.Printf("Processing cart batch %d-%d of %d", i+1, end, totalCarts)
-		
+
 		// Process each cart in the batch
 		for _, cart := range batch {
 			if err := s.processSingleCart(ctx, tx, cart, licenseID, response); err != nil {
@@ -346,7 +346,7 @@ func (s *SyncService) pushCarts(ctx context.Context, tx *gorm.DB, carts []entiti
 				continue
 			}
 		}
-		
+
 		// Check context for cancellation between batches
 		select {
 		case <-ctx.Done():
@@ -354,7 +354,7 @@ func (s *SyncService) pushCarts(ctx context.Context, tx *gorm.DB, carts []entiti
 		default:
 		}
 	}
-	
+
 	return nil
 }
 
@@ -362,7 +362,7 @@ func (s *SyncService) pushCarts(ctx context.Context, tx *gorm.DB, carts []entiti
 func (s *SyncService) processSingleCart(ctx context.Context, tx *gorm.DB, cart entities.Cart, licenseID uuid.UUID, response *dto.SyncResponse) error {
 	// Validate cart belongs to license
 	if !s.validateCartLicense(ctx, cart, licenseID) {
-		s.addDetailedError(response, "carts", cart.ID, "unauthorized", "Cart does not belong to license", 
+		s.addDetailedError(response, "carts", cart.ID, "unauthorized", "Cart does not belong to license",
 			map[string]interface{}{"cart_shop_id": cart.ShopID, "license_id": licenseID})
 		return nil // Continue processing other entities
 	}
@@ -370,14 +370,14 @@ func (s *SyncService) processSingleCart(ctx context.Context, tx *gorm.DB, cart e
 	// Check if cart exists with retry
 	var existingCart *entities.Cart
 	var err error
-	
+
 	operation := func() error {
 		existingCart, err = s.findCartByID(ctx, tx, cart.ID)
 		return err
 	}
-	
+
 	if retryErr := s.retryOperation(ctx, operation, s.config.MaxRetries, s.config.BaseRetryDelay, fmt.Sprintf("find_cart_%s", cart.ID)); retryErr != nil {
-		s.addDetailedError(response, "carts", cart.ID, "database_error", retryErr.Error(), 
+		s.addDetailedError(response, "carts", cart.ID, "database_error", retryErr.Error(),
 			map[string]interface{}{"operation": "find", "retry_attempts": s.config.MaxRetries})
 		return nil // Continue processing other entities
 	}
@@ -387,9 +387,9 @@ func (s *SyncService) processSingleCart(ctx context.Context, tx *gorm.DB, cart e
 		createOperation := func() error {
 			return s.createCart(ctx, tx, cart)
 		}
-		
+
 		if err := s.retryOperation(ctx, createOperation, s.config.MaxRetries, s.config.BaseRetryDelay, fmt.Sprintf("create_cart_%s", cart.ID)); err != nil {
-			s.addDetailedError(response, "carts", cart.ID, "create_failed", err.Error(), 
+			s.addDetailedError(response, "carts", cart.ID, "create_failed", err.Error(),
 				map[string]interface{}{"operation": "create", "retry_attempts": s.config.MaxRetries})
 			return nil // Continue processing other entities
 		}
@@ -409,9 +409,9 @@ func (s *SyncService) processSingleCart(ctx context.Context, tx *gorm.DB, cart e
 		updateOperation := func() error {
 			return s.updateCart(ctx, tx, cart)
 		}
-		
+
 		if err := s.retryOperation(ctx, updateOperation, s.config.MaxRetries, s.config.BaseRetryDelay, fmt.Sprintf("update_cart_%s", cart.ID)); err != nil {
-			s.addDetailedError(response, "carts", cart.ID, "update_failed", err.Error(), 
+			s.addDetailedError(response, "carts", cart.ID, "update_failed", err.Error(),
 				map[string]interface{}{"operation": "update", "retry_attempts": s.config.MaxRetries})
 			return nil // Continue processing other entities
 		}
@@ -427,29 +427,29 @@ func (s *SyncService) pullCarts(ctx context.Context, tx *gorm.DB, lastSync time.
 	// Use optimized query with new composite indexes
 	// The idx_carts_shop_updated index will be used for efficient filtering
 	var carts []entities.Cart
-	
+
 	query := tx.WithContext(ctx).
 		Select("carts.*").
 		Table("carts").
 		Joins("INNER JOIN shops ON carts.shop_id = shops.id").
 		Where("shops.license_id = ? AND carts.updated_at > ?", licenseID, lastSync).
 		Order("carts.updated_at ASC") // Order by updated_at for consistent pagination
-	
+
 	// Add pagination to prevent memory issues with large datasets
 	maxResults := s.config.MaxResultsPerQuery
 	err := query.Limit(maxResults).Find(&carts).Error
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to query carts: %w", err)
 	}
-	
+
 	// Log query performance for monitoring
 	log.Printf("Retrieved %d carts for license %s since %v", len(carts), licenseID, lastSync)
-	
+
 	// If we hit the limit, log a warning about potential incomplete sync
 	if len(carts) == maxResults {
 		log.Printf("WARNING: Cart sync hit result limit (%d), some data may be missing. Consider using smaller sync intervals.", maxResults)
-		s.addError(response, "carts", uuid.Nil, "result_limit_reached", 
+		s.addError(response, "carts", uuid.Nil, "result_limit_reached",
 			fmt.Sprintf("Retrieved maximum %d carts. Some data may be missing due to result size limits.", maxResults))
 	}
 
@@ -1871,7 +1871,7 @@ func (s *SyncService) cleanupResponse(response *dto.SyncResponse) {
 		response.Conflicts[i].ServerData = s.cleanupEntityData(conflict.ServerData)
 		response.Conflicts[i].ClientData = s.cleanupEntityData(conflict.ClientData)
 	}
-	
+
 	// Remove empty slices - set to nil so omitempty works
 	if len(response.Carts) == 0 {
 		response.Carts = nil
@@ -1925,7 +1925,7 @@ func (s *SyncService) cleanupEntityData(data interface{}) interface{} {
 
 	// Convert to map for easier manipulation
 	dataMap := make(map[string]interface{})
-	
+
 	// Handle different entity types and create clean data
 	switch entity := data.(type) {
 	case entities.Category:
@@ -1935,7 +1935,7 @@ func (s *SyncService) cleanupEntityData(data interface{}) interface{} {
 		dataMap["created_at"] = entity.CreatedAt
 		dataMap["updated_at"] = entity.UpdatedAt
 		return dataMap
-		
+
 	case entities.Product:
 		dataMap["id"] = entity.ID
 		dataMap["shop_id"] = entity.ShopID
@@ -1952,7 +1952,7 @@ func (s *SyncService) cleanupEntityData(data interface{}) interface{} {
 		dataMap["created_at"] = entity.CreatedAt
 		dataMap["updated_at"] = entity.UpdatedAt
 		return dataMap
-		
+
 	case entities.Cart:
 		dataMap["id"] = entity.ID
 		dataMap["shop_id"] = entity.ShopID
@@ -1962,7 +1962,7 @@ func (s *SyncService) cleanupEntityData(data interface{}) interface{} {
 		dataMap["created_at"] = entity.CreatedAt
 		dataMap["updated_at"] = entity.UpdatedAt
 		return dataMap
-		
+
 	case entities.Transaction:
 		dataMap["id"] = entity.ID
 		dataMap["shop_id"] = entity.ShopID
@@ -1978,7 +1978,7 @@ func (s *SyncService) cleanupEntityData(data interface{}) interface{} {
 		dataMap["created_at"] = entity.CreatedAt
 		dataMap["updated_at"] = entity.UpdatedAt
 		return dataMap
-		
+
 	case entities.Payment:
 		dataMap["id"] = entity.ID
 		dataMap["shop_id"] = entity.ShopID
@@ -1991,35 +1991,35 @@ func (s *SyncService) cleanupEntityData(data interface{}) interface{} {
 		dataMap["created_at"] = entity.CreatedAt
 		dataMap["updated_at"] = entity.UpdatedAt
 		return dataMap
-		
+
 	case entities.Expense:
 		dataMap["id"] = entity.ID
 		dataMap["shop_id"] = entity.ShopID
 		dataMap["created_at"] = entity.CreatedAt
 		dataMap["updated_at"] = entity.UpdatedAt
 		return dataMap
-		
+
 	case entities.Receipt:
 		dataMap["id"] = entity.ID
 		dataMap["shop_id"] = entity.ShopID
 		dataMap["created_at"] = entity.CreatedAt
 		dataMap["updated_at"] = entity.UpdatedAt
 		return dataMap
-		
+
 	case entities.History:
 		dataMap["id"] = entity.ID
 		dataMap["shop_id"] = entity.ShopID
 		dataMap["created_at"] = entity.CreatedAt
 		dataMap["updated_at"] = entity.UpdatedAt
 		return dataMap
-		
+
 	case entities.StockHistory:
 		dataMap["id"] = entity.ID
 		dataMap["product_id"] = entity.ProductID
 		dataMap["created_at"] = entity.CreatedAt
 		dataMap["updated_at"] = entity.UpdatedAt
 		return dataMap
-		
+
 	case entities.TransactionProduct:
 		dataMap["id"] = entity.ID
 		dataMap["transaction_id"] = entity.TransactionID
@@ -2027,7 +2027,7 @@ func (s *SyncService) cleanupEntityData(data interface{}) interface{} {
 		dataMap["created_at"] = entity.CreatedAt
 		dataMap["updated_at"] = entity.UpdatedAt
 		return dataMap
-		
+
 	case entities.Shop:
 		dataMap["id"] = entity.ID
 		dataMap["license_id"] = entity.LicenseID
@@ -2037,7 +2037,7 @@ func (s *SyncService) cleanupEntityData(data interface{}) interface{} {
 		dataMap["created_at"] = entity.CreatedAt
 		dataMap["updated_at"] = entity.UpdatedAt
 		return dataMap
-		
+
 	case entities.User:
 		dataMap["id"] = entity.ID
 		if entity.LicenseID != nil {
@@ -2047,17 +2047,17 @@ func (s *SyncService) cleanupEntityData(data interface{}) interface{} {
 		dataMap["created_at"] = entity.CreatedAt
 		dataMap["updated_at"] = entity.UpdatedAt
 		return dataMap
-		
+
 	default:
 		// For unknown types, try to extract basic fields if it's a map
 		if entityMap, ok := data.(map[string]interface{}); ok {
 			cleanMap := make(map[string]interface{})
 			// Copy only non-nested fields
 			for key, value := range entityMap {
-				if key != "shop" && key != "product" && key != "user" && key != "category" && 
-				   key != "transaction" && key != "license" && key != "owner" && key != "cashier" &&
-				   key != "products" && key != "carts" && key != "transaction_products" && 
-				   key != "stock_histories" && key != "payments" && key != "receipts" && key != "histories" {
+				if key != "shop" && key != "product" && key != "user" && key != "category" &&
+					key != "transaction" && key != "license" && key != "owner" && key != "cashier" &&
+					key != "products" && key != "carts" && key != "transaction_products" &&
+					key != "stock_histories" && key != "payments" && key != "receipts" && key != "histories" {
 					cleanMap[key] = value
 				}
 			}
@@ -2075,75 +2075,75 @@ func (s *SyncService) retryOperation(ctx context.Context, operation func() error
 	var lastErr error
 
 	for attempt := 0; attempt <= maxRetries; attempt++ {
-	// Check context cancellation
-	select {
+		// Check context cancellation
+		select {
 		case <-ctx.Done():
-		return fmt.Errorf("operation cancelled: %w", ctx.Err())
+			return fmt.Errorf("operation cancelled: %w", ctx.Err())
 		default:
-	}
+		}
 
-	// Execute the operation
-	err := operation()
-	if err == nil {
-	// Success
-	if attempt > 0 {
-		log.Printf("Operation %s succeeded after %d retries", operationName, attempt)
-	}
-		return nil
-	}
+		// Execute the operation
+		err := operation()
+		if err == nil {
+			// Success
+			if attempt > 0 {
+				log.Printf("Operation %s succeeded after %d retries", operationName, attempt)
+			}
+			return nil
+		}
 
-	lastErr = err
+		lastErr = err
 
-	// Check if error is retryable
-	if !s.isRetryableError(err) {
-		log.Printf("Non-retryable error in operation %s: %v", operationName, err)
-		return err
-	}
+		// Check if error is retryable
+		if !s.isRetryableError(err) {
+			log.Printf("Non-retryable error in operation %s: %v", operationName, err)
+			return err
+		}
 
-	// Do not retry on the last attempt
-	if attempt == maxRetries {
-		break	
-	}
+		// Do not retry on the last attempt
+		if attempt == maxRetries {
+			break
+		}
 
-	// Calculate delay with exponential backoff
-	delay := baseDelay * time.Duration(1<<uint(attempt))
-	log.Printf("Operation %s failed (attempt %d/%d), retrying in %v: %v", 
-	operationName, attempt+1, maxRetries+1, delay, err)
+		// Calculate delay with exponential backoff
+		delay := baseDelay * time.Duration(1<<uint(attempt))
+		log.Printf("Operation %s failed (attempt %d/%d), retrying in %v: %v",
+			operationName, attempt+1, maxRetries+1, delay, err)
 
-	// Wait before retry
-	select {
+		// Wait before retry
+		select {
 		case <-ctx.Done():
-		return fmt.Errorf("operation cancelled during retry delay: %w", ctx.Err())
+			return fmt.Errorf("operation cancelled during retry delay: %w", ctx.Err())
 		case <-time.After(delay):
+		}
 	}
-}
 
 	return fmt.Errorf("operation %s failed after %d retries: %w", operationName, maxRetries+1, lastErr)
-	}
+}
 
-	// isRetryableError determines if an error is worth retrying
-	func (s *SyncService) isRetryableError(err error) bool {
-		if err == nil {
+// isRetryableError determines if an error is worth retrying
+func (s *SyncService) isRetryableError(err error) bool {
+	if err == nil {
 		return false
-		}
+	}
 
 	errStr := strings.ToLower(err.Error())
 
 	// Database connection and timeout errors are retryable
 	retryablePatterns := []string{
-	"connection refused",
-	"connection reset", 
-	"timeout",
-	"deadlock",
-	"database is locked",
-	"too many connections",
-	"server is shutting down",
-	"context deadline exceeded",
+		"connection refused",
+		"connection reset",
+		"timeout",
+		"deadlock",
+		"database is locked",
+		"too many connections",
+		"server is shutting down",
+		"context deadline exceeded",
 	}
 
 	for _, pattern := range retryablePatterns {
 		if strings.Contains(errStr, pattern) {
-		return true
+			return true
 		}
 	}
 
@@ -2158,28 +2158,28 @@ func (s *SyncService) addDetailedError(response *dto.SyncResponse, entityType st
 	}
 
 	syncError := dto.SyncError{
-	EntityType: entityType,
-	EntityID:   entityID,
-	ErrorCode:  errorCode,
-	Message:    message,
-	Details:    errorDetails,
+		EntityType: entityType,
+		EntityID:   entityID,
+		ErrorCode:  errorCode,
+		Message:    message,
+		Details:    errorDetails,
 	}
 
 	response.Errors = append(response.Errors, syncError)
-	log.Printf("Sync error - Type: %s, ID: %s, Code: %s, Message: %s, Details: %s", 
-	entityType, entityID, errorCode, message, errorDetails)
-	}
+	log.Printf("Sync error - Type: %s, ID: %s, Code: %s, Message: %s, Details: %s",
+		entityType, entityID, errorCode, message, errorDetails)
+}
 
-	// logPerformanceMetrics logs performance metrics for monitoring
-	func (s *SyncService) logPerformanceMetrics(entityType string, count int, duration time.Duration, operation string) {
+// logPerformanceMetrics logs performance metrics for monitoring
+func (s *SyncService) logPerformanceMetrics(entityType string, count int, duration time.Duration, operation string) {
 	rate := float64(count) / duration.Seconds()
-	log.Printf("Performance - %s %s: %d entities in %v (%.2f entities/sec)", 
-	operation, entityType, count, duration, rate)
+	log.Printf("Performance - %s %s: %d entities in %v (%.2f entities/sec)",
+		operation, entityType, count, duration, rate)
 
 	// Log warning if performance is below expected thresholds
 	minRatePerSecond := 10.0 // Expected minimum processing rate
 	if rate < minRatePerSecond && count > 10 {
-	log.Printf("WARNING: Low performance detected for %s %s: %.2f entities/sec (expected > %.2f)", 
-	operation, entityType, rate, minRatePerSecond)
+		log.Printf("WARNING: Low performance detected for %s %s: %.2f entities/sec (expected > %.2f)",
+			operation, entityType, rate, minRatePerSecond)
 	}
 }

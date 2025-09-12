@@ -9,19 +9,19 @@ import (
 
 // SyncRequest represents the complete sync request from mobile client
 type SyncRequest struct {
-	LastSyncTimestamp    *time.Time                    `json:"last_sync_timestamp"`
-	Carts                []entities.Cart               `json:"carts"`
-	Categories           []entities.Category           `json:"categories"`
-	Expenses             []entities.Expense            `json:"expenses"`
-	Histories            []entities.History            `json:"histories"`
-	Payments             []entities.Payment            `json:"payments"`
-	Products             []entities.Product            `json:"products"`
-	Receipts             []entities.Receipt            `json:"receipts"`
-	Shops                []entities.Shop               `json:"shops"`
-	StockHistories       []entities.StockHistory       `json:"stock_histories"`
-	TransactionProducts  []entities.TransactionProduct `json:"transaction_products"`
-	Transactions         []entities.Transaction        `json:"transactions"`
-	Users                []entities.User               `json:"users"`
+	LastSyncTimestamp   *time.Time                    `json:"last_sync_timestamp"`
+	Carts               []entities.Cart               `json:"carts"`
+	Categories          []entities.Category           `json:"categories"`
+	Expenses            []entities.Expense            `json:"expenses"`
+	Histories           []entities.History            `json:"histories"`
+	Payments            []entities.Payment            `json:"payments"`
+	Products            []entities.Product            `json:"products"`
+	Receipts            []entities.Receipt            `json:"receipts"`
+	Shops               []entities.Shop               `json:"shops"`
+	StockHistories      []entities.StockHistory       `json:"stock_histories"`
+	TransactionProducts []entities.TransactionProduct `json:"transaction_products"`
+	Transactions        []entities.Transaction        `json:"transactions"`
+	Users               []entities.User               `json:"users"`
 }
 
 // SyncResponse represents the sync response sent back to mobile client
@@ -57,11 +57,11 @@ type ConflictInfo struct {
 
 // CleanConflictData creates a clean version of conflict data without nested empty relations
 type CleanConflictData struct {
-	ID        uuid.UUID            `json:"id"`
-	Name      string               `json:"name,omitempty"`
-	ShopID    *uuid.UUID           `json:"shop_id,omitempty"`
-	CreatedAt time.Time            `json:"created_at"`
-	UpdatedAt time.Time            `json:"updated_at"`
+	ID        uuid.UUID              `json:"id"`
+	Name      string                 `json:"name,omitempty"`
+	ShopID    *uuid.UUID             `json:"shop_id,omitempty"`
+	CreatedAt time.Time              `json:"created_at"`
+	UpdatedAt time.Time              `json:"updated_at"`
 	Extra     map[string]interface{} `json:",inline"`
 }
 
@@ -118,16 +118,16 @@ const (
 
 // SyncJob represents an async sync job
 type SyncJob struct {
-	ID          uuid.UUID   `json:"id"`
-	UserID      uuid.UUID   `json:"user_id"`
-	LicenseID   uuid.UUID   `json:"license_id"`
-	Status      SyncStatus  `json:"status"`
-	Request     SyncRequest `json:"request"`
+	ID          uuid.UUID     `json:"id"`
+	UserID      uuid.UUID     `json:"user_id"`
+	LicenseID   uuid.UUID     `json:"license_id"`
+	Status      SyncStatus    `json:"status"`
+	Request     SyncRequest   `json:"request"`
 	Response    *SyncResponse `json:"response,omitempty"`
-	Error       *string     `json:"error,omitempty"`
-	CreatedAt   time.Time   `json:"created_at"`
-	StartedAt   *time.Time  `json:"started_at,omitempty"`
-	CompletedAt *time.Time  `json:"completed_at,omitempty"`
+	Error       *string       `json:"error,omitempty"`
+	CreatedAt   time.Time     `json:"created_at"`
+	StartedAt   *time.Time    `json:"started_at,omitempty"`
+	CompletedAt *time.Time    `json:"completed_at,omitempty"`
 }
 
 // SyncStatus represents the status of a sync job

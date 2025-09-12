@@ -51,11 +51,11 @@ func NewTransactionUseCase(
 
 // CreateTransactionRequest represents the request to create a transaction
 type CreateTransactionRequest struct {
-	ShopID       uuid.UUID              `json:"shop_id"`
-	CashierID    uuid.UUID              `json:"cashier_id"`
-	CustomerName string                 `json:"customer_name"`
+	ShopID       uuid.UUID               `json:"shop_id"`
+	CashierID    uuid.UUID               `json:"cashier_id"`
+	CustomerName string                  `json:"customer_name"`
 	Items        []CreateTransactionItem `json:"items"`
-	Discount     float64                `json:"discount"`
+	Discount     float64                 `json:"discount"`
 }
 
 // CreateTransactionItem represents an item in the transaction
@@ -75,8 +75,8 @@ type CreateTransactionResponse struct {
 type PayTransactionResponse struct {
 	Transaction *entities.Transaction `json:"transaction"`
 	Payment     *entities.Payment     `json:"payment"`
-	Change      float64              `json:"change"`
-	Success     bool                 `json:"success"`
+	Change      float64               `json:"change"`
+	Success     bool                  `json:"success"`
 }
 
 // CreateTransaction creates a new transaction with all pending records

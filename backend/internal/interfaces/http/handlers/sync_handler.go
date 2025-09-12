@@ -125,19 +125,19 @@ func (h *SyncHandler) validateSyncRequest(req *dto.SyncRequest) error {
 
 	// Validate entity limits
 	maxEntitiesPerType := 1000
-	
+
 	if len(req.Carts) > maxEntitiesPerType {
 		return fmt.Errorf("too many carts in sync request (max %d)", maxEntitiesPerType)
 	}
-	
+
 	if len(req.Categories) > maxEntitiesPerType {
 		return fmt.Errorf("too many categories in sync request (max %d)", maxEntitiesPerType)
 	}
-	
+
 	if len(req.Products) > maxEntitiesPerType {
 		return fmt.Errorf("too many products in sync request (max %d)", maxEntitiesPerType)
 	}
-	
+
 	if len(req.Transactions) > maxEntitiesPerType {
 		return fmt.Errorf("too many transactions in sync request (max %d)", maxEntitiesPerType)
 	}
@@ -174,7 +174,7 @@ func (h *SyncHandler) validateSyncRequest(req *dto.SyncRequest) error {
 func getSupportedEntities() []string {
 	return []string{
 		"carts",
-		"categories", 
+		"categories",
 		"expenses",
 		"histories",
 		"payments",

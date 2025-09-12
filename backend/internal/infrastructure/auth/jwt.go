@@ -24,7 +24,7 @@ type Claims struct {
 	Email    string     `json:"email"`
 	Username string     `json:"username"`
 	Name     string     `json:"name"`
-	Domain   string     `json:"domain,omitempty"` // tenant/shop domain
+	Domain   string     `json:"domain,omitempty"`  // tenant/shop domain
 	ShopID   *uuid.UUID `json:"shop_id,omitempty"` // assigned shop for cashiers
 	jwt.RegisteredClaims
 }

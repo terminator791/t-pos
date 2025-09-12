@@ -219,7 +219,7 @@ func SetupRoutes(
 				acl.DELETE("/policies", aclHandler.RemovePolicy)
 				acl.GET("/policies/system", aclHandler.GetSystemPolicies)
 
-				// Role assignment management  
+				// Role assignment management
 				acl.GET("/roles", aclHandler.GetAllRoles)
 				acl.GET("/roles/system", aclHandler.GetSystemRoles)
 				acl.GET("/users/:userId/roles", aclHandler.GetUserRoles)

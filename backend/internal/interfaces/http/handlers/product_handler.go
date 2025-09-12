@@ -18,30 +18,30 @@ import (
 
 // CreateProductRequest represents the request payload for creating a product
 type CreateProductRequest struct {
-	Name         string    `json:"name" binding:"required"`
-	Description  *string   `json:"description"`
-	Sale         float64   `json:"sale" binding:"required,gt=0"`
-	Buy          float64   `json:"buy" binding:"required,gt=0"`
-	Unit         *string   `json:"unit"`
-	PPN          *float64  `json:"ppn"`
-	Photo        *string   `json:"photo"`
-	CategoryID   *string   `json:"category_id"`
-	Barcode      *string   `json:"barcode"`
+	Name          string   `json:"name" binding:"required"`
+	Description   *string  `json:"description"`
+	Sale          float64  `json:"sale" binding:"required,gt=0"`
+	Buy           float64  `json:"buy" binding:"required,gt=0"`
+	Unit          *string  `json:"unit"`
+	PPN           *float64 `json:"ppn"`
+	Photo         *string  `json:"photo"`
+	CategoryID    *string  `json:"category_id"`
+	Barcode       *string  `json:"barcode"`
 	StockQuantity int      `json:"stock_quantity"`
-	ShopID       string    `json:"shop_id" binding:"required"`
+	ShopID        string   `json:"shop_id" binding:"required"`
 }
 
 // UpdateProductRequest represents the request payload for updating a product
 type UpdateProductRequest struct {
-	Name         *string   `json:"name"`
-	Description  *string   `json:"description"`
-	Sale         *float64  `json:"sale"`
-	Buy          *float64  `json:"buy"`
-	Unit         *string   `json:"unit"`
-	PPN          *float64  `json:"ppn"`
-	Photo        *string   `json:"photo"`
-	CategoryID   *string   `json:"category_id"`
-	Barcode      *string   `json:"barcode"`
+	Name          *string  `json:"name"`
+	Description   *string  `json:"description"`
+	Sale          *float64 `json:"sale"`
+	Buy           *float64 `json:"buy"`
+	Unit          *string  `json:"unit"`
+	PPN           *float64 `json:"ppn"`
+	Photo         *string  `json:"photo"`
+	CategoryID    *string  `json:"category_id"`
+	Barcode       *string  `json:"barcode"`
 	StockQuantity *int     `json:"stock_quantity"`
 }
 
@@ -257,7 +257,7 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 		// Generate unique filename
 		timestamp := time.Now().Unix()
 		filename := fmt.Sprintf("%d_%s", timestamp, filepath.Base(*req.Photo))
-		
+
 		// For now, just save the path. In a real scenario, you'd handle the actual file upload
 		relativePath := fmt.Sprintf("images/products/%s", filename)
 		photoPath = &relativePath
@@ -396,7 +396,7 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 			// Generate unique filename
 			timestamp := time.Now().Unix()
 			filename := fmt.Sprintf("%d_%s", timestamp, filepath.Base(*req.Photo))
-			
+
 			// For now, just save the path. In a real scenario, you'd handle the actual file upload
 			relativePath := fmt.Sprintf("images/products/%s", filename)
 			existingProduct.Photo = &relativePath

@@ -39,24 +39,24 @@ type JWTConfig struct {
 // SyncConfig holds configuration for sync optimization
 type SyncConfig struct {
 	// Batch processing configuration
-	BatchSize           int           `yaml:"batch_size" json:"batch_size"`
-	MaxEntitiesPerSync  int           `yaml:"max_entities_per_sync" json:"max_entities_per_sync"`
-	
+	BatchSize          int `yaml:"batch_size" json:"batch_size"`
+	MaxEntitiesPerSync int `yaml:"max_entities_per_sync" json:"max_entities_per_sync"`
+
 	// Transaction configuration
-	TransactionTimeout  time.Duration `yaml:"transaction_timeout" json:"transaction_timeout"`
-	MaxTransactionSize  int           `yaml:"max_transaction_size" json:"max_transaction_size"`
-	
+	TransactionTimeout time.Duration `yaml:"transaction_timeout" json:"transaction_timeout"`
+	MaxTransactionSize int           `yaml:"max_transaction_size" json:"max_transaction_size"`
+
 	// Retry configuration
-	MaxRetries          int           `yaml:"max_retries" json:"max_retries"`
-	BaseRetryDelay      time.Duration `yaml:"base_retry_delay" json:"base_retry_delay"`
-	
+	MaxRetries     int           `yaml:"max_retries" json:"max_retries"`
+	BaseRetryDelay time.Duration `yaml:"base_retry_delay" json:"base_retry_delay"`
+
 	// Performance monitoring
-	EnablePerformanceLog bool          `yaml:"enable_performance_log" json:"enable_performance_log"`
-	PerformanceThreshold float64       `yaml:"performance_threshold" json:"performance_threshold"`
-	
+	EnablePerformanceLog bool    `yaml:"enable_performance_log" json:"enable_performance_log"`
+	PerformanceThreshold float64 `yaml:"performance_threshold" json:"performance_threshold"`
+
 	// Query optimization
-	MaxResultsPerQuery  int           `yaml:"max_results_per_query" json:"max_results_per_query"`
-	QueryTimeout        time.Duration `yaml:"query_timeout" json:"query_timeout"`
+	MaxResultsPerQuery int           `yaml:"max_results_per_query" json:"max_results_per_query"`
+	QueryTimeout       time.Duration `yaml:"query_timeout" json:"query_timeout"`
 }
 
 // Load loads configuration from environment variables

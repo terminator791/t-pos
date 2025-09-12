@@ -25,10 +25,10 @@ func NewTransactionHandler(transactionUseCase *usecases.TransactionUseCase) *Tra
 
 // CreateTransactionRequest represents the request structure for creating a transaction
 type CreateTransactionRequest struct {
-	ShopID       *uuid.UUID                    `json:"shop_id,omitempty"` // Optional for owner business, ignored for cashiers
-	CustomerName string                        `json:"customer_name" binding:"required"`
+	ShopID       *uuid.UUID                     `json:"shop_id,omitempty"` // Optional for owner business, ignored for cashiers
+	CustomerName string                         `json:"customer_name" binding:"required"`
 	Items        []CreateTransactionItemRequest `json:"items" binding:"required"`
-	Discount     float64                       `json:"discount,omitempty"`
+	Discount     float64                        `json:"discount,omitempty"`
 }
 
 // CreateTransactionItemRequest represents an item in the transaction
@@ -68,7 +68,7 @@ func (h *TransactionHandler) CreateTransaction(c *gin.Context) {
 	// For owner business: can specify shop_id in request or use context
 	var shopID uuid.UUID
 	userShopID, hasShopContext := auth.GetUserShopIDFromContext(c)
-	
+
 	if hasShopContext && userShopID != nil {
 		// User has shop context (cashier), use it
 		shopID = *userShopID
@@ -236,7 +236,7 @@ func convertToUseCaseItems(items []CreateTransactionItemRequest) ([]usecases.Cre
 		if item.ProductID == uuid.Nil {
 			return nil, errors.New("invalid product ID: cannot be empty or zero UUID")
 		}
-		
+
 		result[i] = usecases.CreateTransactionItem{
 			ProductID: item.ProductID,
 			Quantity:  item.Quantity,

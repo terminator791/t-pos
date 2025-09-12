@@ -61,7 +61,7 @@ func (m *MockCartRepository) List(ctx context.Context, limit, offset int) ([]*en
 func TestSyncService_ProcessSync_EmptyRequest(t *testing.T) {
 	// Setup
 	mockCartRepo := new(MockCartRepository)
-	
+
 	// For this test, we'll create a minimal sync service with nil dependencies
 	// since we're testing an empty request
 	syncService := &SyncService{
@@ -82,11 +82,11 @@ func TestSyncService_ProcessSync_EmptyRequest(t *testing.T) {
 
 	// Note: This test would require a proper database transaction mock
 	// For now, we'll test the basic structure is working
-	
+
 	// The actual test would need a database mock, so let's validate the service creation
 	assert.NotNil(t, syncService)
 	assert.Equal(t, dto.LastWriteWins, syncService.conflictStrategy)
-	
+
 	// Verify test data is properly initialized
 	assert.NotEqual(t, uuid.Nil, licenseID)
 	assert.NotEqual(t, uuid.Nil, userID)
@@ -107,12 +107,12 @@ func TestConflictResolution(t *testing.T) {
 	// Test data - create two carts with different timestamps
 	now := time.Now()
 	olderTime := now.Add(-1 * time.Hour)
-	
+
 	existingCart := entities.Cart{
 		ID:        uuid.New(),
 		UpdatedAt: olderTime,
 	}
-	
+
 	incomingCart := entities.Cart{
 		ID:        existingCart.ID,
 		UpdatedAt: now,
@@ -120,7 +120,7 @@ func TestConflictResolution(t *testing.T) {
 
 	// Test conflict resolution
 	conflict := syncService.resolveCartConflict(existingCart, incomingCart)
-	
+
 	assert.NotNil(t, conflict)
 	assert.Equal(t, "cart", conflict.EntityType)
 	assert.Equal(t, existingCart.ID, conflict.EntityID)
@@ -135,14 +135,14 @@ func TestSyncService_ProductConflictResolution(t *testing.T) {
 
 	now := time.Now()
 	olderTime := now.Add(-1 * time.Hour)
-	
+
 	existingProduct := entities.Product{
 		ID:        uuid.New(),
 		UpdatedAt: now,
 		Name:      "Product A",
 		Sale:      100.0,
 	}
-	
+
 	incomingProduct := entities.Product{
 		ID:        existingProduct.ID,
 		UpdatedAt: olderTime,
@@ -152,7 +152,7 @@ func TestSyncService_ProductConflictResolution(t *testing.T) {
 
 	// Test conflict resolution
 	conflict := syncService.resolveProductConflict(existingProduct, incomingProduct)
-	
+
 	assert.NotNil(t, conflict)
 	assert.Equal(t, "product", conflict.EntityType)
 	assert.Equal(t, "server_wins", conflict.Resolution)
@@ -167,13 +167,13 @@ func TestSyncService_ProductConflictResolution_ClientWins(t *testing.T) {
 
 	now := time.Now()
 	newerTime := now.Add(1 * time.Hour)
-	
+
 	existingProduct := entities.Product{
 		ID:        uuid.New(),
 		UpdatedAt: now,
 		Name:      "Product A",
 	}
-	
+
 	incomingProduct := entities.Product{
 		ID:        existingProduct.ID,
 		UpdatedAt: newerTime,
@@ -181,7 +181,7 @@ func TestSyncService_ProductConflictResolution_ClientWins(t *testing.T) {
 	}
 
 	conflict := syncService.resolveProductConflict(existingProduct, incomingProduct)
-	
+
 	assert.NotNil(t, conflict)
 	assert.Equal(t, "client_wins", conflict.Resolution)
 	assert.Equal(t, "Client version is newer", conflict.Details)
@@ -193,19 +193,19 @@ func TestSyncService_ProductConflictResolution_NoConflict(t *testing.T) {
 	}
 
 	now := time.Now()
-	
+
 	existingProduct := entities.Product{
 		ID:        uuid.New(),
 		UpdatedAt: now,
 	}
-	
+
 	incomingProduct := entities.Product{
 		ID:        existingProduct.ID,
 		UpdatedAt: now,
 	}
 
 	conflict := syncService.resolveProductConflict(existingProduct, incomingProduct)
-	
+
 	assert.Nil(t, conflict, "Should not detect conflict when timestamps are equal")
 }
 
@@ -217,14 +217,14 @@ func TestSyncService_TransactionConflictResolution(t *testing.T) {
 
 	now := time.Now()
 	newerTime := now.Add(1 * time.Hour)
-	
+
 	existingTransaction := entities.Transaction{
 		ID:         uuid.New(),
 		UpdatedAt:  now,
 		TotalPrice: 100.0,
 		Status:     entities.TransactionStatusCompleted,
 	}
-	
+
 	incomingTransaction := entities.Transaction{
 		ID:         existingTransaction.ID,
 		UpdatedAt:  newerTime,
@@ -233,7 +233,7 @@ func TestSyncService_TransactionConflictResolution(t *testing.T) {
 	}
 
 	conflict := syncService.resolveTransactionConflict(existingTransaction, incomingTransaction)
-	
+
 	assert.NotNil(t, conflict)
 	assert.Equal(t, "transaction", conflict.EntityType)
 	assert.Equal(t, "server_wins", conflict.Resolution, "Server should always win with ServerWins strategy")
@@ -248,14 +248,14 @@ func TestSyncService_ExpenseConflictResolution(t *testing.T) {
 
 	now := time.Now()
 	olderTime := now.Add(-1 * time.Hour)
-	
+
 	existingExpense := entities.Expense{
 		ID:        uuid.New(),
 		UpdatedAt: now,
 		Nominal:   100.0,
 		Status:    entities.ExpenseStatusCompleted,
 	}
-	
+
 	incomingExpense := entities.Expense{
 		ID:        existingExpense.ID,
 		UpdatedAt: olderTime,
@@ -264,7 +264,7 @@ func TestSyncService_ExpenseConflictResolution(t *testing.T) {
 	}
 
 	conflict := syncService.resolveExpenseConflict(existingExpense, incomingExpense)
-	
+
 	assert.NotNil(t, conflict)
 	assert.Equal(t, "expense", conflict.EntityType)
 	assert.Equal(t, "client_wins", conflict.Resolution, "Client should always win with ClientWins strategy")
@@ -279,14 +279,14 @@ func TestSyncService_PaymentConflictResolution(t *testing.T) {
 
 	now := time.Now()
 	newerTime := now.Add(2 * time.Hour)
-	
+
 	existingPayment := entities.Payment{
 		ID:        uuid.New(),
 		UpdatedAt: now,
 		Total:     100.0,
 		Status:    entities.PaymentStatusCompleted,
 	}
-	
+
 	incomingPayment := entities.Payment{
 		ID:        existingPayment.ID,
 		UpdatedAt: newerTime,
@@ -295,7 +295,7 @@ func TestSyncService_PaymentConflictResolution(t *testing.T) {
 	}
 
 	conflict := syncService.resolvePaymentConflict(existingPayment, incomingPayment)
-	
+
 	assert.NotNil(t, conflict)
 	assert.Equal(t, "payment", conflict.EntityType)
 	assert.Equal(t, "client_wins", conflict.Resolution)
@@ -373,14 +373,14 @@ func TestSyncService_ReceiptConflictResolution(t *testing.T) {
 
 	now := time.Now()
 	newerTime := now.Add(1 * time.Hour)
-	
+
 	existingReceipt := entities.Receipt{
 		ID:         uuid.New(),
 		UpdatedAt:  now,
 		ShopID:     uuid.New(),
 		PaymentsID: uuid.New(),
 	}
-	
+
 	incomingReceipt := entities.Receipt{
 		ID:         existingReceipt.ID,
 		UpdatedAt:  newerTime,
@@ -389,7 +389,7 @@ func TestSyncService_ReceiptConflictResolution(t *testing.T) {
 	}
 
 	conflict := syncService.resolveReceiptConflict(existingReceipt, incomingReceipt)
-	
+
 	assert.NotNil(t, conflict)
 	assert.Equal(t, "receipt", conflict.EntityType)
 	assert.Equal(t, "client_wins", conflict.Resolution)
@@ -402,23 +402,23 @@ func TestSyncService_ReceiptConflictResolution_NoConflict(t *testing.T) {
 	}
 
 	now := time.Now()
-	
+
 	existingReceipt := entities.Receipt{
 		ID:        uuid.New(),
 		UpdatedAt: now,
 	}
-	
+
 	incomingReceipt := entities.Receipt{
 		ID:        existingReceipt.ID,
 		UpdatedAt: now,
 	}
 
 	conflict := syncService.resolveReceiptConflict(existingReceipt, incomingReceipt)
-	
+
 	assert.Nil(t, conflict, "Should not detect conflict when timestamps are equal")
 }
 
-// Test History sync helper methods  
+// Test History sync helper methods
 func TestSyncService_HistoryConflictResolution(t *testing.T) {
 	syncService := &SyncService{
 		conflictStrategy: dto.ServerWins,
@@ -426,14 +426,14 @@ func TestSyncService_HistoryConflictResolution(t *testing.T) {
 
 	now := time.Now()
 	newerTime := now.Add(1 * time.Hour)
-	
+
 	existingHistory := entities.History{
 		ID:            uuid.New(),
 		UpdatedAt:     now,
 		ShopID:        uuid.New(),
 		TransactionID: uuid.New(),
 	}
-	
+
 	incomingHistory := entities.History{
 		ID:            existingHistory.ID,
 		UpdatedAt:     newerTime,
@@ -442,7 +442,7 @@ func TestSyncService_HistoryConflictResolution(t *testing.T) {
 	}
 
 	conflict := syncService.resolveHistoryConflict(existingHistory, incomingHistory)
-	
+
 	assert.NotNil(t, conflict)
 	assert.Equal(t, "history", conflict.EntityType)
 	assert.Equal(t, "server_wins", conflict.Resolution)
@@ -457,7 +457,7 @@ func TestSyncService_ShopConflictResolution(t *testing.T) {
 
 	now := time.Now()
 	olderTime := now.Add(-1 * time.Hour)
-	
+
 	existingShop := entities.Shop{
 		ID:        uuid.New(),
 		UpdatedAt: now,
@@ -466,7 +466,7 @@ func TestSyncService_ShopConflictResolution(t *testing.T) {
 		UserID:    uuid.New(),
 		Domain:    "shop-a",
 	}
-	
+
 	incomingShop := entities.Shop{
 		ID:        existingShop.ID,
 		UpdatedAt: olderTime,
@@ -477,7 +477,7 @@ func TestSyncService_ShopConflictResolution(t *testing.T) {
 	}
 
 	conflict := syncService.resolveShopConflict(existingShop, incomingShop)
-	
+
 	assert.NotNil(t, conflict)
 	assert.Equal(t, "shop", conflict.EntityType)
 	assert.Equal(t, "server_wins", conflict.Resolution)
@@ -492,7 +492,7 @@ func TestSyncService_StockHistoryConflictResolution(t *testing.T) {
 
 	now := time.Now()
 	olderTime := now.Add(-1 * time.Hour)
-	
+
 	existingStockHistory := entities.StockHistory{
 		ID:        uuid.New(),
 		UpdatedAt: now,
@@ -501,7 +501,7 @@ func TestSyncService_StockHistoryConflictResolution(t *testing.T) {
 		LastStock: 80,
 		StockedAt: now,
 	}
-	
+
 	incomingStockHistory := entities.StockHistory{
 		ID:        existingStockHistory.ID,
 		UpdatedAt: olderTime,
@@ -512,7 +512,7 @@ func TestSyncService_StockHistoryConflictResolution(t *testing.T) {
 	}
 
 	conflict := syncService.resolveStockHistoryConflict(existingStockHistory, incomingStockHistory)
-	
+
 	assert.NotNil(t, conflict)
 	assert.Equal(t, "stock_history", conflict.EntityType)
 	assert.Equal(t, "client_wins", conflict.Resolution)
@@ -527,7 +527,7 @@ func TestSyncService_TransactionProductConflictResolution(t *testing.T) {
 
 	now := time.Now()
 	newerTime := now.Add(1 * time.Hour)
-	
+
 	existingTransactionProduct := entities.TransactionProduct{
 		ID:            uuid.New(),
 		UpdatedAt:     now,
@@ -537,7 +537,7 @@ func TestSyncService_TransactionProductConflictResolution(t *testing.T) {
 		UnitPrice:     50.0,
 		TotalPrice:    100.0,
 	}
-	
+
 	incomingTransactionProduct := entities.TransactionProduct{
 		ID:            existingTransactionProduct.ID,
 		UpdatedAt:     newerTime,
@@ -549,7 +549,7 @@ func TestSyncService_TransactionProductConflictResolution(t *testing.T) {
 	}
 
 	conflict := syncService.resolveTransactionProductConflict(existingTransactionProduct, incomingTransactionProduct)
-	
+
 	assert.NotNil(t, conflict)
 	assert.Equal(t, "transaction_product", conflict.EntityType)
 	assert.Equal(t, "client_wins", conflict.Resolution)
@@ -565,7 +565,7 @@ func TestSyncService_UserConflictResolution(t *testing.T) {
 	now := time.Now()
 	olderTime := now.Add(-1 * time.Hour)
 	licenseID := uuid.New()
-	
+
 	existingUser := entities.User{
 		ID:        uuid.New(),
 		UpdatedAt: now,
@@ -574,7 +574,7 @@ func TestSyncService_UserConflictResolution(t *testing.T) {
 		Username:  stringPtr("johndoe"),
 		Email:     stringPtr("john@example.com"),
 	}
-	
+
 	incomingUser := entities.User{
 		ID:        existingUser.ID,
 		UpdatedAt: olderTime,
@@ -585,7 +585,7 @@ func TestSyncService_UserConflictResolution(t *testing.T) {
 	}
 
 	conflict := syncService.resolveUserConflict(existingUser, incomingUser)
-	
+
 	assert.NotNil(t, conflict)
 	assert.Equal(t, "user", conflict.EntityType)
 	assert.Equal(t, "server_wins", conflict.Resolution)
@@ -599,13 +599,13 @@ func TestSyncService_UserConflictResolution_NoConflict(t *testing.T) {
 
 	now := time.Now()
 	licenseID := uuid.New()
-	
+
 	existingUser := entities.User{
 		ID:        uuid.New(),
 		UpdatedAt: now,
 		LicenseID: &licenseID,
 	}
-	
+
 	incomingUser := entities.User{
 		ID:        existingUser.ID,
 		UpdatedAt: now,
@@ -613,7 +613,7 @@ func TestSyncService_UserConflictResolution_NoConflict(t *testing.T) {
 	}
 
 	conflict := syncService.resolveUserConflict(existingUser, incomingUser)
-	
+
 	assert.Nil(t, conflict, "Should not detect conflict when timestamps are equal")
 }
 

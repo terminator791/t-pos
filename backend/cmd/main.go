@@ -108,7 +108,7 @@ func main() {
 	licenseService := services.NewLicenseService(licenseRepo, licenseLogRepo, userRepo, db)
 	customerService := services.NewCustomerService(userRepo, roleRepo, licenseRepo, db)
 	userManagementService := services.NewUserManagementService(userRepo, roleRepo, licenseRepo, db)
-	
+
 	// Initialize sync service
 	syncService := services.NewSyncService(
 		db,
@@ -155,12 +155,12 @@ func main() {
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		
+
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(200)
 			return
 		}
-		
+
 		c.Next()
 	})
 

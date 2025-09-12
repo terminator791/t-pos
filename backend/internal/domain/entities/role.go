@@ -19,21 +19,21 @@ type Role struct {
 	DeletedAt   gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Relationships
-	Policies  []Policy   `gorm:"foreignKey:RoleID" json:"policies,omitempty"`
+	Policies []Policy `gorm:"foreignKey:RoleID" json:"policies,omitempty"`
 }
 
 // Policy represents a Casbin policy entry
 type Policy struct {
-	ID       uuid.UUID      `gorm:"type:uuid;primary_key;default:uuid_generate_v4()" json:"id"`
-	RoleID   *uuid.UUID     `gorm:"type:uuid" json:"role_id"`
-	Subject  string         `gorm:"size:255;not null" json:"subject"` // role name or user id
-	Domain   string         `gorm:"size:255;not null" json:"domain"`  // tenant/shop domain
-	Object   string         `gorm:"size:255;not null" json:"object"`  // resource/endpoint
-	Action   string         `gorm:"size:100;not null" json:"action"`  // HTTP method or action
-	Effect   string         `gorm:"size:10;not null;default:'allow'" json:"effect"`
-	IsActive bool           `gorm:"default:true" json:"is_active"`
-	CreatedAt time.Time     `json:"created_at"`
-	UpdatedAt time.Time     `json:"updated_at"`
+	ID        uuid.UUID      `gorm:"type:uuid;primary_key;default:uuid_generate_v4()" json:"id"`
+	RoleID    *uuid.UUID     `gorm:"type:uuid" json:"role_id"`
+	Subject   string         `gorm:"size:255;not null" json:"subject"` // role name or user id
+	Domain    string         `gorm:"size:255;not null" json:"domain"`  // tenant/shop domain
+	Object    string         `gorm:"size:255;not null" json:"object"`  // resource/endpoint
+	Action    string         `gorm:"size:100;not null" json:"action"`  // HTTP method or action
+	Effect    string         `gorm:"size:10;not null;default:'allow'" json:"effect"`
+	IsActive  bool           `gorm:"default:true" json:"is_active"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Relationships

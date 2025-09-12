@@ -11,8 +11,8 @@ import (
 
 // AuthMiddleware handles JWT authentication
 type AuthMiddleware struct {
-	jwtService   *JWTService
-	userRepo     repositories.UserRepository
+	jwtService *JWTService
+	userRepo   repositories.UserRepository
 }
 
 // NewAuthMiddleware creates a new authentication middleware
