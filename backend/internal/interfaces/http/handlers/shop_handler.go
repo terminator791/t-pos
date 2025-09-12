@@ -7,17 +7,23 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/terminator791/t-pos/internal/domain/entities"
+	"github.com/terminator791/t-pos/internal/domain/repositories"
 	"github.com/terminator791/t-pos/internal/domain/usecases"
+	"github.com/terminator791/t-pos/internal/infrastructure/auth"
 	"github.com/terminator791/t-pos/pkg/response"
 )
 
 type ShopHandler struct {
 	shopUseCase *usecases.ShopUseCase
+	roleRepo    repositories.RoleRepository
+	shopRepo    repositories.ShopRepository
 }
 
-func NewShopHandler(shopUseCase *usecases.ShopUseCase) *ShopHandler {
+func NewShopHandler(shopUseCase *usecases.ShopUseCase, roleRepo repositories.RoleRepository, shopRepo repositories.ShopRepository) *ShopHandler {
 	return &ShopHandler{
 		shopUseCase: shopUseCase,
+		roleRepo:    roleRepo,
+		shopRepo:    shopRepo,
 	}
 }
 
@@ -94,7 +100,33 @@ func (h *ShopHandler) ListShops(c *gin.Context) {
 		return
 	}
 
-	shops, err := h.shopUseCase.ListShops(c.Request.Context(), limit, offset)
+	// Get domain access info to apply filtering
+	domainAccess, err := auth.GetUserDomainAccess(c, h.roleRepo, h.shopRepo)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to get user access info", err.Error())
+		return
+	}
+
+	var shops []*entities.Shop
+
+	// Apply domain-specific filtering
+	if domainAccess.HasGlobalAccess {
+		// Super admin and admin can see all shops
+		shops, err = h.shopUseCase.ListShops(c.Request.Context(), limit, offset)
+	} else {
+		// Filter by accessible shop/license IDs for tenant users
+		shopFilter := domainAccess.GetShopFilter()
+		licenseFilter := domainAccess.GetLicenseFilter()
+		
+		if len(shopFilter) == 0 && len(licenseFilter) == 0 {
+			// User has no accessible shops or licenses
+			shops = []*entities.Shop{}
+			err = nil
+		} else {
+			shops, err = h.shopUseCase.ListShopsFiltered(c.Request.Context(), shopFilter, licenseFilter, limit, offset)
+		}
+	}
+
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "Failed to retrieve shops", err.Error())
 		return

@@ -73,3 +73,33 @@ func (r *ShopRepositoryImpl) List(ctx context.Context, limit, offset int) ([]*en
 	err := r.db.WithContext(ctx).Limit(limit).Offset(offset).Find(&shops).Error
 	return shops, err
 }
+
+// GetByLicenseIDs retrieves shops by multiple license IDs
+func (r *ShopRepositoryImpl) GetByLicenseIDs(ctx context.Context, licenseIDs []uuid.UUID) ([]*entities.Shop, error) {
+	var shops []*entities.Shop
+	if len(licenseIDs) == 0 {
+		return shops, nil
+	}
+	err := r.db.WithContext(ctx).Where("license_id IN ?", licenseIDs).Find(&shops).Error
+	return shops, err
+}
+
+// ListByLicenseIDs retrieves a list of shops filtered by license IDs with pagination
+func (r *ShopRepositoryImpl) ListByLicenseIDs(ctx context.Context, licenseIDs []uuid.UUID, limit, offset int) ([]*entities.Shop, error) {
+	var shops []*entities.Shop
+	if len(licenseIDs) == 0 {
+		return shops, nil
+	}
+	err := r.db.WithContext(ctx).Where("license_id IN ?", licenseIDs).Limit(limit).Offset(offset).Find(&shops).Error
+	return shops, err
+}
+
+// ListByShopIDs retrieves a list of shops filtered by shop IDs with pagination
+func (r *ShopRepositoryImpl) ListByShopIDs(ctx context.Context, shopIDs []uuid.UUID, limit, offset int) ([]*entities.Shop, error) {
+	var shops []*entities.Shop
+	if len(shopIDs) == 0 {
+		return shops, nil
+	}
+	err := r.db.WithContext(ctx).Where("id IN ?", shopIDs).Limit(limit).Offset(offset).Find(&shops).Error
+	return shops, err
+}

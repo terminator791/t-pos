@@ -74,7 +74,7 @@ func main() {
 
 	// Initialize middleware
 	authMiddleware := auth.NewAuthMiddleware(jwtService, userRepo)
-	authzMiddleware := casbin.NewAuthzMiddleware(enforcerService, shopRepo, userRepo, roleRepo)
+	authzMiddleware := casbin.NewAuthzMiddleware(enforcerService, shopRepo, userRepo, roleRepo, transactionRepo, productRepo, categoryRepo)
 
 	// Note: Database seeding is now handled separately via `make seed` command
 	// This prevents unnecessary seeding operations on every application startup
@@ -114,7 +114,7 @@ func main() {
 	// Initialize handlers
 	authSeeder := seeders.NewAuthSeeder(roleRepo, policyRepo, enforcerService)  // Create auth seeder for auth handler
 	authHandler := handlers.NewAuthHandler(userRepo, userDomainRepo, roleRepo, licenseRepo, shopRepo, jwtService, passwordService, enforcerService, authSeeder)
-	productHandler := handlers.NewProductHandler(productUseCase)
+	productHandler := handlers.NewProductHandler(productUseCase, roleRepo, shopRepo)
 	checkoutHandler := handlers.NewCheckoutHandler(checkoutUseCase)
 	categoryHandler := handlers.NewCategoryHandler(categoryUseCase, roleRepo, shopRepo)
 	cartHandler := handlers.NewCartHandler(cartUseCase)
@@ -129,7 +129,7 @@ func main() {
 	userManagementHandler := handlers.NewUserManagementHandler(userManagementService)
 	roleHandler := handlers.NewRoleHandler(roleRepo)
 	aclHandler := handlers.NewACLHandler(enforcerService, roleRepo, policyRepo)
-	shopHandler := handlers.NewShopHandler(shopUseCase)
+	shopHandler := handlers.NewShopHandler(shopUseCase, roleRepo, shopRepo)
 	syncHandler := handlers.NewSyncHandler(syncService, userRepo)
 
 	// Initialize Gin router

@@ -16,19 +16,33 @@ import (
 
 // AuthzMiddleware handles authorization using Casbin
 type AuthzMiddleware struct {
-	enforcerService *EnforcerService
-	shopRepo        repositories.ShopRepository
-	userRepo        repositories.UserRepository
-	roleRepo        repositories.RoleRepository
+	enforcerService    *EnforcerService
+	shopRepo           repositories.ShopRepository
+	userRepo           repositories.UserRepository
+	roleRepo           repositories.RoleRepository
+	transactionRepo    repositories.TransactionRepository
+	productRepo        repositories.ProductRepository
+	categoryRepo       repositories.CategoryRepository
 }
 
 // NewAuthzMiddleware creates a new authorization middleware
-func NewAuthzMiddleware(enforcerService *EnforcerService, shopRepo repositories.ShopRepository, userRepo repositories.UserRepository, roleRepo repositories.RoleRepository) *AuthzMiddleware {
+func NewAuthzMiddleware(
+	enforcerService *EnforcerService, 
+	shopRepo repositories.ShopRepository, 
+	userRepo repositories.UserRepository, 
+	roleRepo repositories.RoleRepository,
+	transactionRepo repositories.TransactionRepository,
+	productRepo repositories.ProductRepository,
+	categoryRepo repositories.CategoryRepository,
+) *AuthzMiddleware {
 	return &AuthzMiddleware{
 		enforcerService: enforcerService,
 		shopRepo:        shopRepo,
 		userRepo:        userRepo,
 		roleRepo:        roleRepo,
+		transactionRepo: transactionRepo,
+		productRepo:     productRepo,
+		categoryRepo:    categoryRepo,
 	}
 }
 
@@ -410,44 +424,98 @@ func (m *AuthzMiddleware) ValidateResourceAccess(c *gin.Context, resourceID uuid
 		// For tenant-specific users, implement resource-specific validation
 		switch resourceType {
 		case "transaction":
-			// For transactions, we need to validate the transaction belongs to an accessible shop
+			// For transactions, validate the transaction belongs to an accessible shop
 			return m.validateTransactionAccess(c.Request.Context(), user, domain, resourceID)
 		case "shop":
 			// For shops, validate direct shop access
 			return m.ValidateShopAccess(c, resourceID)
+		case "product":
+			// For products, validate the product belongs to an accessible shop
+			return m.validateProductAccess(c.Request.Context(), user, domain, resourceID)
+		case "category":
+			// For categories, validate the category belongs to an accessible shop
+			return m.validateCategoryAccess(c.Request.Context(), user, domain, resourceID)
 		default:
-			// For other resource types, log and allow (can be extended as needed)
-			log.Printf("Resource access validation for %s:%s by user %s (domain: %s) - allowing access (validation not implemented)", 
-				resourceType, resourceID, user.ID, domain)
-			return nil
+			// For other resource types, use domain access info to validate
+			return m.validateGenericResourceAccess(c, user, domain, resourceID, resourceType)
 		}
 	}
 }
 
 // validateTransactionAccess validates if a user can access a specific transaction
 func (m *AuthzMiddleware) validateTransactionAccess(ctx context.Context, user *entities.User, domain string, transactionID uuid.UUID) error {
-	// For this implementation, we need to check the transaction's shop
-	// Since we don't have the transaction repository in middleware yet, 
-	// we'll implement a simpler approach by checking user permissions
-	
-	// If user has shop assignment (cashier), they can only access transactions from their shop
-	if user.ShopID != nil {
-		// For cashiers, we would need to query the transaction to check its shop_id
-		// For now, we'll allow access and log it for implementation
-		log.Printf("Transaction access validation needed for cashier %s accessing transaction %s", user.ID, transactionID)
-		// TODO: Implement transaction shop validation when transaction repository is available
-		return nil
+	// Get the transaction to check its shop
+	transaction, err := m.transactionRepo.GetByID(ctx, transactionID)
+	if err != nil {
+		return fmt.Errorf("transaction not found: %w", err)
 	}
 	
-	// For owner_business, they can access transactions from shops under their license
-	if user.LicenseID != nil && domain != "*" {
-		// Owner business users can access transactions from their license shops
-		log.Printf("Transaction access validation for owner business %s accessing transaction %s", user.ID, transactionID)
-		// TODO: Implement license-based transaction validation
-		return nil
+	// Use direct shop access validation logic
+	return m.validateShopAccessDirect(user, domain, transaction.ShopID)
+}
+
+// validateProductAccess validates if a user can access a specific product
+func (m *AuthzMiddleware) validateProductAccess(ctx context.Context, user *entities.User, domain string, productID uuid.UUID) error {
+	// Get the product to check its shop
+	product, err := m.productRepo.GetByID(ctx, productID)
+	if err != nil {
+		return fmt.Errorf("product not found: %w", err)
 	}
 	
-	// For other cases, allow access
+	// Use direct shop access validation logic
+	return m.validateShopAccessDirect(user, domain, product.ShopID)
+}
+
+// validateCategoryAccess validates if a user can access a specific category
+func (m *AuthzMiddleware) validateCategoryAccess(ctx context.Context, user *entities.User, domain string, categoryID uuid.UUID) error {
+	// Get the category to check its shop
+	category, err := m.categoryRepo.GetByID(ctx, categoryID)
+	if err != nil {
+		return fmt.Errorf("category not found: %w", err)
+	}
+	
+	// Use direct shop access validation logic
+	return m.validateShopAccessDirect(user, domain, category.ShopID)
+}
+
+// validateShopAccessDirect validates shop access without requiring gin context
+func (m *AuthzMiddleware) validateShopAccessDirect(user *entities.User, domain string, shopID uuid.UUID) error {
+	// Get shop details
+	shop, err := m.shopRepo.GetByID(context.Background(), shopID)
+	if err != nil {
+		return fmt.Errorf("shop not found: %w", err)
+	}
+
+	// Check access based on domain and user context
+	switch {
+	case domain == "*":
+		// Global access (super_admin, admin)
+		return nil
+	case user.LicenseID != nil && shop.LicenseID == *user.LicenseID:
+		// Owner business accessing shop under their license
+		return nil
+	case user.ShopID != nil && *user.ShopID == shopID:
+		// Cashier accessing their assigned shop
+		return nil
+	default:
+		return fmt.Errorf("user cannot access shop %s (user domain: %s, user license: %v, user shop: %v, shop license: %s)", 
+			shopID, domain, user.LicenseID, user.ShopID, shop.LicenseID)
+	}
+}
+
+// validateGenericResourceAccess validates access to other resource types using domain access info
+func (m *AuthzMiddleware) validateGenericResourceAccess(c *gin.Context, user *entities.User, domain string, resourceID uuid.UUID, resourceType string) error {
+	// Get domain access info for generic validation
+	domainAccess, err := auth.GetUserDomainAccess(c, m.roleRepo, m.shopRepo)
+	if err != nil {
+		return fmt.Errorf("failed to get domain access info: %w", err)
+	}
+	
+	// For now, log the access attempt and allow access
+	// This can be extended for specific resource types as needed
+	log.Printf("Generic resource access validation for %s:%s by user %s (role: %s, domain: %s) - allowing access", 
+		resourceType, resourceID, user.ID, domainAccess.Role, domain)
+	
 	return nil
 }
 
