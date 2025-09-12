@@ -155,6 +155,74 @@ export const useCategories = (shopId) => {
   });
 };
 
+export const useCategory = (id) => {
+  return useQuery({
+    queryKey: ["categories", id],
+    queryFn: async () => {
+      const response = await api.get(`/categories/${id}`);
+      return response.data;
+    },
+    enabled: !!id,
+  });
+};
+
+export const useCreateCategory = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (categoryData) => {
+      const response = await api.post("/categories", categoryData);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
+      toast.success("Category created successfully");
+    },
+    onError: (error) => {
+      const message =
+        error.response?.data?.message || "Failed to create category";
+      toast.error(message);
+    },
+  });
+};
+
+export const useUpdateCategory = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...categoryData }) => {
+      const response = await api.put(`/categories/${id}`, categoryData);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
+      toast.success("Category updated successfully");
+    },
+    onError: (error) => {
+      const message =
+        error.response?.data?.message || "Failed to update category";
+      toast.error(message);
+    },
+  });
+};
+
+export const useDeleteCategory = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (categoryId) => {
+      const response = await api.delete(`/categories/${categoryId}`);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
+      toast.success("Category deleted successfully");
+    },
+    onError: (error) => {
+      const message =
+        error.response?.data?.message || "Failed to delete category";
+      toast.error(message);
+    },
+  });
+};
+
 // Shops API (for product shop selection)
 export const useShops = (params = {}) => {
   return useQuery({
@@ -162,6 +230,74 @@ export const useShops = (params = {}) => {
     queryFn: async () => {
       const response = await api.get("/shops", { params });
       return response.data;
+    },
+  });
+};
+
+export const useShop = (id) => {
+  return useQuery({
+    queryKey: ["shops", id],
+    queryFn: async () => {
+      const response = await api.get(`/shops/${id}`);
+      return response.data;
+    },
+    enabled: !!id,
+  });
+};
+
+export const useCreateShop = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (shopData) => {
+      const response = await api.post("/shops", shopData);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["shops"] });
+      toast.success("Shop created successfully");
+    },
+    onError: (error) => {
+      const message =
+        error.response?.data?.message || "Failed to create shop";
+      toast.error(message);
+    },
+  });
+};
+
+export const useUpdateShop = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...shopData }) => {
+      const response = await api.put(`/shops/${id}`, shopData);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["shops"] });
+      toast.success("Shop updated successfully");
+    },
+    onError: (error) => {
+      const message =
+        error.response?.data?.message || "Failed to update shop";
+      toast.error(message);
+    },
+  });
+};
+
+export const useDeleteShop = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (shopId) => {
+      const response = await api.delete(`/shops/${shopId}`);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["shops"] });
+      toast.success("Shop deleted successfully");
+    },
+    onError: (error) => {
+      const message =
+        error.response?.data?.message || "Failed to delete shop";
+      toast.error(message);
     },
   });
 };
@@ -885,5 +1021,130 @@ export const useDeleteRole = () => {
       const message = error.response?.data?.message || "Failed to delete role";
       toast.error(message);
     },
+  });
+};
+
+// Transaction Histories API
+export const useTransactionHistories = (shopId, params = {}) => {
+  return useQuery({
+    queryKey: ["histories", shopId, params],
+    queryFn: async () => {
+      const endpoint = shopId ? `/histories/shop/${shopId}` : "/histories";
+      const response = await api.get(endpoint, { params });
+      return response.data;
+    },
+  });
+};
+
+export const useTransactionHistory = (id) => {
+  return useQuery({
+    queryKey: ["histories", id],
+    queryFn: async () => {
+      const response = await api.get(`/histories/${id}`);
+      return response.data;
+    },
+    enabled: !!id,
+  });
+};
+
+// Transactions API (for detailed transaction view)
+export const useTransactions = (shopId, params = {}) => {
+  return useQuery({
+    queryKey: ["transactions", shopId, params],
+    queryFn: async () => {
+      const endpoint = shopId ? `/transactions/shop/${shopId}` : "/transactions";
+      const response = await api.get(endpoint, { params });
+      return response.data;
+    },
+  });
+};
+
+export const useTransaction = (id) => {
+  return useQuery({
+    queryKey: ["transactions", id],
+    queryFn: async () => {
+      const response = await api.get(`/transactions/${id}`);
+      return response.data;
+    },
+    enabled: !!id,
+  });
+};
+
+export const useTodaysTransactions = (shopId) => {
+  return useQuery({
+    queryKey: ["transactions", "today", shopId],
+    queryFn: async () => {
+      const response = await api.get(`/transactions/shop/${shopId}/today`);
+      return response.data;
+    },
+    enabled: !!shopId,
+  });
+};
+
+export const useTransactionsByStatus = (shopId, status) => {
+  return useQuery({
+    queryKey: ["transactions", "shop", shopId, "status", status],
+    queryFn: async () => {
+      const response = await api.get(`/transactions/shop/${shopId}/status/${status}`);
+      return response.data;
+    },
+    enabled: !!shopId && !!status,
+  });
+};
+
+// Transaction Products API (for transaction details)
+export const useTransactionProducts = (transactionId) => {
+  return useQuery({
+    queryKey: ["transaction-products", transactionId],
+    queryFn: async () => {
+      const response = await api.get(`/transaction-products/transaction/${transactionId}`);
+      return response.data;
+    },
+    enabled: !!transactionId,
+  });
+};
+
+export const useTransactionProductsByShop = (shopId, params = {}) => {
+  return useQuery({
+    queryKey: ["transaction-products", "shop", shopId, params],
+    queryFn: async () => {
+      const response = await api.get(`/transaction-products/shop/${shopId}`, { params });
+      return response.data;
+    },
+    enabled: !!shopId,
+  });
+};
+
+// Payments API (for transaction payment details)
+export const usePayments = (shopId, params = {}) => {
+  return useQuery({
+    queryKey: ["payments", shopId, params],
+    queryFn: async () => {
+      const endpoint = shopId ? `/payments/shop/${shopId}` : "/payments";
+      const response = await api.get(endpoint, { params });
+      return response.data;
+    },
+  });
+};
+
+export const usePayment = (id) => {
+  return useQuery({
+    queryKey: ["payments", id],
+    queryFn: async () => {
+      const response = await api.get(`/payments/${id}`);
+      return response.data;
+    },
+    enabled: !!id,
+  });
+};
+
+export const usePaymentsByStatus = (shopId, status) => {
+  return useQuery({
+    queryKey: ["payments", "shop", shopId, "status", status],
+    queryFn: async () => {
+      const response = await api.get(`/payments/shop/${shopId}/status/${status}`);
+      return response.data;
+    },
+    enabled: !!shopId && !!status,
   });
 };

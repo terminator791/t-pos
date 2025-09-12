@@ -10,6 +10,16 @@ export const mainMenuItems = [
     link: "main/products",
   },
   {
+    title: "Categories",
+    icon: "ph:tag",
+    link: "main/categories",
+  },
+  {
+    title: "Shops",
+    icon: "ph:storefront",
+    link: "main/shops",
+  },
+  {
     title: "Licenses",
     icon: "ph:certificate",
     link: "main/licenses",
@@ -28,5 +38,10 @@ export const mainMenuItems = [
     title: "Role & Permission",
     icon: "ph:lock-key",
     link: "main/roles",
+  },
+  {
+    title: "Transaction Histories",
+    icon: "ph:clock-counter-clockwise",
+    link: "main/transaction-histories",
   },
 ];
