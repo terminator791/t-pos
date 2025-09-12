@@ -146,6 +146,7 @@ func runSeeder() error {
 		categoryRepo,
 		productRepo,
 		userDomainRepo,
+		policyRepo,
 		enforcerService,
 	)
 	if err := initialDataSeeder.SeedAll(); err != nil {

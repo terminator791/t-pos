@@ -74,6 +74,7 @@ type InitialDataSeeder struct {
 	categoryRepo    repositories.CategoryRepository
 	productRepo     repositories.ProductRepository
 	userDomainRepo  repositories.UserDomainRepository
+	policyRepo      repositories.PolicyRepository
 	enforcerService *casbin.EnforcerService
 }
 
@@ -86,6 +87,7 @@ func NewInitialDataSeeder(
 	categoryRepo repositories.CategoryRepository,
 	productRepo repositories.ProductRepository,
 	userDomainRepo repositories.UserDomainRepository,
+	policyRepo repositories.PolicyRepository,
 	enforcerService *casbin.EnforcerService,
 ) *InitialDataSeeder {
 	return &InitialDataSeeder{
@@ -96,6 +98,7 @@ func NewInitialDataSeeder(
 		categoryRepo:    categoryRepo,
 		productRepo:     productRepo,
 		userDomainRepo:  userDomainRepo,
+		policyRepo:      policyRepo,
 		enforcerService: enforcerService,
 	}
 }
@@ -1122,6 +1125,56 @@ func (s *InitialDataSeeder) SeedCasbinRules() error {
 	return nil
 }
 
+// SeedDomainSpecificPolicies creates domain-specific policies for tenant users
+func (s *InitialDataSeeder) SeedDomainSpecificPolicies() error {
+	log.Println("Creating domain-specific policies for tenant users...")
+	
+	// Create auth seeder with policy repository for domain-specific policy creation
+	authSeeder := NewAuthSeeder(s.roleRepo, s.policyRepo, s.enforcerService)
+	
+	// Assign policies for owner_business roles
+	if err := authSeeder.AssignPoliciesForRole("owner_business", "LIC-001-DEMO"); err != nil {
+		log.Printf("Failed to assign policies for owner_business LIC-001-DEMO: %v", err)
+		return err
+	}
+	log.Printf("✅ Assigned domain-specific policies for owner_business LIC-001-DEMO")
+	
+	if err := authSeeder.AssignPoliciesForRole("owner_business", "LIC-002-DEMO"); err != nil {
+		log.Printf("Failed to assign policies for owner_business LIC-002-DEMO: %v", err)
+		return err
+	}
+	log.Printf("✅ Assigned domain-specific policies for owner_business LIC-002-DEMO")
+	
+	// Get shop domains for cashier policies
+	shop1, err := s.shopRepo.GetByID(context.Background(), Shop1ID)
+	if err != nil {
+		log.Printf("Failed to get shop1: %v", err)
+		return err
+	}
+	
+	shop2, err := s.shopRepo.GetByID(context.Background(), Shop2ID)
+	if err != nil {
+		log.Printf("Failed to get shop2: %v", err)
+		return err
+	}
+	
+	// Assign policies for cashier roles in their shop domains
+	if err := authSeeder.AssignPoliciesForRole("cashier", shop1.Domain); err != nil {
+		log.Printf("Failed to assign policies for cashier %s: %v", shop1.Domain, err)
+		return err
+	}
+	log.Printf("✅ Assigned domain-specific policies for cashier in shop domain %s", shop1.Domain)
+	
+	if err := authSeeder.AssignPoliciesForRole("cashier", shop2.Domain); err != nil {
+		log.Printf("Failed to assign policies for cashier %s: %v", shop2.Domain, err)
+		return err
+	}
+	log.Printf("✅ Assigned domain-specific policies for cashier in shop domain %s", shop2.Domain)
+	
+	log.Println("Domain-specific policies creation completed successfully")
+	return nil
+}
+
 // SeedAll runs all initial data seeders
 func (s *InitialDataSeeder) SeedAll() error {
 	log.Println("Starting initial data seeding...")
@@ -1161,6 +1214,11 @@ func (s *InitialDataSeeder) SeedAll() error {
 	}
 
 	if err := s.SeedCasbinRules(); err != nil {
+		return err
+	}
+
+	// Add domain-specific policy creation for tenant users
+	if err := s.SeedDomainSpecificPolicies(); err != nil {
 		return err
 	}
 
