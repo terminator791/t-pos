@@ -118,8 +118,8 @@ func SetupRoutes(
 				transactions.GET("", transactionHandler.ListTransactions) // super admin and admin only
 				transactions.GET("/shop/:shopId", transactionHandler.ListTransactionsByShop)
 				transactions.GET("/shop/:shopId/status/:status", transactionHandler.ListTransactionsByShopAndStatus)
-				// Legacy routes
-				transactions.GET("/shop/:shopId/today", checkoutHandler.GetTodaysTransactions)
+				// Today's transactions
+				transactions.GET("/shop/:shopId/today", transactionHandler.GetTodaysTransactions)
 			}
 
 			// Expense routes
