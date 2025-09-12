@@ -26,22 +26,22 @@ type SyncRequest struct {
 
 // SyncResponse represents the sync response sent back to mobile client
 type SyncResponse struct {
-	SyncTimestamp       time.Time                     `json:"sync_timestamp"`
-	Carts               []entities.Cart               `json:"carts,omitempty"`
-	Categories          []entities.Category           `json:"categories,omitempty"`
-	Expenses            []entities.Expense            `json:"expenses,omitempty"`
-	Histories           []entities.History            `json:"histories,omitempty"`
-	Payments            []entities.Payment            `json:"payments,omitempty"`
-	Products            []entities.Product            `json:"products,omitempty"`
-	Receipts            []entities.Receipt            `json:"receipts,omitempty"`
-	Shops               []entities.Shop               `json:"shops,omitempty"`
-	StockHistories      []entities.StockHistory       `json:"stock_histories,omitempty"`
-	TransactionProducts []entities.TransactionProduct `json:"transaction_products,omitempty"`
-	Transactions        []entities.Transaction        `json:"transactions,omitempty"`
-	Users               []entities.User               `json:"users,omitempty"`
-	Conflicts           []ConflictInfo                `json:"conflicts,omitempty"`
-	Errors              []SyncError                   `json:"errors,omitempty"`
-	Stats               SyncStats                     `json:"stats"`
+	SyncTimestamp       time.Time                  `json:"sync_timestamp"`
+	Carts               []SyncCartDTO              `json:"carts,omitempty"`
+	Categories          []SyncCategoryDTO          `json:"categories,omitempty"`
+	Expenses            []SyncExpenseDTO           `json:"expenses,omitempty"`
+	Histories           []SyncHistoryDTO           `json:"histories,omitempty"`
+	Payments            []SyncPaymentDTO           `json:"payments,omitempty"`
+	Products            []SyncProductDTO           `json:"products,omitempty"`
+	Receipts            []SyncReceiptDTO           `json:"receipts,omitempty"`
+	Shops               []SyncShopDTO              `json:"shops,omitempty"`
+	StockHistories      []SyncStockHistoryDTO      `json:"stock_histories,omitempty"`
+	TransactionProducts []SyncTransactionProductDTO `json:"transaction_products,omitempty"`
+	Transactions        []SyncTransactionDTO       `json:"transactions,omitempty"`
+	Users               []SyncUserDTO              `json:"users,omitempty"`
+	Conflicts           []ConflictInfo             `json:"conflicts,omitempty"`
+	Errors              []SyncError                `json:"errors,omitempty"`
+	Stats               SyncStats                  `json:"stats"`
 }
 
 // ConflictInfo represents information about a data conflict during sync

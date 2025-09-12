@@ -180,6 +180,17 @@ func (s *AuthSeeder) SeedPolicies() error {
 		{"admin", "*", "/api/v1/roles/*", "GET"},
 		{"admin", "*", "/api/v1/roles/name/*", "GET"},
 
+		// shops
+		{"admin", "*", "/api/v1/shops", "GET"},
+		{"admin", "*", "/api/v1/shops/*", "GET"},
+		{"admin", "*", "/api/v1/shops", "POST"},
+		{"admin", "*", "/api/v1/shops/*", "PUT"},
+		{"admin", "*", "/api/v1/shops/*", "DELETE"},
+
+		// Sync
+		{"admin", "*", "/api/v1/sync", "POST"},
+		{"admin", "*", "/api/v1/sync/*", "GET"},
+
 		// ================== OWNER BUSINESS - License-based shop management ==================
 		// Products - Full CRUD within license domain
 		{"owner_business", "*", "/api/v1/products", "GET"},

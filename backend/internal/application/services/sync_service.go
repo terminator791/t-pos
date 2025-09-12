@@ -453,7 +453,8 @@ func (s *SyncService) pullCarts(ctx context.Context, tx *gorm.DB, lastSync time.
 			fmt.Sprintf("Retrieved maximum %d carts. Some data may be missing due to result size limits.", maxResults))
 	}
 
-	response.Carts = carts
+	// Map entities to DTOs to exclude relationship fields
+	response.Carts = dto.MapCartsToSyncDTOs(carts)
 	return nil
 }
 
@@ -632,9 +633,11 @@ func (s *SyncService) pushCategories(ctx context.Context, tx *gorm.DB, categorie
 
 func (s *SyncService) pullCategories(ctx context.Context, tx *gorm.DB, lastSync time.Time, licenseID uuid.UUID, response *dto.SyncResponse) error {
 	// Get all categories for the license that were updated after lastSync
+	// Select only the category fields without relations to avoid unnecessary data
 	var categories []entities.Category
 	err := tx.WithContext(ctx).
-		Select("categories.id", "categories.shop_id", "categories.name", "categories.created_at", "categories.updated_at").
+		Select("categories.*").
+		Table("categories").
 		Joins("JOIN shops ON categories.shop_id = shops.id").
 		Where("shops.license_id = ? AND categories.updated_at > ?", licenseID, lastSync).
 		Find(&categories).Error
@@ -643,7 +646,8 @@ func (s *SyncService) pullCategories(ctx context.Context, tx *gorm.DB, lastSync 
 		return fmt.Errorf("failed to query categories: %w", err)
 	}
 
-	response.Categories = categories
+	// Map entities to DTOs to exclude relationship fields
+	response.Categories = dto.MapCategoriesToSyncDTOs(categories)
 	return nil
 }
 
@@ -695,8 +699,11 @@ func (s *SyncService) pushProducts(ctx context.Context, tx *gorm.DB, products []
 
 func (s *SyncService) pullProducts(ctx context.Context, tx *gorm.DB, lastSync time.Time, licenseID uuid.UUID, response *dto.SyncResponse) error {
 	// Get all products for the license that were updated after lastSync
+	// Select only the product fields without relations to avoid unnecessary data
 	var products []entities.Product
 	err := tx.WithContext(ctx).
+		Select("products.*").
+		Table("products").
 		Joins("JOIN shops ON products.shop_id = shops.id").
 		Where("shops.license_id = ? AND products.updated_at > ?", licenseID, lastSync).
 		Find(&products).Error
@@ -705,7 +712,8 @@ func (s *SyncService) pullProducts(ctx context.Context, tx *gorm.DB, lastSync ti
 		return fmt.Errorf("failed to query products: %w", err)
 	}
 
-	response.Products = products
+	// Map entities to DTOs to exclude relationship fields
+	response.Products = dto.MapProductsToSyncDTOs(products)
 	return nil
 }
 
@@ -819,8 +827,11 @@ func (s *SyncService) pushTransactions(ctx context.Context, tx *gorm.DB, transac
 
 func (s *SyncService) pullTransactions(ctx context.Context, tx *gorm.DB, lastSync time.Time, licenseID uuid.UUID, response *dto.SyncResponse) error {
 	// Get all transactions for the license that were updated after lastSync
+	// Select only the transaction fields without relations to avoid unnecessary data
 	var transactions []entities.Transaction
 	err := tx.WithContext(ctx).
+		Select("transactions.*").
+		Table("transactions").
 		Joins("JOIN shops ON transactions.shop_id = shops.id").
 		Where("shops.license_id = ? AND transactions.updated_at > ?", licenseID, lastSync).
 		Find(&transactions).Error
@@ -829,7 +840,8 @@ func (s *SyncService) pullTransactions(ctx context.Context, tx *gorm.DB, lastSyn
 		return fmt.Errorf("failed to query transactions: %w", err)
 	}
 
-	response.Transactions = transactions
+	// Map entities to DTOs to exclude relationship fields
+	response.Transactions = dto.MapTransactionsToSyncDTOs(transactions)
 	return nil
 }
 
@@ -944,8 +956,11 @@ func (s *SyncService) pushExpenses(ctx context.Context, tx *gorm.DB, expenses []
 
 func (s *SyncService) pullExpenses(ctx context.Context, tx *gorm.DB, lastSync time.Time, licenseID uuid.UUID, response *dto.SyncResponse) error {
 	// Get all expenses for the license that were updated after lastSync
+	// Select only the expense fields without relations to avoid unnecessary data
 	var expenses []entities.Expense
 	err := tx.WithContext(ctx).
+		Select("expenses.*").
+		Table("expenses").
 		Joins("JOIN shops ON expenses.shop_id = shops.id").
 		Where("shops.license_id = ? AND expenses.updated_at > ?", licenseID, lastSync).
 		Find(&expenses).Error
@@ -954,7 +969,8 @@ func (s *SyncService) pullExpenses(ctx context.Context, tx *gorm.DB, lastSync ti
 		return fmt.Errorf("failed to query expenses: %w", err)
 	}
 
-	response.Expenses = expenses
+	// Map entities to DTOs to exclude relationship fields
+	response.Expenses = dto.MapExpensesToSyncDTOs(expenses)
 	return nil
 }
 
@@ -1069,8 +1085,11 @@ func (s *SyncService) pushPayments(ctx context.Context, tx *gorm.DB, payments []
 
 func (s *SyncService) pullPayments(ctx context.Context, tx *gorm.DB, lastSync time.Time, licenseID uuid.UUID, response *dto.SyncResponse) error {
 	// Get all payments for the license that were updated after lastSync
+	// Select only the payment fields without relations to avoid unnecessary data
 	var payments []entities.Payment
 	err := tx.WithContext(ctx).
+		Select("payments.*").
+		Table("payments").
 		Joins("JOIN shops ON payments.shop_id = shops.id").
 		Where("shops.license_id = ? AND payments.updated_at > ?", licenseID, lastSync).
 		Find(&payments).Error
@@ -1079,7 +1098,8 @@ func (s *SyncService) pullPayments(ctx context.Context, tx *gorm.DB, lastSync ti
 		return fmt.Errorf("failed to query payments: %w", err)
 	}
 
-	response.Payments = payments
+	// Map entities to DTOs to exclude relationship fields
+	response.Payments = dto.MapPaymentsToSyncDTOs(payments)
 	return nil
 }
 
@@ -1205,15 +1225,20 @@ func (s *SyncService) pushReceipts(ctx context.Context, tx *gorm.DB, receipts []
 }
 
 func (s *SyncService) pullReceipts(ctx context.Context, tx *gorm.DB, lastSync time.Time, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	// Select only the receipt fields without relations to avoid unnecessary data
 	var receipts []entities.Receipt
-	err := tx.Joins("JOIN shops ON receipts.shop_id = shops.id").
+	err := tx.WithContext(ctx).
+		Select("receipts.*").
+		Table("receipts").
+		Joins("JOIN shops ON receipts.shop_id = shops.id").
 		Where("shops.license_id = ? AND receipts.updated_at > ?", licenseID, lastSync).
 		Find(&receipts).Error
 	if err != nil {
 		return fmt.Errorf("failed to fetch receipts: %w", err)
 	}
 
-	response.Receipts = receipts
+	// Map entities to DTOs to exclude relationship fields
+	response.Receipts = dto.MapReceiptsToSyncDTOs(receipts)
 	return nil
 }
 
@@ -1323,15 +1348,20 @@ func (s *SyncService) pushHistories(ctx context.Context, tx *gorm.DB, histories 
 }
 
 func (s *SyncService) pullHistories(ctx context.Context, tx *gorm.DB, lastSync time.Time, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	// Select only the history fields without relations to avoid unnecessary data
 	var histories []entities.History
-	err := tx.Joins("JOIN shops ON histories.shop_id = shops.id").
+	err := tx.WithContext(ctx).
+		Select("histories.*").
+		Table("histories").
+		Joins("JOIN shops ON histories.shop_id = shops.id").
 		Where("shops.license_id = ? AND histories.updated_at > ?", licenseID, lastSync).
 		Find(&histories).Error
 	if err != nil {
 		return fmt.Errorf("failed to fetch histories: %w", err)
 	}
 
-	response.Histories = histories
+	// Map entities to DTOs to exclude relationship fields
+	response.Histories = dto.MapHistoriesToSyncDTOs(histories)
 	return nil
 }
 
@@ -1441,14 +1471,18 @@ func (s *SyncService) pushShops(ctx context.Context, tx *gorm.DB, shops []entiti
 }
 
 func (s *SyncService) pullShops(ctx context.Context, tx *gorm.DB, lastSync time.Time, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	// Select only the shop fields without relations to avoid unnecessary data
 	var shops []entities.Shop
-	err := tx.Where("license_id = ? AND updated_at > ?", licenseID, lastSync).
+	err := tx.WithContext(ctx).
+		Select("shops.*").
+		Where("license_id = ? AND updated_at > ?", licenseID, lastSync).
 		Find(&shops).Error
 	if err != nil {
 		return fmt.Errorf("failed to fetch shops: %w", err)
 	}
 
-	response.Shops = shops
+	// Map entities to DTOs to exclude relationship fields
+	response.Shops = dto.MapShopsToSyncDTOs(shops)
 	return nil
 }
 
@@ -1554,8 +1588,12 @@ func (s *SyncService) pushStockHistories(ctx context.Context, tx *gorm.DB, stock
 }
 
 func (s *SyncService) pullStockHistories(ctx context.Context, tx *gorm.DB, lastSync time.Time, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	// Select only the stock_history fields without relations to avoid unnecessary data
 	var stockHistories []entities.StockHistory
-	err := tx.Joins("JOIN products ON stock_histories.product_id = products.id").
+	err := tx.WithContext(ctx).
+		Select("stock_histories.*").
+		Table("stock_histories").
+		Joins("JOIN products ON stock_histories.product_id = products.id").
 		Joins("JOIN shops ON products.shop_id = shops.id").
 		Where("shops.license_id = ? AND stock_histories.updated_at > ?", licenseID, lastSync).
 		Find(&stockHistories).Error
@@ -1563,7 +1601,8 @@ func (s *SyncService) pullStockHistories(ctx context.Context, tx *gorm.DB, lastS
 		return fmt.Errorf("failed to fetch stock histories: %w", err)
 	}
 
-	response.StockHistories = stockHistories
+	// Map entities to DTOs to exclude relationship fields
+	response.StockHistories = dto.MapStockHistoriesToSyncDTOs(stockHistories)
 	return nil
 }
 
@@ -1674,8 +1713,12 @@ func (s *SyncService) pushTransactionProducts(ctx context.Context, tx *gorm.DB, 
 }
 
 func (s *SyncService) pullTransactionProducts(ctx context.Context, tx *gorm.DB, lastSync time.Time, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	// Select only the transaction_product fields without relations to avoid unnecessary data
 	var transactionProducts []entities.TransactionProduct
-	err := tx.Joins("JOIN transactions ON transaction_products.transaction_id = transactions.id").
+	err := tx.WithContext(ctx).
+		Select("transaction_products.*").
+		Table("transaction_products").
+		Joins("JOIN transactions ON transaction_products.transaction_id = transactions.id").
 		Joins("JOIN shops ON transactions.shop_id = shops.id").
 		Where("shops.license_id = ? AND transaction_products.updated_at > ?", licenseID, lastSync).
 		Find(&transactionProducts).Error
@@ -1683,7 +1726,8 @@ func (s *SyncService) pullTransactionProducts(ctx context.Context, tx *gorm.DB, 
 		return fmt.Errorf("failed to fetch transaction products: %w", err)
 	}
 
-	response.TransactionProducts = transactionProducts
+	// Map entities to DTOs to exclude relationship fields
+	response.TransactionProducts = dto.MapTransactionProductsToSyncDTOs(transactionProducts)
 	return nil
 }
 
@@ -1794,14 +1838,18 @@ func (s *SyncService) pushUsers(ctx context.Context, tx *gorm.DB, users []entiti
 }
 
 func (s *SyncService) pullUsers(ctx context.Context, tx *gorm.DB, lastSync time.Time, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	// Select only the user fields without relations to avoid unnecessary data
 	var users []entities.User
-	err := tx.Where("license_id = ? AND updated_at > ?", licenseID, lastSync).
+	err := tx.WithContext(ctx).
+		Select("users.*").
+		Where("license_id = ? AND updated_at > ?", licenseID, lastSync).
 		Find(&users).Error
 	if err != nil {
 		return fmt.Errorf("failed to fetch users: %w", err)
 	}
 
-	response.Users = users
+	// Map entities to DTOs to exclude relationship fields
+	response.Users = dto.MapUsersToSyncDTOs(users)
 	return nil
 }
 
