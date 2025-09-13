@@ -286,11 +286,11 @@ func (s *SyncService) pushChangesWithRoleAccess(ctx context.Context, tx *gorm.DB
 		}
 	}
 
-	if err := s.pushStockHistories(ctx, tx, filteredReq.StockHistories, syncContext.LicenseID, response); err != nil {
+	if err := s.pushStockHistories(ctx, tx, filteredReq.StockHistories, syncContext, response); err != nil {
 		return fmt.Errorf("failed to push stock histories: %w", err)
 	}
 
-	if err := s.pushTransactionProducts(ctx, tx, filteredReq.TransactionProducts, syncContext.LicenseID, response); err != nil {
+	if err := s.pushTransactionProducts(ctx, tx, filteredReq.TransactionProducts, syncContext, response); err != nil {
 		return fmt.Errorf("failed to push transaction products: %w", err)
 	}
 
@@ -427,15 +427,27 @@ func (s *SyncService) filterSyncRequestByRole(req dto.SyncRequest, syncContext d
 		}
 	}
 
-	// For cashiers, exclude shop and user entities entirely
+	// Filter shops based on role access
 	if syncContext.UserRole != "cashier" {
-		filteredReq.Shops = req.Shops
+		// For owner_business, only include shops from their license
+		// For super_admin/admin, include all shops (global access handled above)
+		if syncContext.UserRole == "owner_business" {
+			for _, shop := range req.Shops {
+				if shop.LicenseID == syncContext.LicenseID {
+					filteredReq.Shops = append(filteredReq.Shops, shop)
+				}
+			}
+		} else {
+			filteredReq.Shops = req.Shops // Global access users (already handled above)
+		}
 		filteredReq.Users = req.Users
 	}
 
-	// Filter stock histories and transaction products based on related entities
-	filteredReq.StockHistories = req.StockHistories // Will be validated during processing
-	filteredReq.TransactionProducts = req.TransactionProducts // Will be validated during processing
+	// CRITICAL FIX: Filter stock histories based on product shop access
+	filteredReq.StockHistories = s.filterStockHistoriesByShopAccess(req.StockHistories, accessibleShops, syncContext)
+
+	// CRITICAL FIX: Filter transaction products based on transaction/product shop access  
+	filteredReq.TransactionProducts = s.filterTransactionProductsByShopAccess(req.TransactionProducts, accessibleShops, syncContext)
 
 	return filteredReq
 }
@@ -1985,11 +1997,11 @@ func (s *SyncService) resolveShopConflict(existing, incoming entities.Shop) *dto
 }
 
 // StockHistory sync implementation
-func (s *SyncService) pushStockHistories(ctx context.Context, tx *gorm.DB, stockHistories []entities.StockHistory, licenseID uuid.UUID, response *dto.SyncResponse) error {
+func (s *SyncService) pushStockHistories(ctx context.Context, tx *gorm.DB, stockHistories []entities.StockHistory, syncContext dto.SyncContext, response *dto.SyncResponse) error {
 	for _, stockHistory := range stockHistories {
-		// Validate stock history belongs to license
-		if !s.validateStockHistoryLicense(ctx, stockHistory, licenseID) {
-			s.addError(response, "stock_histories", stockHistory.ID, "unauthorized", "Stock history does not belong to license")
+		// Enhanced validation: check both license and shop access
+		if !s.validateStockHistoryAccess(ctx, stockHistory, syncContext) {
+			s.addError(response, "stock_histories", stockHistory.ID, "unauthorized", "Stock history access denied for user role and shop")
 			continue
 		}
 
@@ -2054,6 +2066,118 @@ func (s *SyncService) validateStockHistoryLicense(ctx context.Context, stockHist
 	return err == nil && count > 0
 }
 
+// filterStockHistoriesByShopAccess filters stock histories based on accessible shops
+func (s *SyncService) filterStockHistoriesByShopAccess(stockHistories []entities.StockHistory, accessibleShops map[uuid.UUID]bool, syncContext dto.SyncContext) []entities.StockHistory {
+	if syncContext.HasGlobalAccess {
+		return stockHistories
+	}
+
+	var filtered []entities.StockHistory
+	for _, stockHistory := range stockHistories {
+		// Query to check if the product belongs to an accessible shop
+		var productShopID uuid.UUID
+		err := s.db.Model(&entities.Product{}).
+			Select("shop_id").
+			Where("id = ?", stockHistory.ProductID).
+			First(&productShopID).Error
+		
+		if err == nil && accessibleShops[productShopID] {
+			filtered = append(filtered, stockHistory)
+		}
+	}
+	
+	log.Printf("Filtered stock histories for user %s (role: %s): %d → %d", 
+		syncContext.UserID, syncContext.UserRole, len(stockHistories), len(filtered))
+	return filtered
+}
+
+// filterTransactionProductsByShopAccess filters transaction products based on accessible shops
+func (s *SyncService) filterTransactionProductsByShopAccess(transactionProducts []entities.TransactionProduct, accessibleShops map[uuid.UUID]bool, syncContext dto.SyncContext) []entities.TransactionProduct {
+	if syncContext.HasGlobalAccess {
+		return transactionProducts
+	}
+
+	var filtered []entities.TransactionProduct
+	for _, transactionProduct := range transactionProducts {
+		// Query to check if the transaction belongs to an accessible shop
+		var transactionShopID uuid.UUID
+		err := s.db.Model(&entities.Transaction{}).
+			Select("shop_id").
+			Where("id = ?", transactionProduct.TransactionID).
+			First(&transactionShopID).Error
+		
+		if err == nil && accessibleShops[transactionShopID] {
+			filtered = append(filtered, transactionProduct)
+		}
+	}
+	
+	log.Printf("Filtered transaction products for user %s (role: %s): %d → %d", 
+		syncContext.UserID, syncContext.UserRole, len(transactionProducts), len(filtered))
+	return filtered
+}
+
+// validateStockHistoryAccess validates stock history access based on user role and accessible shops
+func (s *SyncService) validateStockHistoryAccess(ctx context.Context, stockHistory entities.StockHistory, syncContext dto.SyncContext) bool {
+	// Global access users (super_admin/admin) can access all stock histories
+	if syncContext.HasGlobalAccess {
+		return true
+	}
+
+	// Get the product's shop ID
+	var productShopID uuid.UUID
+	err := s.db.Model(&entities.Product{}).
+		Select("shop_id").
+		Where("id = ?", stockHistory.ProductID).
+		First(&productShopID).Error
+	
+	if err != nil {
+		log.Printf("Failed to find product shop for stock history %s: %v", stockHistory.ID, err)
+		return false
+	}
+
+	// Check if the shop is accessible to the user
+	for _, accessibleShopID := range syncContext.AccessibleShopIDs {
+		if accessibleShopID == productShopID {
+			return true
+		}
+	}
+
+	log.Printf("Stock history %s denied: product shop %s not accessible to user %s", 
+		stockHistory.ID, productShopID, syncContext.UserID)
+	return false
+}
+
+// validateTransactionProductAccess validates transaction product access based on user role and accessible shops
+func (s *SyncService) validateTransactionProductAccess(ctx context.Context, transactionProduct entities.TransactionProduct, syncContext dto.SyncContext) bool {
+	// Global access users (super_admin/admin) can access all transaction products
+	if syncContext.HasGlobalAccess {
+		return true
+	}
+
+	// Get the transaction's shop ID
+	var transactionShopID uuid.UUID
+	err := s.db.Model(&entities.Transaction{}).
+		Select("shop_id").
+		Where("id = ?", transactionProduct.TransactionID).
+		First(&transactionShopID).Error
+	
+	if err != nil {
+		log.Printf("Failed to find transaction shop for transaction product %s: %v", transactionProduct.ID, err)
+		return false
+	}
+
+	// Check if the shop is accessible to the user
+	for _, accessibleShopID := range syncContext.AccessibleShopIDs {
+		if accessibleShopID == transactionShopID {
+			return true
+		}
+	}
+
+	log.Printf("Transaction product %s denied: transaction shop %s not accessible to user %s", 
+		transactionProduct.ID, transactionShopID, syncContext.UserID)
+	return false
+}
+
 func (s *SyncService) findStockHistoryByID(ctx context.Context, tx *gorm.DB, id uuid.UUID) (*entities.StockHistory, error) {
 	var stockHistory entities.StockHistory
 	err := tx.First(&stockHistory, "id = ?", id).Error
@@ -2110,11 +2234,11 @@ func (s *SyncService) resolveStockHistoryConflict(existing, incoming entities.St
 }
 
 // TransactionProduct sync implementation
-func (s *SyncService) pushTransactionProducts(ctx context.Context, tx *gorm.DB, transactionProducts []entities.TransactionProduct, licenseID uuid.UUID, response *dto.SyncResponse) error {
+func (s *SyncService) pushTransactionProducts(ctx context.Context, tx *gorm.DB, transactionProducts []entities.TransactionProduct, syncContext dto.SyncContext, response *dto.SyncResponse) error {
 	for _, transactionProduct := range transactionProducts {
-		// Validate transaction product belongs to license
-		if !s.validateTransactionProductLicense(ctx, transactionProduct, licenseID) {
-			s.addError(response, "transaction_products", transactionProduct.ID, "unauthorized", "Transaction product does not belong to license")
+		// Enhanced validation: check both license and shop access
+		if !s.validateTransactionProductAccess(ctx, transactionProduct, syncContext) {
+			s.addError(response, "transaction_products", transactionProduct.ID, "unauthorized", "Transaction product access denied for user role and shop")
 			continue
 		}
 
