@@ -201,7 +201,7 @@ func (m *AuthMiddleware) validateUserDomain(user *entities.User) (string, error)
 		
 		// Validate license exists and create domain from license serial
 		// For consistency with existing implementation, use license serial format
-		return fmt.Sprintf("LIC-%s", user.LicenseID.String()[:8]), nil
+		return fmt.Sprintf("%s", user.LicenseID.String()), nil
 		
 	case "cashier":
 		// Cashier users must have a shop assignment
