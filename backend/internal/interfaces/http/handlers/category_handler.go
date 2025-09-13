@@ -156,23 +156,27 @@ func (h *CategoryHandler) ListCategories(c *gin.Context) {
 		// Apply domain-specific filtering
 		if domainAccess.HasGlobalAccess {
 			// Super admin and admin can see all categories
-			categories, err = h.categoryUseCase.ListCategoriesForDTO(c.Request.Context(), limit, offset)
+			var listErr error
+			categories, listErr = h.categoryUseCase.ListCategoriesForDTO(c.Request.Context(), limit, offset)
+			if listErr != nil {
+				response.ErrorInternalServer(c, "Failed to retrieve categories", listErr.Error())
+				return
+			}
 		} else {
 			// Filter by accessible shop IDs for tenant users
 			shopFilter := domainAccess.GetShopFilter()
 			if len(shopFilter) == 0 {
 				// User has no accessible shops
 				categories = []*dto.CategoryListDTO{}
-				err = nil
 			} else {
-				categories, err = h.categoryUseCase.ListCategoriesFilteredForDTO(c.Request.Context(), shopFilter, limit, offset)
+				var listErr error
+				categories, listErr = h.categoryUseCase.ListCategoriesFilteredForDTO(c.Request.Context(), shopFilter, limit, offset)
+				if listErr != nil {
+					response.ErrorInternalServer(c, "Failed to retrieve categories", listErr.Error())
+					return
+				}
 			}
 		}
-	}
-
-	if err != nil {
-		response.ErrorInternalServer(c, "Failed to retrieve categories", err.Error())
-		return
 	}
 
 	response.SuccessOK(c, "Categories retrieved successfully", gin.H{

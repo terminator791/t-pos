@@ -560,7 +560,12 @@ func (h *ProductHandler) SearchProducts(c *gin.Context) {
 			return
 		}
 
-		products, err = h.productUseCase.SearchProducts(c.Request.Context(), query, shopID)
+		var searchErr error
+		products, searchErr = h.productUseCase.SearchProducts(c.Request.Context(), query, shopID)
+		if searchErr != nil {
+			response.ErrorInternalServer(c, "Failed to search products", searchErr.Error())
+			return
+		}
 	} else {
 		// Search across all accessible shops
 		if domainAccess.HasGlobalAccess {
@@ -572,16 +577,15 @@ func (h *ProductHandler) SearchProducts(c *gin.Context) {
 			if len(shopFilter) == 0 {
 				// User has no accessible shops
 				products = []*entities.Product{}
-				err = nil
 			} else {
-				products, err = h.productUseCase.SearchProductsFiltered(c.Request.Context(), query, shopFilter)
+				var searchErr error
+				products, searchErr = h.productUseCase.SearchProductsFiltered(c.Request.Context(), query, shopFilter)
+				if searchErr != nil {
+					response.ErrorInternalServer(c, "Failed to search products", searchErr.Error())
+					return
+				}
 			}
 		}
-	}
-
-	if err != nil {
-		response.ErrorInternalServer(c, "Failed to search products", err.Error())
-		return
 	}
 
 	data := gin.H{
@@ -623,7 +627,12 @@ func (h *ProductHandler) GetLowStockProducts(c *gin.Context) {
 			return
 		}
 
-		products, err = h.productUseCase.GetLowStockProducts(c.Request.Context(), shopID)
+		var lowStockErr error
+		products, lowStockErr = h.productUseCase.GetLowStockProducts(c.Request.Context(), shopID)
+		if lowStockErr != nil {
+			response.ErrorInternalServer(c, "Failed to get low stock products", lowStockErr.Error())
+			return
+		}
 	} else {
 		// Get low stock across all accessible shops
 		if domainAccess.HasGlobalAccess {
@@ -635,16 +644,15 @@ func (h *ProductHandler) GetLowStockProducts(c *gin.Context) {
 			if len(shopFilter) == 0 {
 				// User has no accessible shops
 				products = []*entities.Product{}
-				err = nil
 			} else {
-				products, err = h.productUseCase.GetLowStockProductsFiltered(c.Request.Context(), shopFilter)
+				var lowStockErr error
+				products, lowStockErr = h.productUseCase.GetLowStockProductsFiltered(c.Request.Context(), shopFilter)
+				if lowStockErr != nil {
+					response.ErrorInternalServer(c, "Failed to get low stock products", lowStockErr.Error())
+					return
+				}
 			}
 		}
-	}
-
-	if err != nil {
-		response.ErrorInternalServer(c, "Failed to get low stock products", err.Error())
-		return
 	}
 
 	data := gin.H{
