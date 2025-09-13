@@ -48,6 +48,22 @@ func (h *CartHandler) AddToCart(c *gin.Context) {
 		return
 	}
 
+	// Validate user has access to the shop before adding to cart
+	domainAccess, err := auth.GetUserDomainAccess(c, h.roleRepo, h.shopRepo)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to get user access info", err.Error())
+		return
+	}
+
+	if !domainAccess.CanAccessShop(req.ShopID) {
+		response.ErrorForbidden(c, "Cannot add product from this shop to cart", map[string]interface{}{
+			"shop_id": req.ShopID,
+			"user_id": domainAccess.UserID,
+			"role":    domainAccess.Role,
+		})
+		return
+	}
+
 	// Get user ID from context (set by auth middleware)
 	userIDValue, exists := c.Get("user_id")
 	if !exists {

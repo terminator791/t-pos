@@ -130,6 +130,22 @@ func (h *ProductHandler) CreateProductWithFile(c *gin.Context) {
 		return
 	}
 
+	// Validate user has access to the shop before creating product
+	domainAccess, err := auth.GetUserDomainAccess(c, h.roleRepo, h.shopRepo)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to get user access info", err.Error())
+		return
+	}
+
+	if !domainAccess.CanAccessShop(shopID) {
+		response.ErrorForbidden(c, "Cannot create product for this shop", map[string]interface{}{
+			"shop_id": shopID,
+			"user_id": domainAccess.UserID,
+			"role":    domainAccess.Role,
+		})
+		return
+	}
+
 	saleStr := c.PostForm("sale")
 	if saleStr == "" {
 		response.ErrorBadRequest(c, "Sale price is required", nil)
@@ -237,6 +253,22 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 	shopID, err := uuid.Parse(req.ShopID)
 	if err != nil {
 		response.ErrorBadRequest(c, "Invalid shop ID", err.Error())
+		return
+	}
+
+	// Validate user has access to the shop before creating product
+	domainAccess, err := auth.GetUserDomainAccess(c, h.roleRepo, h.shopRepo)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to get user access info", err.Error())
+		return
+	}
+
+	if !domainAccess.CanAccessShop(shopID) {
+		response.ErrorForbidden(c, "Cannot create product for this shop", map[string]interface{}{
+			"shop_id": shopID,
+			"user_id": domainAccess.UserID,
+			"role":    domainAccess.Role,
+		})
 		return
 	}
 

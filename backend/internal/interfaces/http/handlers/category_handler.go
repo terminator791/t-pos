@@ -48,12 +48,28 @@ func (h *CategoryHandler) CreateCategory(c *gin.Context) {
 		return
 	}
 
+	// Validate user has access to the shop before creating category
+	domainAccess, err := auth.GetUserDomainAccess(c, h.roleRepo, h.shopRepo)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to get user access info", err.Error())
+		return
+	}
+
+	if !domainAccess.CanAccessShop(req.ShopID) {
+		response.ErrorForbidden(c, "Cannot create category for this shop", map[string]interface{}{
+			"shop_id": req.ShopID,
+			"user_id": domainAccess.UserID,
+			"role":    domainAccess.Role,
+		})
+		return
+	}
+
 	category := &entities.Category{
 		ShopID: req.ShopID,
 		Name:   req.Name,
 	}
 
-	err := h.categoryUseCase.CreateCategory(c.Request.Context(), category)
+	err = h.categoryUseCase.CreateCategory(c.Request.Context(), category)
 	if err != nil {
 		response.ErrorBadRequest(c, "Failed to create category", err.Error())
 		return

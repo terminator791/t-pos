@@ -82,6 +82,22 @@ func (h *TransactionHandler) CreateTransaction(c *gin.Context) {
 		shopID = *userShopID
 	} else if req.ShopID != nil {
 		// No shop context but shop_id provided in request (owner business)
+		// Validate user has access to this shop before proceeding
+		domainAccess, err := auth.GetUserDomainAccess(c, h.roleRepo, h.shopRepo)
+		if err != nil {
+			response.ErrorInternalServer(c, "Failed to get user access info", err.Error())
+			return
+		}
+
+		if !domainAccess.CanAccessShop(*req.ShopID) {
+			response.ErrorForbidden(c, "Cannot create transaction for this shop", map[string]interface{}{
+				"shop_id": *req.ShopID,
+				"user_id": domainAccess.UserID,
+				"role":    domainAccess.Role,
+			})
+			return
+		}
+		
 		shopID = *req.ShopID
 	} else {
 		// No shop context and no shop_id in request

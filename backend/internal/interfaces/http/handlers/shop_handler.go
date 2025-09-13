@@ -45,6 +45,22 @@ func (h *ShopHandler) CreateShop(c *gin.Context) {
 		return
 	}
 
+	// Validate user has access to the license before creating shop
+	domainAccess, err := auth.GetUserDomainAccess(c, h.roleRepo, h.shopRepo)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to get user access info", err.Error())
+		return
+	}
+
+	if !domainAccess.CanAccessLicense(req.LicenseID) {
+		response.Error(c, http.StatusForbidden, "Cannot create shop for this license", map[string]interface{}{
+			"license_id": req.LicenseID,
+			"user_id":    domainAccess.UserID,
+			"role":       domainAccess.Role,
+		})
+		return
+	}
+
 	shop := &entities.Shop{
 		ID:              uuid.New(),
 		Name:            req.Name,
