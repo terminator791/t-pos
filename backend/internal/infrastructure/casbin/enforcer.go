@@ -187,3 +187,37 @@ func (e *EnforcerService) AddPoliciesForRole(role, domain string, permissions []
 
 	return nil
 }
+
+// AddGroupingPolicy adds a grouping policy (user-role assignment with domain)
+func (e *EnforcerService) AddGroupingPolicy(user, role, domain string) (bool, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	return e.enforcer.AddGroupingPolicy(user, role, domain)
+}
+
+// RemoveGroupingPolicy removes a grouping policy
+func (e *EnforcerService) RemoveGroupingPolicy(user, role, domain string) (bool, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	return e.enforcer.RemoveGroupingPolicy(user, role, domain)
+}
+
+// GetGroupingPolicy returns all grouping policies
+func (e *EnforcerService) GetGroupingPolicy() [][]string {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	policies, _ := e.enforcer.GetGroupingPolicy()
+	return policies
+}
+
+// GetPolicy returns all policies
+func (e *EnforcerService) GetPolicy() [][]string {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	policies, _ := e.enforcer.GetPolicy()
+	return policies
+}
