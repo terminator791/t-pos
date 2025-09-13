@@ -72,11 +72,17 @@ func (m *AuthzMiddleware) RequirePermission() gin.HandlerFunc {
 			return
 		}
 
-		// Get domain from context
-		domain, domainExists := auth.GetUserDomainFromContext(c)
+		// Get domain from JWT claims directly to ensure correct value
+		var domain string
+		claimsInterface, claimsExists := c.Get("claims")
+		if claimsExists {
+			if claims, ok := claimsInterface.(*auth.Claims); ok && claims.Domain != "" {
+				domain = claims.Domain
+			}
+		}
 		
 		// Enhanced domain validation with detailed error handling
-		if !domainExists || domain == "" {
+		if domain == "" {
 			// For tenant-specific users (owner_business, cashier), domain is required
 			// Only allow wildcard access for super_admin and admin roles
 			if user.RoleID != nil {
@@ -117,6 +123,9 @@ func (m *AuthzMiddleware) RequirePermission() gin.HandlerFunc {
 				c.Abort()
 				return
 			}
+		} else {
+			// Update context with the correct domain from JWT claims
+			c.Set("user_domain", domain)
 		}
 
 		// Get request details
@@ -181,8 +190,14 @@ func (m *AuthzMiddleware) RequireRole(role string) gin.HandlerFunc {
 			return
 		}
 
-		// Get domain from context
-		domain, _ := auth.GetUserDomainFromContext(c)
+		// Get domain from JWT claims directly
+		var domain string
+		claimsInterface, claimsExists := c.Get("claims")
+		if claimsExists {
+			if claims, ok := claimsInterface.(*auth.Claims); ok && claims.Domain != "" {
+				domain = claims.Domain
+			}
+		}
 		if domain == "" {
 			domain = "*" // Default domain
 		}
@@ -224,8 +239,14 @@ func (m *AuthzMiddleware) RequireAnyRole(roles ...string) gin.HandlerFunc {
 			return
 		}
 
-		// Get domain from context
-		domain, _ := auth.GetUserDomainFromContext(c)
+		// Get domain from JWT claims directly
+		var domain string
+		claimsInterface, claimsExists := c.Get("claims")
+		if claimsExists {
+			if claims, ok := claimsInterface.(*auth.Claims); ok && claims.Domain != "" {
+				domain = claims.Domain
+			}
+		}
 		if domain == "" {
 			domain = "*" // Default domain
 		}
@@ -274,8 +295,14 @@ func (m *AuthzMiddleware) ValidateShopAccess(c *gin.Context, shopID uuid.UUID) e
 		return fmt.Errorf("invalid user context")
 	}
 
-	// Get user domain to determine role and access level
-	domain, _ := auth.GetUserDomainFromContext(c)
+	// Get user domain from JWT claims directly
+	var domain string
+	claimsInterface, claimsExists := c.Get("claims")
+	if claimsExists {
+		if claims, ok := claimsInterface.(*auth.Claims); ok && claims.Domain != "" {
+			domain = claims.Domain
+		}
+	}
 	
 	// Get shop details
 	shop, err := m.shopRepo.GetByID(c.Request.Context(), shopID)
@@ -345,8 +372,14 @@ func (m *AuthzMiddleware) ValidateLicenseAccess(c *gin.Context, licenseID uuid.U
 		return fmt.Errorf("invalid user context")
 	}
 
-	// Get user domain to determine access level
-	domain, _ := auth.GetUserDomainFromContext(c)
+	// Get user domain from JWT claims directly
+	var domain string
+	claimsInterface, claimsExists := c.Get("claims")
+	if claimsExists {
+		if claims, ok := claimsInterface.(*auth.Claims); ok && claims.Domain != "" {
+			domain = claims.Domain
+		}
+	}
 	
 	// Check access based on domain and user context
 	switch {
@@ -441,8 +474,14 @@ func (m *AuthzMiddleware) ValidateResourceAccess(c *gin.Context, resourceID uuid
 		return fmt.Errorf("invalid user context")
 	}
 
-	// Get user domain to determine access level
-	domain, _ := auth.GetUserDomainFromContext(c)
+	// Get user domain from JWT claims directly
+	var domain string
+	claimsInterface, claimsExists := c.Get("claims")
+	if claimsExists {
+		if claims, ok := claimsInterface.(*auth.Claims); ok && claims.Domain != "" {
+			domain = claims.Domain
+		}
+	}
 	
 	switch {
 	case domain == "*":

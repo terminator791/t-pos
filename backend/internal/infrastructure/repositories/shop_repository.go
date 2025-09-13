@@ -26,7 +26,7 @@ func (r *ShopRepositoryImpl) Create(ctx context.Context, shop *entities.Shop) er
 // GetByID retrieves a shop by ID
 func (r *ShopRepositoryImpl) GetByID(ctx context.Context, id uuid.UUID) (*entities.Shop, error) {
 	var shop entities.Shop
-	err := r.db.WithContext(ctx).First(&shop, id).Error
+	err := r.db.WithContext(ctx).Preload("License").Preload("Owner").First(&shop, id).Error
 	if err != nil {
 		return nil, err
 	}
@@ -36,7 +36,7 @@ func (r *ShopRepositoryImpl) GetByID(ctx context.Context, id uuid.UUID) (*entiti
 // GetByLicenseID retrieves shops by license ID
 func (r *ShopRepositoryImpl) GetByLicenseID(ctx context.Context, licenseID uuid.UUID) ([]*entities.Shop, error) {
 	var shops []*entities.Shop
-	err := r.db.WithContext(ctx).Where("license_id = ?", licenseID).Find(&shops).Error
+	err := r.db.WithContext(ctx).Preload("License").Preload("Owner").Where("license_id = ?", licenseID).Find(&shops).Error
 	return shops, err
 }
 
@@ -53,7 +53,7 @@ func (r *ShopRepositoryImpl) GetFirstByLicenseID(ctx context.Context, licenseID 
 // GetByOwnerID retrieves shops by owner ID
 func (r *ShopRepositoryImpl) GetByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]*entities.Shop, error) {
 	var shops []*entities.Shop
-	err := r.db.WithContext(ctx).Where("user_id = ?", ownerID).Find(&shops).Error
+	err := r.db.WithContext(ctx).Preload("License").Preload("Owner").Where("user_id = ?", ownerID).Find(&shops).Error
 	return shops, err
 }
 
@@ -70,7 +70,7 @@ func (r *ShopRepositoryImpl) Delete(ctx context.Context, id uuid.UUID) error {
 // List retrieves a list of shops with pagination
 func (r *ShopRepositoryImpl) List(ctx context.Context, limit, offset int) ([]*entities.Shop, error) {
 	var shops []*entities.Shop
-	err := r.db.WithContext(ctx).Limit(limit).Offset(offset).Find(&shops).Error
+	err := r.db.WithContext(ctx).Preload("License").Preload("Owner").Limit(limit).Offset(offset).Find(&shops).Error
 	return shops, err
 }
 
@@ -90,7 +90,7 @@ func (r *ShopRepositoryImpl) ListByLicenseIDs(ctx context.Context, licenseIDs []
 	if len(licenseIDs) == 0 {
 		return shops, nil
 	}
-	err := r.db.WithContext(ctx).Where("license_id IN ?", licenseIDs).Limit(limit).Offset(offset).Find(&shops).Error
+	err := r.db.WithContext(ctx).Preload("License").Preload("Owner").Where("license_id IN ?", licenseIDs).Limit(limit).Offset(offset).Find(&shops).Error
 	return shops, err
 }
 
@@ -100,6 +100,6 @@ func (r *ShopRepositoryImpl) ListByShopIDs(ctx context.Context, shopIDs []uuid.U
 	if len(shopIDs) == 0 {
 		return shops, nil
 	}
-	err := r.db.WithContext(ctx).Where("id IN ?", shopIDs).Limit(limit).Offset(offset).Find(&shops).Error
+	err := r.db.WithContext(ctx).Preload("License").Preload("Owner").Where("id IN ?", shopIDs).Limit(limit).Offset(offset).Find(&shops).Error
 	return shops, err
 }

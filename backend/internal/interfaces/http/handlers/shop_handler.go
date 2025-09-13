@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/terminator791/t-pos/internal/domain/dto"
 	"github.com/terminator791/t-pos/internal/domain/entities"
 	"github.com/terminator791/t-pos/internal/domain/repositories"
 	"github.com/terminator791/t-pos/internal/domain/usecases"
@@ -78,7 +79,15 @@ func (h *ShopHandler) CreateShop(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, http.StatusCreated, "Shop created successfully", shop)
+	// Retrieve the created shop with relationships
+	createdShop, err := h.shopUseCase.GetShop(c.Request.Context(), shop.ID)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to retrieve created shop", err.Error())
+		return
+	}
+
+	shopResponse := dto.ToShopResponse(*createdShop)
+	c.JSON(http.StatusCreated, shopResponse)
 }
 
 // GetShop retrieves a shop by ID
@@ -96,7 +105,8 @@ func (h *ShopHandler) GetShop(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, http.StatusOK, "Shop retrieved successfully", shop)
+	shopResponse := dto.ToShopResponse(*shop)
+	c.JSON(http.StatusOK, shopResponse)
 }
 
 // ListShops retrieves a list of shops
@@ -148,10 +158,8 @@ func (h *ShopHandler) ListShops(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, http.StatusOK, "Shops retrieved successfully", gin.H{
-		"shops": shops,
-		"count": len(shops),
-	})
+	shopsResponse := dto.ToShopsListResponse(shops)
+	c.JSON(http.StatusOK, shopsResponse)
 }
 
 // UpdateShop updates an existing shop
@@ -209,7 +217,15 @@ func (h *ShopHandler) UpdateShop(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, http.StatusOK, "Shop updated successfully", existingShop)
+	// Retrieve the updated shop with relationships
+	updatedShop, err := h.shopUseCase.GetShop(c.Request.Context(), existingShop.ID)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to retrieve updated shop", err.Error())
+		return
+	}
+
+	shopResponse := dto.ToShopResponse(*updatedShop)
+	c.JSON(http.StatusOK, shopResponse)
 }
 
 // DeleteShop deletes a shop
@@ -244,10 +260,8 @@ func (h *ShopHandler) GetShopsByLicense(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, http.StatusOK, "Shops retrieved successfully", gin.H{
-		"shops": shops,
-		"count": len(shops),
-	})
+	shopsResponse := dto.ToShopsListResponse(shops)
+	c.JSON(http.StatusOK, shopsResponse)
 }
 
 // GetShopsByOwner retrieves shops by owner ID
@@ -265,8 +279,6 @@ func (h *ShopHandler) GetShopsByOwner(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, http.StatusOK, "Shops retrieved successfully", gin.H{
-		"shops": shops,
-		"count": len(shops),
-	})
+	shopsResponse := dto.ToShopsListResponse(shops)
+	c.JSON(http.StatusOK, shopsResponse)
 }

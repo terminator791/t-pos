@@ -58,6 +58,15 @@ type CategoryListDTO struct {
 	Shop      *ShopListDTO `json:"shop,omitempty"`
 }
 
+// CategoryResponseDTO represents a category for API responses without nested relationships
+type CategoryResponseDTO struct {
+	ID        uuid.UUID `json:"id"`
+	ShopID    uuid.UUID `json:"shop_id"`
+	Name      string    `json:"name"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 // ProductToListDTO converts a Product entity to ProductListDTO
 func ProductToListDTO(product *entities.Product) *ProductListDTO {
 	dto := &ProductListDTO{
@@ -158,4 +167,15 @@ func CategoriesToListDTO(categories []*entities.Category) []*CategoryListDTO {
 		dtos[i] = CategoryToListDTO(category)
 	}
 	return dtos
+}
+
+// CategoryToResponseDTO converts a Category entity to CategoryResponseDTO
+func CategoryToResponseDTO(category *entities.Category) *CategoryResponseDTO {
+	return &CategoryResponseDTO{
+		ID:        category.ID,
+		ShopID:    category.ShopID,
+		Name:      category.Name,
+		CreatedAt: category.CreatedAt,
+		UpdatedAt: category.UpdatedAt,
+	}
 }

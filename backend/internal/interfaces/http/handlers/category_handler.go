@@ -75,7 +75,9 @@ func (h *CategoryHandler) CreateCategory(c *gin.Context) {
 		return
 	}
 
-	response.SuccessCreated(c, "Category created successfully", category)
+	// Return only category data without nested relationships
+	categoryResponse := dto.CategoryToResponseDTO(category)
+	response.SuccessCreated(c, "Category created successfully", categoryResponse)
 }
 
 // GetCategory handles GET /categories/:id

@@ -821,10 +821,23 @@ func (h *AuthHandler) GetPermissions(c *gin.Context) {
 		return
 	}
 
-	domain, _ := auth.GetUserDomainFromContext(c)
-	if domain == "" {
-		domain = "*"
-	}
+	// Retrieve claims directly from context to get the domain
+    claimsInterface, exists := c.Get("claims")
+    if !exists {
+        response.ErrorUnauthorized(c, "No valid token found", nil)
+        return
+    }
+
+    claims, ok := claimsInterface.(*auth.Claims)
+    if !ok {
+        response.ErrorUnauthorized(c, "Invalid token claims", nil)
+        return
+    }
+
+    domain := claims.Domain
+    if domain == "" {
+        domain = "*"
+    }
 
 	// Get user
 	user, err := h.userRepo.GetByID(context.Background(), userID)
