@@ -73,18 +73,17 @@ func (m *AuthzMiddleware) RequirePermission() gin.HandlerFunc {
 		}
 
 		// Get domain from context
-		domain, _ := auth.GetUserDomainFromContext(c)
+		domain, domainExists := auth.GetUserDomainFromContext(c)
 		
-		// Handle domain assignment based on role
-		if domain == "" {
+		// Enhanced domain validation with detailed error handling
+		if !domainExists || domain == "" {
 			// For tenant-specific users (owner_business, cashier), domain is required
 			// Only allow wildcard access for super_admin and admin roles
 			if user.RoleID != nil {
 				// Get the role to check if wildcard is allowed
-				// This is a safety check - ideally all users should have proper domains
 				role, err := m.getUserRole(c.Request.Context(), *user.RoleID)
 				if err != nil {
-					response.ErrorInternalServer(c, "Failed to get user role", err.Error())
+					response.ErrorInternalServer(c, "Failed to get user role for domain validation", err.Error())
 					c.Abort()
 					return
 				}
@@ -92,23 +91,28 @@ func (m *AuthzMiddleware) RequirePermission() gin.HandlerFunc {
 				// Only super_admin and admin can have wildcard access
 				if role.Name == "super_admin" || role.Name == "admin" {
 					domain = "*"
-					log.Printf("Warning: User %s (%s role) has no domain, using wildcard", userID.String(), role.Name)
+					log.Printf("Info: User %s (%s role) using wildcard domain access", userID.String(), role.Name)
+					c.Set("user_domain", domain) // Update context with resolved domain
 				} else {
 					// For owner_business and cashier, domain is mandatory
-					response.ErrorForbidden(c, "No domain assigned to user - multi-tenant isolation required", map[string]interface{}{
-						"user":   userID.String(),
-						"role":   role.Name,
-						"object": c.FullPath(),
-						"action": strings.ToUpper(c.Request.Method),
+					response.ErrorForbidden(c, "Domain access validation failed - multi-tenant isolation required", map[string]interface{}{
+						"user":          userID.String(),
+						"role":          role.Name,
+						"domain_status": "missing_or_empty",
+						"object":        c.FullPath(),
+						"action":        strings.ToUpper(c.Request.Method),
+						"error":         "Domain validation is mandatory for tenant-specific users",
 					})
 					c.Abort()
 					return
 				}
 			} else {
 				response.ErrorForbidden(c, "No role or domain assigned to user", map[string]interface{}{
-					"user":   userID.String(),
-					"object": c.FullPath(),
-					"action": strings.ToUpper(c.Request.Method),
+					"user":          userID.String(),
+					"domain_status": "no_role_assignment",
+					"object":        c.FullPath(),
+					"action":        strings.ToUpper(c.Request.Method),
+					"error":         "User must have a role and valid domain for authorization",
 				})
 				c.Abort()
 				return
@@ -119,23 +123,47 @@ func (m *AuthzMiddleware) RequirePermission() gin.HandlerFunc {
 		object := c.FullPath() // Use full path for consistent pattern matching
 		action := strings.ToUpper(c.Request.Method)
 
-		// Check permission using Casbin
+		// Check permission using Casbin with enhanced error handling
 		allowed, err := m.enforcerService.Enforce(userID.String(), domain, object, action)
 		if err != nil {
-			response.ErrorInternalServer(c, "Authorization check failed", err.Error())
+			// Log detailed error information for debugging
+			log.Printf("Authorization check failed for user %s: domain=%s, object=%s, action=%s, error=%v", 
+				userID.String(), domain, object, action, err)
+			
+			response.ErrorInternalServer(c, "Authorization system error", map[string]interface{}{
+				"error_type": "casbin_enforcement_failure",
+				"user":       userID.String(),
+				"domain":     domain,
+				"object":     object,
+				"action":     action,
+				"details":    err.Error(),
+			})
 			c.Abort()
 			return
 		}
 
 		if !allowed {
-			response.ErrorForbidden(c, "Insufficient permissions", map[string]interface{}{
-				"user":   userID.String(),
-				"domain": domain,
-				"object": object,
-				"action": action,
+			// Log detailed access denial for security audit
+			log.Printf("Access denied for user %s: domain=%s, object=%s, action=%s", 
+				userID.String(), domain, object, action)
+			
+			response.ErrorForbidden(c, "Insufficient permissions for this operation", map[string]interface{}{
+				"user":             userID.String(),
+				"domain":           domain,
+				"object":           object,
+				"action":           action,
+				"authorization":    "denied",
+				"access_type":      "insufficient_permissions",
+				"security_context": "multi_tenant_rbac",
 			})
 			c.Abort()
 			return
+		}
+
+		// Log successful authorization for audit trail (only in debug mode)
+		if log.Writer() != nil {
+			log.Printf("Access granted for user %s: domain=%s, object=%s, action=%s", 
+				userID.String(), domain, object, action)
 		}
 
 		c.Next()

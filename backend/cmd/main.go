@@ -72,8 +72,14 @@ func main() {
 		log.Fatal("Failed to initialize Casbin enforcer:", err)
 	}
 
+	// Validate policy integrity at startup
+	if err := enforcerService.ValidatePolicyIntegrity(); err != nil {
+		log.Printf("Warning: Policy integrity validation failed: %v", err)
+		log.Println("Note: Run 'make seed' to ensure proper policy seeding")
+	}
+
 	// Initialize middleware
-	authMiddleware := auth.NewAuthMiddleware(jwtService, userRepo)
+	authMiddleware := auth.NewAuthMiddleware(jwtService, userRepo, roleRepo, shopRepo)
 	authzMiddleware := casbin.NewAuthzMiddleware(enforcerService, shopRepo, userRepo, roleRepo, transactionRepo, productRepo, categoryRepo)
 
 	// Note: Database seeding is now handled separately via `make seed` command

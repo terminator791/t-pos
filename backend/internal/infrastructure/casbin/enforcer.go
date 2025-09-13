@@ -54,15 +54,23 @@ func NewEnforcerService(db *gorm.DB, modelPath string) (*EnforcerService, error)
 			return
 		}
 
-		// Enable auto-save
+		// Enable auto-save for real-time policy updates
 		enforcer.EnableAutoSave(true)
+		
+		// Enable logging for policy operations
+		enforcer.EnableLog(true)
 
 		enforcerInstance = &EnforcerService{
 			enforcer: enforcer,
 			adapter:  adapter,
 		}
 
-		log.Println("Casbin enforcer initialized successfully")
+		log.Println("Casbin enforcer initialized successfully with policy auto-loading")
+		
+		// Log policy statistics for monitoring
+		policies := enforcerInstance.GetAllPolicies()
+		groupings := enforcerInstance.GetAllRoles()
+		log.Printf("Loaded %d policies and %d grouping rules", len(policies), len(groupings))
 	})
 
 	return enforcerInstance, err
@@ -220,4 +228,61 @@ func (e *EnforcerService) GetPolicy() [][]string {
 
 	policies, _ := e.enforcer.GetPolicy()
 	return policies
+}
+
+// ReloadPolicyWithValidation reloads policies with validation and error handling
+func (e *EnforcerService) ReloadPolicyWithValidation() error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	// Get current policy count for comparison
+	beforeCount := len(e.GetAllPolicies())
+	beforeGroupingCount := len(e.GetAllRoles())
+
+	// Reload policies from database
+	if err := e.enforcer.LoadPolicy(); err != nil {
+		return fmt.Errorf("failed to reload policies: %w", err)
+	}
+
+	// Get updated counts
+	afterCount := len(e.GetAllPolicies())
+	afterGroupingCount := len(e.GetAllRoles())
+
+	log.Printf("Policy reload completed: policies %d->%d, groupings %d->%d", 
+		beforeCount, afterCount, beforeGroupingCount, afterGroupingCount)
+
+	return nil
+}
+
+// ValidatePolicyIntegrity checks if all necessary policies are loaded
+func (e *EnforcerService) ValidatePolicyIntegrity() error {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	policies := e.GetAllPolicies()
+	groupings := e.GetAllRoles()
+
+	if len(policies) == 0 {
+		return fmt.Errorf("no policies loaded - this indicates a configuration issue")
+	}
+
+	if len(groupings) == 0 {
+		log.Printf("Warning: No grouping policies found - users may not have role assignments")
+	}
+
+	// Basic validation that essential admin policies exist
+	hasAdminPolicy := false
+	for _, policy := range policies {
+		if len(policy) >= 4 && (policy[0] == "super_admin" || policy[0] == "admin") {
+			hasAdminPolicy = true
+			break
+		}
+	}
+
+	if !hasAdminPolicy {
+		return fmt.Errorf("no admin policies found - this could prevent administrative access")
+	}
+
+	log.Printf("Policy integrity validation passed: %d policies, %d groupings", len(policies), len(groupings))
+	return nil
 }
