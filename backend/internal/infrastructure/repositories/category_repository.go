@@ -42,6 +42,19 @@ func (r *CategoryRepositoryImpl) GetByID(ctx context.Context, id uuid.UUID) (*en
 	return &category, nil
 }
 
+// GetByIDAndShopID retrieves a category by ID and validates it belongs to the specified shop
+func (r *CategoryRepositoryImpl) GetByIDAndShopID(ctx context.Context, id uuid.UUID, shopID uuid.UUID) (*entities.Category, error) {
+	var category entities.Category
+	err := r.db.WithContext(ctx).
+		Preload("Shop").
+		Where("id = ? AND shop_id = ?", id, shopID).
+		First(&category).Error
+	if err != nil {
+		return nil, err
+	}
+	return &category, nil
+}
+
 // GetByShopID retrieves categories by shop ID
 func (r *CategoryRepositoryImpl) GetByShopID(ctx context.Context, shopID uuid.UUID) ([]*entities.Category, error) {
 	var categories []*entities.Category

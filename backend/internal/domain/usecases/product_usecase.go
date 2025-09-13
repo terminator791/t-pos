@@ -44,11 +44,11 @@ func (uc *ProductUseCase) CreateProduct(ctx context.Context, product *entities.P
 		return errors.New("invalid shop ID")
 	}
 
-	// Check if category exists if provided
+	// Check if category exists and belongs to the same shop if provided
 	if product.CatID != nil {
-		_, err := uc.categoryRepo.GetByID(ctx, *product.CatID)
+		_, err := uc.categoryRepo.GetByIDAndShopID(ctx, *product.CatID, product.ShopID)
 		if err != nil {
-			return errors.New("invalid category ID")
+			return errors.New("invalid category ID or category does not belong to the specified shop")
 		}
 	}
 
@@ -85,6 +85,14 @@ func (uc *ProductUseCase) UpdateProduct(ctx context.Context, product *entities.P
 	}
 	if existing == nil {
 		return errors.New("product not found")
+	}
+
+	// Check if category exists and belongs to the same shop if provided
+	if product.CatID != nil {
+		_, err := uc.categoryRepo.GetByIDAndShopID(ctx, *product.CatID, existing.ShopID)
+		if err != nil {
+			return errors.New("invalid category ID or category does not belong to the product's shop")
+		}
 	}
 
 	// Calculate profit

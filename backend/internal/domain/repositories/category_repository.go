@@ -11,6 +11,7 @@ import (
 type CategoryRepository interface {
 	Create(ctx context.Context, category *entities.Category) error
 	GetByID(ctx context.Context, id uuid.UUID) (*entities.Category, error)
+	GetByIDAndShopID(ctx context.Context, id uuid.UUID, shopID uuid.UUID) (*entities.Category, error)
 	GetByShopID(ctx context.Context, shopID uuid.UUID) ([]*entities.Category, error)
 	GetByShopIDs(ctx context.Context, shopIDs []uuid.UUID) ([]*entities.Category, error)
 	GetByName(ctx context.Context, name string, shopID uuid.UUID) (*entities.Category, error)

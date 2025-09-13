@@ -74,6 +74,12 @@ func main() {
 	case "status":
 		checkStatus()
 
+	case "enable-uuid":
+		if err := enableUUIDExtension(); err != nil {
+			log.Fatal("Failed to enable UUID extension:", err)
+		}
+		log.Println("UUID extension enabled successfully")
+
 	case "seed":
 		if err := runSeeder(); err != nil {
 			log.Fatal("Seeding failed:", err)
@@ -94,16 +100,18 @@ func printUsage() {
 	log.Println("  go run cmd/migrate/main.go <command>")
 	log.Println("")
 	log.Println("Available commands:")
-	log.Println("  up       Run pending migrations")
-	log.Println("  down     Drop all tables (rollback)")
-	log.Println("  fresh    Drop all tables and re-run migrations")
-	log.Println("  refresh  Alias for fresh")
-	log.Println("  drop     Drop all tables")
-	log.Println("  status   Check migration status")
-	log.Println("  seed     Run database seeders")
+	log.Println("  up         Run pending migrations")
+	log.Println("  down       Drop all tables (rollback)")
+	log.Println("  fresh      Drop all tables and re-run migrations")
+	log.Println("  refresh    Alias for fresh")
+	log.Println("  drop       Drop all tables")
+	log.Println("  status     Check migration status")
+	log.Println("  enable-uuid Enable PostgreSQL UUID extension")
+	log.Println("  seed       Run database seeders")
 	log.Println("")
 	log.Println("Examples:")
 	log.Println("  go run cmd/migrate/main.go up")
+	log.Println("  go run cmd/migrate/main.go enable-uuid")
 	log.Println("  go run cmd/migrate/main.go fresh")
 	log.Println("  go run cmd/migrate/main.go down")
 }
@@ -151,6 +159,20 @@ func runSeeder() error {
 	)
 	if err := initialDataSeeder.SeedAll(); err != nil {
 		return fmt.Errorf("failed to seed initial data: %v", err)
+	}
+
+	return nil
+}
+
+func enableUUIDExtension() error {
+	db := database.GetDB()
+	if db == nil {
+		return fmt.Errorf("database not connected")
+	}
+
+	err := db.Exec(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`).Error
+	if err != nil {
+		return fmt.Errorf("failed to enable uuid-ossp extension: %w", err)
 	}
 
 	return nil
