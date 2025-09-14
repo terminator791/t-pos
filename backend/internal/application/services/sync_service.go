@@ -13,6 +13,7 @@ import (
 	"github.com/terminator791/t-pos/internal/domain/dto"
 	"github.com/terminator791/t-pos/internal/domain/entities"
 	"github.com/terminator791/t-pos/internal/domain/repositories"
+	"github.com/terminator791/t-pos/internal/domain/validators"
 	"gorm.io/gorm"
 )
 
@@ -48,6 +49,10 @@ type SyncService struct {
 	userRepo               repositories.UserRepository
 	conflictStrategy       dto.ConflictResolutionStrategy
 	config                 config.SyncConfig
+	
+	// Security enhancements
+	validator   *validators.SyncEntityValidator
+	lockManager *SyncLockManager
 }
 
 // NewSyncService creates a new sync service instance
@@ -67,6 +72,14 @@ func NewSyncService(
 	userRepo repositories.UserRepository,
 	syncConfig config.SyncConfig,
 ) *SyncService {
+	// Initialize security components
+	validator := validators.NewSyncEntityValidator(db)
+	lockManager := NewSyncLockManager(SyncLockConfig{
+		DefaultLockTimeout: time.Duration(syncConfig.TransactionTimeout) * time.Second,
+		CleanupInterval:    10 * time.Second,
+		MaxLockHoldTime:    5 * time.Minute,
+	})
+
 	return &SyncService{
 		db:                     db,
 		cartRepo:               cartRepo,
@@ -83,6 +96,38 @@ func NewSyncService(
 		userRepo:               userRepo,
 		conflictStrategy:       dto.LastWriteWins,
 		config:                 syncConfig,
+		validator:              validator,
+		lockManager:            lockManager,
+	}
+}
+
+// ProcessSyncWithSecurityEnhancements handles secure synchronization with distributed locking and comprehensive validation
+func (s *SyncService) ProcessSyncWithSecurityEnhancements(ctx context.Context, req dto.SyncRequest, syncContext dto.SyncContext) (*dto.SyncResponse, error) {
+	// Acquire distributed lock to prevent concurrent sync operations for the same user/license
+	lockCtx, err := s.lockManager.NewSyncLockContext(ctx, syncContext.UserID, syncContext.LicenseID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to acquire sync lock: %w", err)
+	}
+
+	// Execute sync within the locked context
+	var response *dto.SyncResponse
+	err = lockCtx.Execute(func(lockedCtx context.Context) error {
+		var syncErr error
+		response, syncErr = s.ProcessSyncWithRoleAccess(lockedCtx, req, syncContext)
+		return syncErr
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("secure sync processing failed: %w", err)
+	}
+
+	return response, nil
+}
+
+// Shutdown gracefully shuts down the sync service
+func (s *SyncService) Shutdown() {
+	if s.lockManager != nil {
+		s.lockManager.Shutdown()
 	}
 }
 
@@ -1093,25 +1138,42 @@ func (s *SyncService) updateCartSafe(ctx context.Context, tx *gorm.DB, cart enti
 	return err
 }
 
-// processSingleCart processes a single cart entity with enhanced error handling
+// processSingleCart processes a single cart entity with enhanced error handling and comprehensive validation
 func (s *SyncService) processSingleCart(ctx context.Context, tx *gorm.DB, cart entities.Cart, licenseID uuid.UUID, response *dto.SyncResponse) error {
-	// Validate cart belongs to license
+	// SECURITY ENHANCEMENT: Comprehensive entity validation
+	var existingCart *entities.Cart
+	var err error
+	
+	// First, try to find existing cart for update validation
+	existingCart, _ = s.findCartByID(ctx, tx, cart.ID)
+	
+	// Determine operation type
+	operation := "create"
+	if existingCart != nil {
+		operation = "update"
+	}
+	
+	// Validate entity with comprehensive security checks
+	if err := s.validator.ValidateEntity(ctx, cart, operation, existingCart); err != nil {
+		s.addDetailedValidationError(response, "carts", cart.ID, "validation_failed", err,
+			map[string]interface{}{"operation": operation, "validation_type": "comprehensive"})
+		return nil // Continue processing other entities based on error policy
+	}
+
+	// Validate cart belongs to license (existing validation)
 	if !s.validateCartLicense(ctx, cart, licenseID) {
 		s.addDetailedError(response, "carts", cart.ID, "unauthorized", "Cart does not belong to license",
 			map[string]interface{}{"cart_shop_id": cart.ShopID, "license_id": licenseID})
 		return nil // Continue processing other entities
 	}
 
-	// Check if cart exists with retry
-	var existingCart *entities.Cart
-	var err error
-
-	operation := func() error {
+	// Re-find cart with retry for actual processing
+	operation_find := func() error {
 		existingCart, err = s.findCartByID(ctx, tx, cart.ID)
 		return err
 	}
 
-	if retryErr := s.retryOperation(ctx, operation, s.config.MaxRetries, s.config.BaseRetryDelay, fmt.Sprintf("find_cart_%s", cart.ID)); retryErr != nil {
+	if retryErr := s.retryOperation(ctx, operation_find, s.config.MaxRetries, s.config.BaseRetryDelay, fmt.Sprintf("find_cart_%s", cart.ID)); retryErr != nil {
 		s.addDetailedError(response, "carts", cart.ID, "database_error", retryErr.Error(),
 			map[string]interface{}{"operation": "find", "retry_attempts": s.config.MaxRetries})
 		return nil // Continue processing other entities
@@ -3698,6 +3760,46 @@ func (s *SyncService) addDetailedError(response *dto.SyncResponse, entityType st
 	response.Errors = append(response.Errors, syncError)
 	log.Printf("Sync error - Type: %s, ID: %s, Code: %s, Message: %s, Details: %s",
 		entityType, entityID, errorCode, message, errorDetails)
+}
+
+// addDetailedValidationError adds comprehensive validation errors to the sync response
+func (s *SyncService) addDetailedValidationError(response *dto.SyncResponse, entityType string, entityID uuid.UUID, errorCode string, validationErr error, details map[string]interface{}) {
+	// Handle different types of validation errors
+	if validationErrors, ok := validationErr.(validators.ValidationErrors); ok {
+		// Multiple validation errors
+		for i, ve := range validationErrors {
+			errorDetails := fmt.Sprintf("Field: %s, Code: %s, Details: %+v", ve.Field, ve.Code, details)
+			syncError := dto.SyncError{
+				EntityType: entityType,
+				EntityID:   entityID,
+				ErrorCode:  fmt.Sprintf("%s_%d", errorCode, i+1),
+				Message:    ve.Message,
+				Details:    errorDetails,
+			}
+			response.Errors = append(response.Errors, syncError)
+			
+			log.Printf("Validation error - Type: %s, ID: %s, Field: %s, Code: %s, Message: %s",
+				entityType, entityID, ve.Field, ve.Code, ve.Message)
+		}
+	} else {
+		// Single validation error
+		errorDetails := ""
+		if len(details) > 0 {
+			errorDetails = fmt.Sprintf("Details: %+v", details)
+		}
+		
+		syncError := dto.SyncError{
+			EntityType: entityType,
+			EntityID:   entityID,
+			ErrorCode:  errorCode,
+			Message:    validationErr.Error(),
+			Details:    errorDetails,
+		}
+		response.Errors = append(response.Errors, syncError)
+		
+		log.Printf("Validation error - Type: %s, ID: %s, Message: %s, Details: %s",
+			entityType, entityID, validationErr.Error(), errorDetails)
+	}
 }
 
 // CRITICAL FIX: Enhanced error handling with configurable policies
