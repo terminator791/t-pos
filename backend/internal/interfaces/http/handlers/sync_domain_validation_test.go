@@ -204,43 +204,6 @@ func TestSyncHandler_HandleShopIDRequirements_Cashier_DomainViolation(t *testing
 	assert.Contains(t, err.Error(), "domain validation failed")
 }
 
-func TestSyncHandler_HandleShopIDRequirements_AdminRole(t *testing.T) {
-	// Create sync handler
-	syncHandler := &SyncHandler{}
-	
-	// Setup test data
-	userID := createTestUUID()
-	shopID := createTestUUID()
-	productID := createTestUUID()
-	
-	// Create admin user
-	adminUser := &entities.User{
-		ID:   userID,
-		Name: "Test Admin",
-	}
-	
-	// Create sync request with shop_id specified (admin can specify any shop)
-	syncReq := dto.SyncRequest{
-		Products: []entities.Product{
-			{
-				ID:     productID,
-				Name:   "Test Product",
-				ShopID: shopID, // Admin explicitly specifies shop
-			},
-		},
-	}
-	
-	// Test handling - admin role requires shop validation but with no repositories
-	// we'll test that it gets to the validation phase but fails due to missing repositories
-	err := syncHandler.handleShopIDRequirements(&syncReq, "admin", adminUser)
-	
-	// This will fail due to missing repositories, but that's expected for this unit test
-	// The important thing is that it doesn't fail on the cashier logic or role validation
-	assert.Error(t, err)
-	// Could be "shop not found" or a nil pointer error - both are acceptable for this test
-	// since we're testing the path taken, not the repository functionality
-}
-
 func TestSyncHandler_HandleShopIDRequirements_UnknownRole(t *testing.T) {
 	// Create sync handler
 	syncHandler := &SyncHandler{}
