@@ -489,6 +489,7 @@ func (s *SyncService) filterAndValidateSyncRequest(req dto.SyncRequest, syncCont
 
 	// CRITICAL FIX: Filter stock histories and transaction products based on shop access
 	// For entities with references, check both sync request data AND database data
+	// Use the main database connection for filtering (not transaction) since we're checking existing state
 	filteredReq.StockHistories = s.filterStockHistoriesByShopAccessWithSyncData(req.StockHistories, req.Products, accessibleShops, syncContext)
 	if len(req.StockHistories) > 0 {
 		stats["stock_histories"] = fmt.Sprintf("%d→%d", len(req.StockHistories), len(filteredReq.StockHistories))
@@ -586,21 +587,27 @@ func (s *SyncService) generateFilterWarnings(original, filtered dto.SyncRequest,
 				productShopID = shopID
 				productFound = true
 			} else {
-				// If not in sync data, check the database
+				// If not in sync data, check the database with enhanced error handling
 				err := s.db.Model(&entities.Product{}).
 					Select("shop_id").
 					Where("id = ?", stockHistory.ProductID).
 					First(&productShopID).Error
 				
 				if err != nil {
+					if err == gorm.ErrRecordNotFound {
+						log.Printf("DEBUG: generateFilterWarnings - Stock history %s references non-existent product %s", stockHistory.ID, stockHistory.ProductID)
+					} else {
+						log.Printf("ERROR: generateFilterWarnings - Database error checking product %s for stock history %s: %v", stockHistory.ProductID, stockHistory.ID, err)
+					}
 					missingCount++
 					continue
 				}
 				productFound = true
+				log.Printf("DEBUG: generateFilterWarnings - Stock history %s references product %s in shop %s", stockHistory.ID, stockHistory.ProductID, productShopID)
 			}
 			
 			if productFound {
-				// Check if shop is accessible
+				// Check if shop is accessible with enhanced logging
 				accessible := false
 				for _, shopID := range syncContext.AccessibleShopIDs {
 					if shopID == productShopID {
@@ -608,6 +615,8 @@ func (s *SyncService) generateFilterWarnings(original, filtered dto.SyncRequest,
 						break
 					}
 				}
+				log.Printf("DEBUG: generateFilterWarnings - Stock history %s: product %s in shop %s, accessible: %v (user accessible shops: %v)", 
+					stockHistory.ID, stockHistory.ProductID, productShopID, accessible, syncContext.AccessibleShopIDs)
 				if !accessible {
 					inaccessibleCount++
 				}
@@ -668,21 +677,27 @@ func (s *SyncService) generateFilterWarnings(original, filtered dto.SyncRequest,
 				transactionShopID = shopID
 				transactionFound = true
 			} else {
-				// If not in sync data, check the database
+				// If not in sync data, check the database with enhanced error handling
 				err := s.db.Model(&entities.Transaction{}).
 					Select("shop_id").
 					Where("id = ?", transactionProduct.TransactionID).
 					First(&transactionShopID).Error
 				
 				if err != nil {
+					if err == gorm.ErrRecordNotFound {
+						log.Printf("DEBUG: generateFilterWarnings - Transaction product %s references non-existent transaction %s", transactionProduct.ID, transactionProduct.TransactionID)
+					} else {
+						log.Printf("ERROR: generateFilterWarnings - Database error checking transaction %s for transaction product %s: %v", transactionProduct.TransactionID, transactionProduct.ID, err)
+					}
 					missingCount++
 					continue
 				}
 				transactionFound = true
+				log.Printf("DEBUG: generateFilterWarnings - Transaction product %s references transaction %s in shop %s", transactionProduct.ID, transactionProduct.TransactionID, transactionShopID)
 			}
 			
 			if transactionFound {
-				// Check if shop is accessible
+				// Check if shop is accessible with enhanced logging
 				accessible := false
 				for _, shopID := range syncContext.AccessibleShopIDs {
 					if shopID == transactionShopID {
@@ -690,6 +705,8 @@ func (s *SyncService) generateFilterWarnings(original, filtered dto.SyncRequest,
 						break
 					}
 				}
+				log.Printf("DEBUG: generateFilterWarnings - Transaction product %s: transaction %s in shop %s, accessible: %v (user accessible shops: %v)", 
+					transactionProduct.ID, transactionProduct.TransactionID, transactionShopID, accessible, syncContext.AccessibleShopIDs)
 				if !accessible {
 					inaccessibleCount++
 				}
@@ -2620,33 +2637,40 @@ func (s *SyncService) filterStockHistoriesByShopAccessWithSyncData(stockHistorie
 		if shopID, exists := syncProductMap[stockHistory.ProductID]; exists {
 			productShopID = shopID
 			productFound = true
-			log.Printf("DEBUG: Product %s found in sync request data, belongs to shop %s", stockHistory.ProductID, productShopID)
+			log.Printf("DEBUG: Stock history %s - Product %s found in sync request data, belongs to shop %s", stockHistory.ID, stockHistory.ProductID, productShopID)
 		} else {
-			// If not in sync data, check the database
+			// If not in sync data, check the database with enhanced error handling
+			log.Printf("DEBUG: Stock history %s - Product %s not in sync request, checking database...", stockHistory.ID, stockHistory.ProductID)
+			
 			err := s.db.Model(&entities.Product{}).
 				Select("shop_id").
 				Where("id = ?", stockHistory.ProductID).
 				First(&productShopID).Error
 			
 			if err != nil {
-				log.Printf("ERROR: Stock history %s references non-existent product %s (not in sync data or database)", stockHistory.ID, stockHistory.ProductID)
+				if err == gorm.ErrRecordNotFound {
+					log.Printf("ERROR: Stock history %s references non-existent product %s (not found in database)", stockHistory.ID, stockHistory.ProductID)
+				} else {
+					log.Printf("ERROR: Stock history %s - database error when checking product %s: %v", stockHistory.ID, stockHistory.ProductID, err)
+				}
 				continue
 			}
 			productFound = true
-			log.Printf("DEBUG: Product %s found in database, belongs to shop %s", stockHistory.ProductID, productShopID)
+			log.Printf("DEBUG: Stock history %s - Product %s found in database, belongs to shop %s", stockHistory.ID, stockHistory.ProductID, productShopID)
 		}
 		
 		if !productFound {
 			continue
 		}
 		
-		// Check if shop is accessible
+		// Check if shop is accessible with enhanced debugging
 		isAccessible := accessibleShops[productShopID]
-		log.Printf("DEBUG: Shop %s accessible check: %v", productShopID, isAccessible)
+		log.Printf("DEBUG: Stock history %s - Shop %s accessible check: %v (accessible shops: %v)", 
+			stockHistory.ID, productShopID, isAccessible, syncContext.AccessibleShopIDs)
 		
 		if !isAccessible {
-			log.Printf("WARNING: Stock history %s references product %s in inaccessible shop %s", 
-				stockHistory.ID, stockHistory.ProductID, productShopID)
+			log.Printf("WARNING: Stock history %s filtered - product %s in inaccessible shop %s (user %s has access to: %v)", 
+				stockHistory.ID, stockHistory.ProductID, productShopID, syncContext.UserID, syncContext.AccessibleShopIDs)
 			continue
 		}
 		
@@ -2688,33 +2712,40 @@ func (s *SyncService) filterTransactionProductsByShopAccessWithSyncData(transact
 		if shopID, exists := syncTransactionMap[transactionProduct.TransactionID]; exists {
 			transactionShopID = shopID
 			transactionFound = true
-			log.Printf("DEBUG: Transaction %s found in sync request data, belongs to shop %s", transactionProduct.TransactionID, transactionShopID)
+			log.Printf("DEBUG: Transaction product %s - Transaction %s found in sync request data, belongs to shop %s", transactionProduct.ID, transactionProduct.TransactionID, transactionShopID)
 		} else {
-			// If not in sync data, check the database
+			// If not in sync data, check the database with enhanced error handling
+			log.Printf("DEBUG: Transaction product %s - Transaction %s not in sync request, checking database...", transactionProduct.ID, transactionProduct.TransactionID)
+			
 			err := s.db.Model(&entities.Transaction{}).
 				Select("shop_id").
 				Where("id = ?", transactionProduct.TransactionID).
 				First(&transactionShopID).Error
 			
 			if err != nil {
-				log.Printf("ERROR: Transaction product %s references non-existent transaction %s (not in sync data or database)", transactionProduct.ID, transactionProduct.TransactionID)
+				if err == gorm.ErrRecordNotFound {
+					log.Printf("ERROR: Transaction product %s references non-existent transaction %s (not found in database)", transactionProduct.ID, transactionProduct.TransactionID)
+				} else {
+					log.Printf("ERROR: Transaction product %s - database error when checking transaction %s: %v", transactionProduct.ID, transactionProduct.TransactionID, err)
+				}
 				continue
 			}
 			transactionFound = true
-			log.Printf("DEBUG: Transaction %s found in database, belongs to shop %s", transactionProduct.TransactionID, transactionShopID)
+			log.Printf("DEBUG: Transaction product %s - Transaction %s found in database, belongs to shop %s", transactionProduct.ID, transactionProduct.TransactionID, transactionShopID)
 		}
 		
 		if !transactionFound {
 			continue
 		}
 		
-		// Check if shop is accessible
+		// Check if shop is accessible with enhanced debugging
 		isAccessible := accessibleShops[transactionShopID]
-		log.Printf("DEBUG: Shop %s accessible check: %v", transactionShopID, isAccessible)
+		log.Printf("DEBUG: Transaction product %s - Shop %s accessible check: %v (accessible shops: %v)", 
+			transactionProduct.ID, transactionShopID, isAccessible, syncContext.AccessibleShopIDs)
 		
 		if !isAccessible {
-			log.Printf("WARNING: Transaction product %s references transaction %s in inaccessible shop %s", 
-				transactionProduct.ID, transactionProduct.TransactionID, transactionShopID)
+			log.Printf("WARNING: Transaction product %s filtered - transaction %s in inaccessible shop %s (user %s has access to: %v)", 
+				transactionProduct.ID, transactionProduct.TransactionID, transactionShopID, syncContext.UserID, syncContext.AccessibleShopIDs)
 			continue
 		}
 		
