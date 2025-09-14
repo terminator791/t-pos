@@ -93,12 +93,16 @@ func TestNewSyncHandler(t *testing.T) {
 	var userRepo = repositories.NewUserRepository(db)
 	var shopRepo = repositories.NewShopRepository(db)
 	var roleRepo = repositories.NewRoleRepository(db)
+	var productRepo = repositories.NewProductRepository(db)
+	var transactionRepo = repositories.NewTransactionRepository(db)
 
-	syncHandler := NewSyncHandler(syncService, userRepo, shopRepo, roleRepo)
+	syncHandler := NewSyncHandler(syncService, userRepo, shopRepo, roleRepo, productRepo, transactionRepo)
 
 	assert.NotNil(t, syncHandler)
 	assert.Equal(t, syncService, syncHandler.syncService)
 	assert.Equal(t, userRepo, syncHandler.userRepo)
 	assert.Equal(t, shopRepo, syncHandler.shopRepo)
 	assert.Equal(t, roleRepo, syncHandler.roleRepo)
+	assert.Equal(t, productRepo, syncHandler.productRepo)
+	assert.Equal(t, transactionRepo, syncHandler.transactionRepo)
 }
