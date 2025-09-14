@@ -18,19 +18,23 @@ import (
 
 // SyncHandler handles synchronization related HTTP requests
 type SyncHandler struct {
-	syncService *services.SyncService
-	userRepo    repositories.UserRepository
-	shopRepo    repositories.ShopRepository
-	roleRepo    repositories.RoleRepository
+	syncService     *services.SyncService
+	userRepo        repositories.UserRepository
+	shopRepo        repositories.ShopRepository
+	roleRepo        repositories.RoleRepository
+	productRepo     repositories.ProductRepository
+	transactionRepo repositories.TransactionRepository
 }
 
 // NewSyncHandler creates a new sync handler
-func NewSyncHandler(syncService *services.SyncService, userRepo repositories.UserRepository, shopRepo repositories.ShopRepository, roleRepo repositories.RoleRepository) *SyncHandler {
+func NewSyncHandler(syncService *services.SyncService, userRepo repositories.UserRepository, shopRepo repositories.ShopRepository, roleRepo repositories.RoleRepository, productRepo repositories.ProductRepository, transactionRepo repositories.TransactionRepository) *SyncHandler {
 	return &SyncHandler{
-		syncService: syncService,
-		userRepo:    userRepo,
-		shopRepo:    shopRepo,
-		roleRepo:    roleRepo,
+		syncService:     syncService,
+		userRepo:        userRepo,
+		shopRepo:        shopRepo,
+		roleRepo:        roleRepo,
+		productRepo:     productRepo,
+		transactionRepo: transactionRepo,
 	}
 }
 
@@ -111,8 +115,14 @@ func (h *SyncHandler) ProcessSync(c *gin.Context) {
 		return
 	}
 
-	// Validate sync request based on user role and access
-	if err := h.validateSyncRequestWithRoleAccess(&syncRequest, userRole, accessibleShopIDs); err != nil {
+	// CRITICAL FIX: Handle shop_id requirements based on role
+	if err := h.handleShopIDRequirements(&syncRequest, userRole, user); err != nil {
+		response.ErrorBadRequest(c, "Shop ID validation failed", err.Error())
+		return
+	}
+
+	// Validate sync request based on user role and access with enhanced domain validation
+	if err := h.validateSyncRequestWithRoleAccess(&syncRequest, userRole, accessibleShopIDs, user); err != nil {
 		response.ErrorBadRequest(c, "Invalid sync request data", err.Error())
 		return
 	}
@@ -179,8 +189,272 @@ func (h *SyncHandler) GetSyncInfo(c *gin.Context) {
 	response.SuccessOK(c, "Sync info retrieved successfully", syncInfo)
 }
 
+// handleShopIDRequirements handles shop_id requirements based on user role
+func (h *SyncHandler) handleShopIDRequirements(req *dto.SyncRequest, userRole string, user *entities.User) error {
+	switch userRole {
+	case "cashier":
+		// CRITICAL: For cashiers, shop_id should NOT be provided in request body
+		// Get shop_id from authenticated user and inject it into all entities
+		if user.ShopID == nil {
+			return fmt.Errorf("cashier user is not assigned to a shop")
+		}
+		
+		cashierShopID := *user.ShopID
+		log.Printf("Cashier sync: Automatically applying shop_id %s to all entities", cashierShopID)
+		
+		// FIRST: Validate that no entities in request body have different shop_ids (before injection)
+		if err := h.validateCashierEntitiesShopID(req, cashierShopID); err != nil {
+			return fmt.Errorf("cashier domain validation failed: %w", err)
+		}
+		
+		// THEN: Inject shop_id into all entities that have a shop_id field
+		h.injectShopIDIntoEntities(req, cashierShopID)
+		
+	case "owner_business", "admin", "super_admin":
+		// For non-cashier roles, shop_id must be provided in request body
+		// This allows them to specify which shop they're working with
+		if err := h.validateNonCashierShopIDRequirements(req, userRole, user); err != nil {
+			return fmt.Errorf("shop_id validation failed for %s: %w", userRole, err)
+		}
+		
+	default:
+		return fmt.Errorf("unknown user role: %s", userRole)
+	}
+	
+	return nil
+}
+
+// injectShopIDIntoEntities injects the cashier's shop_id into all entities
+func (h *SyncHandler) injectShopIDIntoEntities(req *dto.SyncRequest, shopID uuid.UUID) {
+	// Inject shop_id into all entities that have ShopID field
+	for i := range req.Carts {
+		req.Carts[i].ShopID = shopID
+	}
+	for i := range req.Categories {
+		req.Categories[i].ShopID = shopID
+	}
+	for i := range req.Products {
+		req.Products[i].ShopID = shopID
+	}
+	for i := range req.Transactions {
+		req.Transactions[i].ShopID = shopID
+	}
+	for i := range req.Expenses {
+		req.Expenses[i].ShopID = shopID
+	}
+	for i := range req.Payments {
+		req.Payments[i].ShopID = shopID
+	}
+	for i := range req.Receipts {
+		req.Receipts[i].ShopID = shopID
+	}
+	for i := range req.Histories {
+		req.Histories[i].ShopID = shopID
+	}
+}
+
+// validateCashierEntitiesShopID validates that all entities belong to the cashier's shop
+func (h *SyncHandler) validateCashierEntitiesShopID(req *dto.SyncRequest, expectedShopID uuid.UUID) error {
+	// Check if any entities had different shop_ids (would indicate client error)
+	// For cashiers, shop_id can be nil (will be auto-injected) or must match the cashier's shop
+	var invalidEntities []string
+	
+	for i, cart := range req.Carts {
+		if cart.ShopID != uuid.Nil && cart.ShopID != expectedShopID {
+			invalidEntities = append(invalidEntities, fmt.Sprintf("cart[%d]: %s", i, cart.ShopID))
+		}
+	}
+	for i, category := range req.Categories {
+		if category.ShopID != uuid.Nil && category.ShopID != expectedShopID {
+			invalidEntities = append(invalidEntities, fmt.Sprintf("category[%d]: %s", i, category.ShopID))
+		}
+	}
+	for i, product := range req.Products {
+		if product.ShopID != uuid.Nil && product.ShopID != expectedShopID {
+			invalidEntities = append(invalidEntities, fmt.Sprintf("product[%d]: %s", i, product.ShopID))
+		}
+	}
+	for i, transaction := range req.Transactions {
+		if transaction.ShopID != uuid.Nil && transaction.ShopID != expectedShopID {
+			invalidEntities = append(invalidEntities, fmt.Sprintf("transaction[%d]: %s", i, transaction.ShopID))
+		}
+	}
+	for i, expense := range req.Expenses {
+		if expense.ShopID != uuid.Nil && expense.ShopID != expectedShopID {
+			invalidEntities = append(invalidEntities, fmt.Sprintf("expense[%d]: %s", i, expense.ShopID))
+		}
+	}
+	for i, payment := range req.Payments {
+		if payment.ShopID != uuid.Nil && payment.ShopID != expectedShopID {
+			invalidEntities = append(invalidEntities, fmt.Sprintf("payment[%d]: %s", i, payment.ShopID))
+		}
+	}
+	for i, receipt := range req.Receipts {
+		if receipt.ShopID != uuid.Nil && receipt.ShopID != expectedShopID {
+			invalidEntities = append(invalidEntities, fmt.Sprintf("receipt[%d]: %s", i, receipt.ShopID))
+		}
+	}
+	for i, history := range req.Histories {
+		if history.ShopID != uuid.Nil && history.ShopID != expectedShopID {
+			invalidEntities = append(invalidEntities, fmt.Sprintf("history[%d]: %s", i, history.ShopID))
+		}
+	}
+	
+	if len(invalidEntities) > 0 {
+		return fmt.Errorf("entities with invalid shop_id detected (cashiers can only sync their assigned shop %s): %v", expectedShopID, invalidEntities)
+	}
+	
+	return nil
+}
+
+// validateNonCashierShopIDRequirements validates shop_id requirements for non-cashier roles
+func (h *SyncHandler) validateNonCashierShopIDRequirements(req *dto.SyncRequest, userRole string, user *entities.User) error {
+	// Collect all shop_ids mentioned in the request
+	shopIDsInRequest := make(map[uuid.UUID]bool)
+	
+	for _, cart := range req.Carts {
+		shopIDsInRequest[cart.ShopID] = true
+	}
+	for _, category := range req.Categories {
+		shopIDsInRequest[category.ShopID] = true
+	}
+	for _, product := range req.Products {
+		shopIDsInRequest[product.ShopID] = true
+	}
+	for _, transaction := range req.Transactions {
+		shopIDsInRequest[transaction.ShopID] = true
+	}
+	for _, expense := range req.Expenses {
+		shopIDsInRequest[expense.ShopID] = true
+	}
+	for _, payment := range req.Payments {
+		shopIDsInRequest[payment.ShopID] = true
+	}
+	for _, receipt := range req.Receipts {
+		shopIDsInRequest[receipt.ShopID] = true
+	}
+	for _, history := range req.Histories {
+		shopIDsInRequest[history.ShopID] = true
+	}
+	for _, shop := range req.Shops {
+		shopIDsInRequest[shop.ID] = true
+	}
+	
+	// For owner_business, validate all shop_ids belong to their license
+	if userRole == "owner_business" {
+		if user.LicenseID == nil {
+			return fmt.Errorf("owner_business user has no license assignment")
+		}
+		
+		// Validate each shop_id belongs to the user's license
+		for shopID := range shopIDsInRequest {
+			shop, err := h.shopRepo.GetByID(context.Background(), shopID)
+			if err != nil {
+				return fmt.Errorf("invalid shop_id %s: shop not found", shopID)
+			}
+			
+			if shop.LicenseID != *user.LicenseID {
+				return fmt.Errorf("shop_id %s belongs to license %s, but user belongs to license %s (domain mismatch)", 
+					shopID, shop.LicenseID, *user.LicenseID)
+			}
+		}
+		
+		// Validate products and other referenced entities belong to correct domain
+		if err := h.validateProductDomainAccess(req, *user.LicenseID); err != nil {
+			return fmt.Errorf("product domain validation failed: %w", err)
+		}
+	}
+	
+	// For admin/super_admin, they can access any shop but we still validate they exist
+	if userRole == "admin" || userRole == "super_admin" {
+		for shopID := range shopIDsInRequest {
+			_, err := h.shopRepo.GetByID(context.Background(), shopID)
+			if err != nil {
+				return fmt.Errorf("invalid shop_id %s: shop not found", shopID)
+			}
+		}
+	}
+	
+	return nil
+}
+
+// validateProductDomainAccess validates that referenced products belong to the correct domain
+func (h *SyncHandler) validateProductDomainAccess(req *dto.SyncRequest, userLicenseID uuid.UUID) error {
+	// Check stock histories reference products in correct domain
+	for i, stockHistory := range req.StockHistories {
+		// First check if product is in the sync request
+		var productFound bool
+		var productShopID uuid.UUID
+		
+		for _, product := range req.Products {
+			if product.ID == stockHistory.ProductID {
+				productShopID = product.ShopID
+				productFound = true
+				break
+			}
+		}
+		
+		// If not in sync request, check database
+		if !productFound {
+			product, err := h.productRepo.GetByID(context.Background(), stockHistory.ProductID)
+			if err != nil {
+				return fmt.Errorf("stock_history[%d] references invalid product %s", i, stockHistory.ProductID)
+			}
+			productShopID = product.ShopID
+		}
+		
+		// Validate the product's shop belongs to user's license
+		shop, err := h.shopRepo.GetByID(context.Background(), productShopID)
+		if err != nil {
+			return fmt.Errorf("stock_history[%d] references product %s in invalid shop %s", i, stockHistory.ProductID, productShopID)
+		}
+		
+		if shop.LicenseID != userLicenseID {
+			return fmt.Errorf("stock_history[%d] references product %s in shop %s (license %s), but user belongs to license %s", 
+				i, stockHistory.ProductID, productShopID, shop.LicenseID, userLicenseID)
+		}
+	}
+	
+	// Check transaction products reference transactions in correct domain
+	for i, transactionProduct := range req.TransactionProducts {
+		// First check if transaction is in the sync request
+		var transactionFound bool
+		var transactionShopID uuid.UUID
+		
+		for _, transaction := range req.Transactions {
+			if transaction.ID == transactionProduct.TransactionID {
+				transactionShopID = transaction.ShopID
+				transactionFound = true
+				break
+			}
+		}
+		
+		// If not in sync request, check database
+		if !transactionFound {
+			transaction, err := h.transactionRepo.GetByID(context.Background(), transactionProduct.TransactionID)
+			if err != nil {
+				return fmt.Errorf("transaction_product[%d] references invalid transaction %s", i, transactionProduct.TransactionID)
+			}
+			transactionShopID = transaction.ShopID
+		}
+		
+		// Validate the transaction's shop belongs to user's license
+		shop, err := h.shopRepo.GetByID(context.Background(), transactionShopID)
+		if err != nil {
+			return fmt.Errorf("transaction_product[%d] references transaction %s in invalid shop %s", i, transactionProduct.TransactionID, transactionShopID)
+		}
+		
+		if shop.LicenseID != userLicenseID {
+			return fmt.Errorf("transaction_product[%d] references transaction %s in shop %s (license %s), but user belongs to license %s", 
+				i, transactionProduct.TransactionID, transactionShopID, shop.LicenseID, userLicenseID)
+		}
+	}
+	
+	return nil
+}
+
 // validateSyncRequestWithRoleAccess validates the incoming sync request with role-based access control
-func (h *SyncHandler) validateSyncRequestWithRoleAccess(req *dto.SyncRequest, userRole string, accessibleShopIDs []uuid.UUID) error {
+func (h *SyncHandler) validateSyncRequestWithRoleAccess(req *dto.SyncRequest, userRole string, accessibleShopIDs []uuid.UUID, user *entities.User) error {
 	if req == nil {
 		return fmt.Errorf("sync request is required")
 	}
