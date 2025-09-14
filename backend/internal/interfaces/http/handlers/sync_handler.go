@@ -196,7 +196,7 @@ func (h *SyncHandler) validateSyncRequestWithRoleAccess(req *dto.SyncRequest, us
 	
 	switch userRole {
 	case "cashier":
-		// Log cashier sync attempt for monitoring
+		// Log cashier sync attempt for monitoring but don't fail
 		if len(accessibleShopIDs) == 0 {
 			return fmt.Errorf("cashier has no accessible shops")
 		}

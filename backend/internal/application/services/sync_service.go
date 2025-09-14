@@ -149,7 +149,9 @@ func (s *SyncService) ProcessSyncWithRoleAccess(ctx context.Context, req dto.Syn
 
 // processPushWithTransaction handles push operations in an isolated transaction
 func (s *SyncService) processPushWithTransaction(ctx context.Context, req dto.SyncRequest, syncContext dto.SyncContext, response *dto.SyncResponse) error {
-	// Start a dedicated transaction for push operations
+	// CRITICAL FIX: Use a single transaction with proper error handling to prevent SQL abort errors
+	// Instead of nested transactions, use savepoints for error isolation
+	
 	tx := s.db.Begin(&sql.TxOptions{
 		Isolation: sql.LevelReadCommitted,
 	})
@@ -160,15 +162,19 @@ func (s *SyncService) processPushWithTransaction(ctx context.Context, req dto.Sy
 	// Ensure transaction is properly cleaned up
 	defer func() {
 		if r := recover(); r != nil {
-			tx.Rollback()
+			if rollbackErr := tx.Rollback().Error; rollbackErr != nil {
+				log.Printf("Failed to rollback transaction after panic: %v", rollbackErr)
+			}
 			log.Printf("Push transaction rolled back due to panic: %v", r)
 			panic(r)
 		}
 	}()
 
-	// Process push changes with enhanced error handling
-	if err := s.pushChangesWithRoleAccess(ctx, tx, req, syncContext, response); err != nil {
-		tx.Rollback()
+	// Process push changes with enhanced error handling but without nested transactions
+	if err := s.pushChangesWithRoleAccessSafe(ctx, tx, req, syncContext, response); err != nil {
+		if rollbackErr := tx.Rollback().Error; rollbackErr != nil {
+			log.Printf("Failed to rollback transaction: %v", rollbackErr)
+		}
 		return fmt.Errorf("failed to push changes: %w", err)
 	}
 
@@ -277,8 +283,9 @@ func (s *SyncService) getTotalProcessedEntities(stats dto.SyncStats) int {
 	return total
 }
 
-// pushChangesWithRoleAccess processes incoming changes from mobile client with role-based filtering
-func (s *SyncService) pushChangesWithRoleAccess(ctx context.Context, tx *gorm.DB, req dto.SyncRequest, syncContext dto.SyncContext, response *dto.SyncResponse) error {
+// pushChangesWithRoleAccessSafe processes incoming changes from mobile client with role-based filtering
+// This version avoids nested transactions to prevent SQL transaction abort errors
+func (s *SyncService) pushChangesWithRoleAccessSafe(ctx context.Context, tx *gorm.DB, req dto.SyncRequest, syncContext dto.SyncContext, response *dto.SyncResponse) error {
 	// CRITICAL FIX: Filter and validate entities based on role access BEFORE processing
 	// This prevents validation errors from aborting the entire transaction
 	filteredReq, filterStats := s.filterAndValidateSyncRequest(req, syncContext)
@@ -292,46 +299,46 @@ func (s *SyncService) pushChangesWithRoleAccess(ctx context.Context, tx *gorm.DB
 		response.Errors = append(response.Errors, warning)
 	}
 
-	// Process each entity type with the filtered data
-	if err := s.pushCarts(ctx, tx, filteredReq.Carts, syncContext.LicenseID, response); err != nil {
+	// Process each entity type with the filtered data and enhanced error handling
+	if err := s.pushCartsSafe(ctx, tx, filteredReq.Carts, syncContext.LicenseID, response); err != nil {
 		return fmt.Errorf("failed to push carts: %w", err)
 	}
 
-	if err := s.pushCategories(ctx, tx, filteredReq.Categories, syncContext.LicenseID, response); err != nil {
+	if err := s.pushCategoriesSafe(ctx, tx, filteredReq.Categories, syncContext.LicenseID, response); err != nil {
 		return fmt.Errorf("failed to push categories: %w", err)
 	}
 
-	if err := s.pushProducts(ctx, tx, filteredReq.Products, syncContext.LicenseID, response); err != nil {
+	if err := s.pushProductsSafe(ctx, tx, filteredReq.Products, syncContext.LicenseID, response); err != nil {
 		return fmt.Errorf("failed to push products: %w", err)
 	}
 
-	if err := s.pushTransactions(ctx, tx, filteredReq.Transactions, syncContext.LicenseID, response); err != nil {
+	if err := s.pushTransactionsSafe(ctx, tx, filteredReq.Transactions, syncContext.LicenseID, response); err != nil {
 		return fmt.Errorf("failed to push transactions: %w", err)
 	}
 
-	if err := s.pushExpenses(ctx, tx, filteredReq.Expenses, syncContext.LicenseID, response); err != nil {
+	if err := s.pushExpensesSafe(ctx, tx, filteredReq.Expenses, syncContext.LicenseID, response); err != nil {
 		return fmt.Errorf("failed to push expenses: %w", err)
 	}
 
-	if err := s.pushPayments(ctx, tx, filteredReq.Payments, syncContext.LicenseID, response); err != nil {
+	if err := s.pushPaymentsSafe(ctx, tx, filteredReq.Payments, syncContext.LicenseID, response); err != nil {
 		return fmt.Errorf("failed to push payments: %w", err)
 	}
 
-	if err := s.pushReceipts(ctx, tx, filteredReq.Receipts, syncContext.LicenseID, response); err != nil {
+	if err := s.pushReceiptsSafe(ctx, tx, filteredReq.Receipts, syncContext.LicenseID, response); err != nil {
 		return fmt.Errorf("failed to push receipts: %w", err)
 	}
 
-	if err := s.pushHistories(ctx, tx, filteredReq.Histories, syncContext.LicenseID, response); err != nil {
+	if err := s.pushHistoriesSafe(ctx, tx, filteredReq.Histories, syncContext.LicenseID, response); err != nil {
 		return fmt.Errorf("failed to push histories: %w", err)
 	}
 
 	// Only allow shop configuration changes for owner_business and admins
 	if syncContext.UserRole != "cashier" {
-		if err := s.pushShops(ctx, tx, filteredReq.Shops, syncContext.LicenseID, response); err != nil {
+		if err := s.pushShopsSafe(ctx, tx, filteredReq.Shops, syncContext.LicenseID, response); err != nil {
 			return fmt.Errorf("failed to push shops: %w", err)
 		}
 
-		if err := s.pushUsers(ctx, tx, filteredReq.Users, syncContext.LicenseID, response); err != nil {
+		if err := s.pushUsersSafe(ctx, tx, filteredReq.Users, syncContext.LicenseID, response); err != nil {
 			return fmt.Errorf("failed to push users: %w", err)
 		}
 	} else {
@@ -348,11 +355,11 @@ func (s *SyncService) pushChangesWithRoleAccess(ctx context.Context, tx *gorm.DB
 		}
 	}
 
-	if err := s.pushStockHistories(ctx, tx, filteredReq.StockHistories, syncContext, response); err != nil {
+	if err := s.pushStockHistoriesSafe(ctx, tx, filteredReq.StockHistories, syncContext, response); err != nil {
 		return fmt.Errorf("failed to push stock histories: %w", err)
 	}
 
-	if err := s.pushTransactionProducts(ctx, tx, filteredReq.TransactionProducts, syncContext, response); err != nil {
+	if err := s.pushTransactionProductsSafe(ctx, tx, filteredReq.TransactionProducts, syncContext, response); err != nil {
 		return fmt.Errorf("failed to push transaction products: %w", err)
 	}
 
@@ -722,9 +729,8 @@ func (s *SyncService) filterSyncRequestByRole(req dto.SyncRequest, syncContext d
 	return filteredReq
 }
 
-// pushCarts handles cart synchronization
-// pushCarts handles cart synchronization with enhanced error handling
-func (s *SyncService) pushCarts(ctx context.Context, tx *gorm.DB, carts []entities.Cart, licenseID uuid.UUID, response *dto.SyncResponse) error {
+// pushCartsSafe handles cart synchronization with enhanced error handling and no nested transactions
+func (s *SyncService) pushCartsSafe(ctx context.Context, tx *gorm.DB, carts []entities.Cart, licenseID uuid.UUID, response *dto.SyncResponse) error {
 	totalCarts := len(carts)
 	if totalCarts == 0 {
 		return nil
@@ -746,9 +752,9 @@ func (s *SyncService) pushCarts(ctx context.Context, tx *gorm.DB, carts []entiti
 		log.Printf("Processing cart batch %d-%d of %d", i+1, end, totalCarts)
 
 		// Process each cart in the batch with individual error handling
-		for _, cart := range batch {
+		for batchIndex, cart := range batch {
 			if err := s.processSingleCartWithErrorIsolation(ctx, tx, cart, licenseID, response); err != nil {
-				log.Printf("Error processing cart %s: %v", cart.ID, err)
+				log.Printf("Error processing cart %s (batch %d, index %d): %v", cart.ID, i/s.config.BatchSize+1, batchIndex, err)
 				errorCount++
 				// CRITICAL: Continue with next entity instead of failing entire batch
 				// Add error to response but don't abort transaction
@@ -756,7 +762,8 @@ func (s *SyncService) pushCarts(ctx context.Context, tx *gorm.DB, carts []entiti
 					map[string]interface{}{
 						"cart_shop_id": cart.ShopID,
 						"license_id":   licenseID,
-						"batch_index":  i,
+						"batch_index":  i + batchIndex,
+						"batch_number": i/s.config.BatchSize + 1,
 					})
 				continue
 			}
@@ -786,31 +793,18 @@ func (s *SyncService) processSingleCartWithErrorIsolation(ctx context.Context, t
 		return fmt.Errorf("cart does not belong to license %s", licenseID)
 	}
 
-	// CRITICAL FIX: Use separate transaction for individual cart operations
-	// This prevents one failed cart from aborting the entire sync transaction
-	cartTx := tx.Begin()
-	if cartTx.Error != nil {
-		return fmt.Errorf("failed to start cart transaction: %w", cartTx.Error)
-	}
-
-	defer func() {
-		if r := recover(); r != nil {
-			cartTx.Rollback()
-			panic(r)
-		}
-	}()
-
+	// CRITICAL FIX: Use the existing transaction instead of creating nested transactions
+	// Nested transactions in PostgreSQL can cause "current transaction is aborted" errors
+	
 	// Check if cart exists with error handling
-	existingCart, err := s.findCartByIDSafe(ctx, cartTx, cart.ID)
+	existingCart, err := s.findCartByIDSafe(ctx, tx, cart.ID)
 	if err != nil {
-		cartTx.Rollback()
 		return fmt.Errorf("failed to find cart: %w", err)
 	}
 
 	if existingCart == nil {
 		// Create new cart
-		if err := s.createCartSafe(ctx, cartTx, cart); err != nil {
-			cartTx.Rollback()
+		if err := s.createCartSafe(ctx, tx, cart); err != nil {
 			return fmt.Errorf("failed to create cart: %w", err)
 		}
 		s.incrementStat(response.Stats.CreatedEntities, "carts")
@@ -820,26 +814,16 @@ func (s *SyncService) processSingleCartWithErrorIsolation(ctx context.Context, t
 			response.Conflicts = append(response.Conflicts, *conflict)
 			// Use server version in case of conflict (for LastWriteWins strategy)
 			if existingCart.UpdatedAt.After(cart.UpdatedAt) {
-				// Commit the transaction even though we're skipping the update
-				if err := cartTx.Commit().Error; err != nil {
-					return fmt.Errorf("failed to commit cart transaction: %w", err)
-				}
 				s.incrementStat(response.Stats.ProcessedEntities, "carts")
 				return nil // Skip update, server version is newer
 			}
 		}
 
 		// Update existing cart
-		if err := s.updateCartSafe(ctx, cartTx, cart); err != nil {
-			cartTx.Rollback()
+		if err := s.updateCartSafe(ctx, tx, cart); err != nil {
 			return fmt.Errorf("failed to update cart: %w", err)
 		}
 		s.incrementStat(response.Stats.UpdatedEntities, "carts")
-	}
-
-	// Commit the cart transaction
-	if err := cartTx.Commit().Error; err != nil {
-		return fmt.Errorf("failed to commit cart transaction: %w", err)
 	}
 
 	s.incrementStat(response.Stats.ProcessedEntities, "carts")
@@ -1343,7 +1327,7 @@ func (s *SyncService) pushChanges(ctx context.Context, tx *gorm.DB, req dto.Sync
 		HasGlobalAccess:   true, // Legacy behavior - global access
 	}
 	
-	return s.pushChangesWithRoleAccess(ctx, tx, req, syncContext, response)
+	return s.pushChangesWithRoleAccessSafe(ctx, tx, req, syncContext, response)
 }
 
 // pullChanges retrieves server changes since last sync (legacy method for backward compatibility)
@@ -3190,4 +3174,537 @@ func (s *SyncService) logPerformanceMetrics(entityType string, count int, durati
 		log.Printf("WARNING: Low performance detected for %s %s: %.2f entities/sec (expected > %.2f)",
 			operation, entityType, rate, minRatePerSecond)
 	}
+}
+
+// Safe versions of push methods that avoid nested transactions and provide enhanced error handling
+
+// pushCategoriesSafe handles category synchronization safely
+func (s *SyncService) pushCategoriesSafe(ctx context.Context, tx *gorm.DB, categories []entities.Category, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	for i, category := range categories {
+		if err := s.processSingleCategorySafe(ctx, tx, category, licenseID, response); err != nil {
+			log.Printf("Error processing category %s (index %d): %v", category.ID, i, err)
+			s.addDetailedError(response, "categories", category.ID, "processing_failed", err.Error(),
+				map[string]interface{}{"category_shop_id": category.ShopID, "license_id": licenseID, "index": i})
+			continue
+		}
+	}
+	return nil
+}
+
+// pushProductsSafe handles product synchronization safely
+func (s *SyncService) pushProductsSafe(ctx context.Context, tx *gorm.DB, products []entities.Product, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	for i, product := range products {
+		if err := s.processSingleProductSafe(ctx, tx, product, licenseID, response); err != nil {
+			log.Printf("Error processing product %s (index %d): %v", product.ID, i, err)
+			s.addDetailedError(response, "products", product.ID, "processing_failed", err.Error(),
+				map[string]interface{}{"product_shop_id": product.ShopID, "license_id": licenseID, "index": i})
+			continue
+		}
+	}
+	return nil
+}
+
+// pushTransactionsSafe handles transaction synchronization safely
+func (s *SyncService) pushTransactionsSafe(ctx context.Context, tx *gorm.DB, transactions []entities.Transaction, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	for i, transaction := range transactions {
+		if err := s.processSingleTransactionSafe(ctx, tx, transaction, licenseID, response); err != nil {
+			log.Printf("Error processing transaction %s (index %d): %v", transaction.ID, i, err)
+			s.addDetailedError(response, "transactions", transaction.ID, "processing_failed", err.Error(),
+				map[string]interface{}{"transaction_shop_id": transaction.ShopID, "license_id": licenseID, "index": i})
+			continue
+		}
+	}
+	return nil
+}
+
+// pushExpensesSafe handles expense synchronization safely
+func (s *SyncService) pushExpensesSafe(ctx context.Context, tx *gorm.DB, expenses []entities.Expense, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	for i, expense := range expenses {
+		if err := s.processSingleExpenseSafe(ctx, tx, expense, licenseID, response); err != nil {
+			log.Printf("Error processing expense %s (index %d): %v", expense.ID, i, err)
+			s.addDetailedError(response, "expenses", expense.ID, "processing_failed", err.Error(),
+				map[string]interface{}{"expense_shop_id": expense.ShopID, "license_id": licenseID, "index": i})
+			continue
+		}
+	}
+	return nil
+}
+
+// pushPaymentsSafe handles payment synchronization safely
+func (s *SyncService) pushPaymentsSafe(ctx context.Context, tx *gorm.DB, payments []entities.Payment, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	for i, payment := range payments {
+		if err := s.processSinglePaymentSafe(ctx, tx, payment, licenseID, response); err != nil {
+			log.Printf("Error processing payment %s (index %d): %v", payment.ID, i, err)
+			s.addDetailedError(response, "payments", payment.ID, "processing_failed", err.Error(),
+				map[string]interface{}{"payment_shop_id": payment.ShopID, "license_id": licenseID, "index": i})
+			continue
+		}
+	}
+	return nil
+}
+
+// pushReceiptsSafe handles receipt synchronization safely
+func (s *SyncService) pushReceiptsSafe(ctx context.Context, tx *gorm.DB, receipts []entities.Receipt, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	for i, receipt := range receipts {
+		if err := s.processSingleReceiptSafe(ctx, tx, receipt, licenseID, response); err != nil {
+			log.Printf("Error processing receipt %s (index %d): %v", receipt.ID, i, err)
+			s.addDetailedError(response, "receipts", receipt.ID, "processing_failed", err.Error(),
+				map[string]interface{}{"receipt_shop_id": receipt.ShopID, "license_id": licenseID, "index": i})
+			continue
+		}
+	}
+	return nil
+}
+
+// pushHistoriesSafe handles history synchronization safely
+func (s *SyncService) pushHistoriesSafe(ctx context.Context, tx *gorm.DB, histories []entities.History, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	for i, history := range histories {
+		if err := s.processSingleHistorySafe(ctx, tx, history, licenseID, response); err != nil {
+			log.Printf("Error processing history %s (index %d): %v", history.ID, i, err)
+			s.addDetailedError(response, "histories", history.ID, "processing_failed", err.Error(),
+				map[string]interface{}{"history_shop_id": history.ShopID, "license_id": licenseID, "index": i})
+			continue
+		}
+	}
+	return nil
+}
+
+// pushShopsSafe handles shop synchronization safely
+func (s *SyncService) pushShopsSafe(ctx context.Context, tx *gorm.DB, shops []entities.Shop, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	for i, shop := range shops {
+		if err := s.processSingleShopSafe(ctx, tx, shop, licenseID, response); err != nil {
+			log.Printf("Error processing shop %s (index %d): %v", shop.ID, i, err)
+			s.addDetailedError(response, "shops", shop.ID, "processing_failed", err.Error(),
+				map[string]interface{}{"shop_license_id": shop.LicenseID, "license_id": licenseID, "index": i})
+			continue
+		}
+	}
+	return nil
+}
+
+// pushUsersSafe handles user synchronization safely with role validation
+func (s *SyncService) pushUsersSafe(ctx context.Context, tx *gorm.DB, users []entities.User, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	for i, user := range users {
+		if err := s.processSingleUserSafe(ctx, tx, user, licenseID, response); err != nil {
+			log.Printf("Error processing user %s (index %d): %v", user.ID, i, err)
+			s.addDetailedError(response, "users", user.ID, "processing_failed", err.Error(),
+				map[string]interface{}{"user_license_id": user.LicenseID, "license_id": licenseID, "index": i})
+			continue
+		}
+	}
+	return nil
+}
+
+// pushStockHistoriesSafe handles stock history synchronization safely
+func (s *SyncService) pushStockHistoriesSafe(ctx context.Context, tx *gorm.DB, stockHistories []entities.StockHistory, syncContext dto.SyncContext, response *dto.SyncResponse) error {
+	for i, stockHistory := range stockHistories {
+		if err := s.processSingleStockHistorySafe(ctx, tx, stockHistory, syncContext, response); err != nil {
+			log.Printf("Error processing stock history %s (index %d): %v", stockHistory.ID, i, err)
+			s.addDetailedError(response, "stock_histories", stockHistory.ID, "processing_failed", err.Error(),
+				map[string]interface{}{"product_id": stockHistory.ProductID, "license_id": syncContext.LicenseID, "index": i})
+			continue
+		}
+	}
+	return nil
+}
+
+// pushTransactionProductsSafe handles transaction product synchronization safely
+func (s *SyncService) pushTransactionProductsSafe(ctx context.Context, tx *gorm.DB, transactionProducts []entities.TransactionProduct, syncContext dto.SyncContext, response *dto.SyncResponse) error {
+	for i, transactionProduct := range transactionProducts {
+		if err := s.processSingleTransactionProductSafe(ctx, tx, transactionProduct, syncContext, response); err != nil {
+			log.Printf("Error processing transaction product %s (index %d): %v", transactionProduct.ID, i, err)
+			s.addDetailedError(response, "transaction_products", transactionProduct.ID, "processing_failed", err.Error(),
+				map[string]interface{}{"transaction_id": transactionProduct.TransactionID, "license_id": syncContext.LicenseID, "index": i})
+			continue
+		}
+	}
+	return nil
+}
+
+// Safe processing methods for individual entities
+
+// processSingleCategorySafe processes a single category entity safely
+func (s *SyncService) processSingleCategorySafe(ctx context.Context, tx *gorm.DB, category entities.Category, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	if !s.validateCategoryLicense(ctx, category, licenseID) {
+		return fmt.Errorf("category does not belong to license %s", licenseID)
+	}
+
+	existing, err := s.findCategoryByID(ctx, tx, category.ID)
+	if err != nil {
+		return fmt.Errorf("failed to find category: %w", err)
+	}
+
+	if existing == nil {
+		if err := s.createCategory(ctx, tx, category); err != nil {
+			return fmt.Errorf("failed to create category: %w", err)
+		}
+		s.incrementStat(response.Stats.CreatedEntities, "categories")
+	} else {
+		if conflict := s.resolveCategoryConflict(*existing, category); conflict != nil {
+			response.Conflicts = append(response.Conflicts, *conflict)
+			if existing.UpdatedAt.After(category.UpdatedAt) {
+				s.incrementStat(response.Stats.ProcessedEntities, "categories")
+				return nil
+			}
+		}
+		if err := s.updateCategory(ctx, tx, category); err != nil {
+			return fmt.Errorf("failed to update category: %w", err)
+		}
+		s.incrementStat(response.Stats.UpdatedEntities, "categories")
+	}
+
+	s.incrementStat(response.Stats.ProcessedEntities, "categories")
+	return nil
+}
+
+// processSingleProductSafe processes a single product entity safely
+func (s *SyncService) processSingleProductSafe(ctx context.Context, tx *gorm.DB, product entities.Product, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	if !s.validateProductLicense(ctx, product, licenseID) {
+		return fmt.Errorf("product does not belong to license %s", licenseID)
+	}
+
+	existing, err := s.findProductByID(ctx, tx, product.ID)
+	if err != nil {
+		return fmt.Errorf("failed to find product: %w", err)
+	}
+
+	if existing == nil {
+		if err := s.createProduct(ctx, tx, product); err != nil {
+			return fmt.Errorf("failed to create product: %w", err)
+		}
+		s.incrementStat(response.Stats.CreatedEntities, "products")
+	} else {
+		if conflict := s.resolveProductConflict(*existing, product); conflict != nil {
+			response.Conflicts = append(response.Conflicts, *conflict)
+			if existing.UpdatedAt.After(product.UpdatedAt) {
+				s.incrementStat(response.Stats.ProcessedEntities, "products")
+				return nil
+			}
+		}
+		if err := s.updateProduct(ctx, tx, product); err != nil {
+			return fmt.Errorf("failed to update product: %w", err)
+		}
+		s.incrementStat(response.Stats.UpdatedEntities, "products")
+	}
+
+	s.incrementStat(response.Stats.ProcessedEntities, "products")
+	return nil
+}
+
+// processSingleTransactionSafe processes a single transaction entity safely
+func (s *SyncService) processSingleTransactionSafe(ctx context.Context, tx *gorm.DB, transaction entities.Transaction, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	if !s.validateTransactionLicense(ctx, transaction, licenseID) {
+		return fmt.Errorf("transaction does not belong to license %s", licenseID)
+	}
+
+	existing, err := s.findTransactionByID(ctx, tx, transaction.ID)
+	if err != nil {
+		return fmt.Errorf("failed to find transaction: %w", err)
+	}
+
+	if existing == nil {
+		if err := s.createTransaction(ctx, tx, transaction); err != nil {
+			return fmt.Errorf("failed to create transaction: %w", err)
+		}
+		s.incrementStat(response.Stats.CreatedEntities, "transactions")
+	} else {
+		if conflict := s.resolveTransactionConflict(*existing, transaction); conflict != nil {
+			response.Conflicts = append(response.Conflicts, *conflict)
+			if existing.UpdatedAt.After(transaction.UpdatedAt) {
+				s.incrementStat(response.Stats.ProcessedEntities, "transactions")
+				return nil
+			}
+		}
+		if err := s.updateTransaction(ctx, tx, transaction); err != nil {
+			return fmt.Errorf("failed to update transaction: %w", err)
+		}
+		s.incrementStat(response.Stats.UpdatedEntities, "transactions")
+	}
+
+	s.incrementStat(response.Stats.ProcessedEntities, "transactions")
+	return nil
+}
+
+// processSingleExpenseSafe processes a single expense entity safely
+func (s *SyncService) processSingleExpenseSafe(ctx context.Context, tx *gorm.DB, expense entities.Expense, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	if !s.validateExpenseLicense(ctx, expense, licenseID) {
+		return fmt.Errorf("expense does not belong to license %s", licenseID)
+	}
+
+	existing, err := s.findExpenseByID(ctx, tx, expense.ID)
+	if err != nil {
+		return fmt.Errorf("failed to find expense: %w", err)
+	}
+
+	if existing == nil {
+		if err := s.createExpense(ctx, tx, expense); err != nil {
+			return fmt.Errorf("failed to create expense: %w", err)
+		}
+		s.incrementStat(response.Stats.CreatedEntities, "expenses")
+	} else {
+		if conflict := s.resolveExpenseConflict(*existing, expense); conflict != nil {
+			response.Conflicts = append(response.Conflicts, *conflict)
+			if existing.UpdatedAt.After(expense.UpdatedAt) {
+				s.incrementStat(response.Stats.ProcessedEntities, "expenses")
+				return nil
+			}
+		}
+		if err := s.updateExpense(ctx, tx, expense); err != nil {
+			return fmt.Errorf("failed to update expense: %w", err)
+		}
+		s.incrementStat(response.Stats.UpdatedEntities, "expenses")
+	}
+
+	s.incrementStat(response.Stats.ProcessedEntities, "expenses")
+	return nil
+}
+
+// processSinglePaymentSafe processes a single payment entity safely
+func (s *SyncService) processSinglePaymentSafe(ctx context.Context, tx *gorm.DB, payment entities.Payment, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	if !s.validatePaymentLicense(ctx, payment, licenseID) {
+		return fmt.Errorf("payment does not belong to license %s", licenseID)
+	}
+
+	existing, err := s.findPaymentByID(ctx, tx, payment.ID)
+	if err != nil {
+		return fmt.Errorf("failed to find payment: %w", err)
+	}
+
+	if existing == nil {
+		if err := s.createPayment(ctx, tx, payment); err != nil {
+			return fmt.Errorf("failed to create payment: %w", err)
+		}
+		s.incrementStat(response.Stats.CreatedEntities, "payments")
+	} else {
+		if conflict := s.resolvePaymentConflict(*existing, payment); conflict != nil {
+			response.Conflicts = append(response.Conflicts, *conflict)
+			if existing.UpdatedAt.After(payment.UpdatedAt) {
+				s.incrementStat(response.Stats.ProcessedEntities, "payments")
+				return nil
+			}
+		}
+		if err := s.updatePayment(ctx, tx, payment); err != nil {
+			return fmt.Errorf("failed to update payment: %w", err)
+		}
+		s.incrementStat(response.Stats.UpdatedEntities, "payments")
+	}
+
+	s.incrementStat(response.Stats.ProcessedEntities, "payments")
+	return nil
+}
+
+// processSingleReceiptSafe processes a single receipt entity safely
+func (s *SyncService) processSingleReceiptSafe(ctx context.Context, tx *gorm.DB, receipt entities.Receipt, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	if !s.validateReceiptLicense(ctx, receipt, licenseID) {
+		return fmt.Errorf("receipt does not belong to license %s", licenseID)
+	}
+
+	existing, err := s.findReceiptByID(ctx, tx, receipt.ID)
+	if err != nil {
+		return fmt.Errorf("failed to find receipt: %w", err)
+	}
+
+	if existing == nil {
+		if err := s.createReceipt(ctx, tx, receipt); err != nil {
+			return fmt.Errorf("failed to create receipt: %w", err)
+		}
+		s.incrementStat(response.Stats.CreatedEntities, "receipts")
+	} else {
+		if conflict := s.resolveReceiptConflict(*existing, receipt); conflict != nil {
+			response.Conflicts = append(response.Conflicts, *conflict)
+			if existing.UpdatedAt.After(receipt.UpdatedAt) {
+				s.incrementStat(response.Stats.ProcessedEntities, "receipts")
+				return nil
+			}
+		}
+		if err := s.updateReceipt(ctx, tx, receipt); err != nil {
+			return fmt.Errorf("failed to update receipt: %w", err)
+		}
+		s.incrementStat(response.Stats.UpdatedEntities, "receipts")
+	}
+
+	s.incrementStat(response.Stats.ProcessedEntities, "receipts")
+	return nil
+}
+
+// processSingleHistorySafe processes a single history entity safely
+func (s *SyncService) processSingleHistorySafe(ctx context.Context, tx *gorm.DB, history entities.History, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	if !s.validateHistoryLicense(ctx, history, licenseID) {
+		return fmt.Errorf("history does not belong to license %s", licenseID)
+	}
+
+	existing, err := s.findHistoryByID(ctx, tx, history.ID)
+	if err != nil {
+		return fmt.Errorf("failed to find history: %w", err)
+	}
+
+	if existing == nil {
+		if err := s.createHistory(ctx, tx, history); err != nil {
+			return fmt.Errorf("failed to create history: %w", err)
+		}
+		s.incrementStat(response.Stats.CreatedEntities, "histories")
+	} else {
+		if conflict := s.resolveHistoryConflict(*existing, history); conflict != nil {
+			response.Conflicts = append(response.Conflicts, *conflict)
+			if existing.UpdatedAt.After(history.UpdatedAt) {
+				s.incrementStat(response.Stats.ProcessedEntities, "histories")
+				return nil
+			}
+		}
+		if err := s.updateHistory(ctx, tx, history); err != nil {
+			return fmt.Errorf("failed to update history: %w", err)
+		}
+		s.incrementStat(response.Stats.UpdatedEntities, "histories")
+	}
+
+	s.incrementStat(response.Stats.ProcessedEntities, "histories")
+	return nil
+}
+
+// processSingleShopSafe processes a single shop entity safely
+func (s *SyncService) processSingleShopSafe(ctx context.Context, tx *gorm.DB, shop entities.Shop, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	if !s.validateShopLicense(ctx, shop, licenseID) {
+		return fmt.Errorf("shop does not belong to license %s", licenseID)
+	}
+
+	existing, err := s.findShopByID(ctx, tx, shop.ID)
+	if err != nil {
+		return fmt.Errorf("failed to find shop: %w", err)
+	}
+
+	if existing == nil {
+		if err := s.createShop(ctx, tx, shop); err != nil {
+			return fmt.Errorf("failed to create shop: %w", err)
+		}
+		s.incrementStat(response.Stats.CreatedEntities, "shops")
+	} else {
+		if conflict := s.resolveShopConflict(*existing, shop); conflict != nil {
+			response.Conflicts = append(response.Conflicts, *conflict)
+			if existing.UpdatedAt.After(shop.UpdatedAt) {
+				s.incrementStat(response.Stats.ProcessedEntities, "shops")
+				return nil
+			}
+		}
+		if err := s.updateShop(ctx, tx, shop); err != nil {
+			return fmt.Errorf("failed to update shop: %w", err)
+		}
+		s.incrementStat(response.Stats.UpdatedEntities, "shops")
+	}
+
+	s.incrementStat(response.Stats.ProcessedEntities, "shops")
+	return nil
+}
+
+// processSingleUserSafe processes a single user entity safely with role validation
+func (s *SyncService) processSingleUserSafe(ctx context.Context, tx *gorm.DB, user entities.User, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	if !s.validateUserLicense(ctx, user, licenseID) {
+		return fmt.Errorf("user does not belong to license %s", licenseID)
+	}
+
+	// CRITICAL FIX: Validate role exists before creating/updating user
+	if user.RoleID != nil {
+		var roleExists bool
+		err := tx.Model(&entities.Role{}).Select("count(*) > 0").Where("id = ?", *user.RoleID).Find(&roleExists).Error
+		if err != nil {
+			return fmt.Errorf("failed to validate role: %w", err)
+		}
+		if !roleExists {
+			return fmt.Errorf("role %s does not exist", *user.RoleID)
+		}
+	}
+
+	existing, err := s.findUserByID(ctx, tx, user.ID)
+	if err != nil {
+		return fmt.Errorf("failed to find user: %w", err)
+	}
+
+	if existing == nil {
+		if err := s.createUser(ctx, tx, user); err != nil {
+			return fmt.Errorf("failed to create user: %w", err)
+		}
+		s.incrementStat(response.Stats.CreatedEntities, "users")
+	} else {
+		if conflict := s.resolveUserConflict(*existing, user); conflict != nil {
+			response.Conflicts = append(response.Conflicts, *conflict)
+			if existing.UpdatedAt.After(user.UpdatedAt) {
+				s.incrementStat(response.Stats.ProcessedEntities, "users")
+				return nil
+			}
+		}
+		if err := s.updateUser(ctx, tx, user); err != nil {
+			return fmt.Errorf("failed to update user: %w", err)
+		}
+		s.incrementStat(response.Stats.UpdatedEntities, "users")
+	}
+
+	s.incrementStat(response.Stats.ProcessedEntities, "users")
+	return nil
+}
+
+// processSingleStockHistorySafe processes a single stock history entity safely
+func (s *SyncService) processSingleStockHistorySafe(ctx context.Context, tx *gorm.DB, stockHistory entities.StockHistory, syncContext dto.SyncContext, response *dto.SyncResponse) error {
+	if !s.validateStockHistoryAccess(ctx, stockHistory, syncContext) {
+		return fmt.Errorf("stock history access denied for user role and shop")
+	}
+
+	existing, err := s.findStockHistoryByID(ctx, tx, stockHistory.ID)
+	if err != nil {
+		return fmt.Errorf("failed to find stock history: %w", err)
+	}
+
+	if existing == nil {
+		if err := s.createStockHistory(ctx, tx, stockHistory); err != nil {
+			return fmt.Errorf("failed to create stock history: %w", err)
+		}
+		s.incrementStat(response.Stats.CreatedEntities, "stock_histories")
+	} else {
+		if conflict := s.resolveStockHistoryConflict(*existing, stockHistory); conflict != nil {
+			response.Conflicts = append(response.Conflicts, *conflict)
+			if existing.UpdatedAt.After(stockHistory.UpdatedAt) {
+				s.incrementStat(response.Stats.ProcessedEntities, "stock_histories")
+				return nil
+			}
+		}
+		if err := s.updateStockHistory(ctx, tx, stockHistory); err != nil {
+			return fmt.Errorf("failed to update stock history: %w", err)
+		}
+		s.incrementStat(response.Stats.UpdatedEntities, "stock_histories")
+	}
+
+	s.incrementStat(response.Stats.ProcessedEntities, "stock_histories")
+	return nil
+}
+
+// processSingleTransactionProductSafe processes a single transaction product entity safely
+func (s *SyncService) processSingleTransactionProductSafe(ctx context.Context, tx *gorm.DB, transactionProduct entities.TransactionProduct, syncContext dto.SyncContext, response *dto.SyncResponse) error {
+	if !s.validateTransactionProductAccess(ctx, transactionProduct, syncContext) {
+		return fmt.Errorf("transaction product access denied for user role and shop")
+	}
+
+	existing, err := s.findTransactionProductByID(ctx, tx, transactionProduct.ID)
+	if err != nil {
+		return fmt.Errorf("failed to find transaction product: %w", err)
+	}
+
+	if existing == nil {
+		if err := s.createTransactionProduct(ctx, tx, transactionProduct); err != nil {
+			return fmt.Errorf("failed to create transaction product: %w", err)
+		}
+		s.incrementStat(response.Stats.CreatedEntities, "transaction_products")
+	} else {
+		if conflict := s.resolveTransactionProductConflict(*existing, transactionProduct); conflict != nil {
+			response.Conflicts = append(response.Conflicts, *conflict)
+			if existing.UpdatedAt.After(transactionProduct.UpdatedAt) {
+				s.incrementStat(response.Stats.ProcessedEntities, "transaction_products")
+				return nil
+			}
+		}
+		if err := s.updateTransactionProduct(ctx, tx, transactionProduct); err != nil {
+			return fmt.Errorf("failed to update transaction product: %w", err)
+		}
+		s.incrementStat(response.Stats.UpdatedEntities, "transaction_products")
+	}
+
+	s.incrementStat(response.Stats.ProcessedEntities, "transaction_products")
+	return nil
 }
