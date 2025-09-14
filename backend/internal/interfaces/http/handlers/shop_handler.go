@@ -6,18 +6,25 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/terminator791/t-pos/internal/domain/dto"
 	"github.com/terminator791/t-pos/internal/domain/entities"
+	"github.com/terminator791/t-pos/internal/domain/repositories"
 	"github.com/terminator791/t-pos/internal/domain/usecases"
+	"github.com/terminator791/t-pos/internal/infrastructure/auth"
 	"github.com/terminator791/t-pos/pkg/response"
 )
 
 type ShopHandler struct {
 	shopUseCase *usecases.ShopUseCase
+	roleRepo    repositories.RoleRepository
+	shopRepo    repositories.ShopRepository
 }
 
-func NewShopHandler(shopUseCase *usecases.ShopUseCase) *ShopHandler {
+func NewShopHandler(shopUseCase *usecases.ShopUseCase, roleRepo repositories.RoleRepository, shopRepo repositories.ShopRepository) *ShopHandler {
 	return &ShopHandler{
 		shopUseCase: shopUseCase,
+		roleRepo:    roleRepo,
+		shopRepo:    shopRepo,
 	}
 }
 
@@ -39,6 +46,22 @@ func (h *ShopHandler) CreateShop(c *gin.Context) {
 		return
 	}
 
+	// Validate user has access to the license before creating shop
+	domainAccess, err := auth.GetUserDomainAccess(c, h.roleRepo, h.shopRepo)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to get user access info", err.Error())
+		return
+	}
+
+	if !domainAccess.CanAccessLicense(req.LicenseID) {
+		response.Error(c, http.StatusForbidden, "Cannot create shop for this license", map[string]interface{}{
+			"license_id": req.LicenseID,
+			"user_id":    domainAccess.UserID,
+			"role":       domainAccess.Role,
+		})
+		return
+	}
+
 	shop := &entities.Shop{
 		ID:              uuid.New(),
 		Name:            req.Name,
@@ -56,7 +79,15 @@ func (h *ShopHandler) CreateShop(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, http.StatusCreated, "Shop created successfully", shop)
+	// Retrieve the created shop with relationships
+	createdShop, err := h.shopUseCase.GetShop(c.Request.Context(), shop.ID)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to retrieve created shop", err.Error())
+		return
+	}
+
+	shopResponse := dto.ToShopResponse(*createdShop)
+	c.JSON(http.StatusCreated, shopResponse)
 }
 
 // GetShop retrieves a shop by ID
@@ -74,7 +105,8 @@ func (h *ShopHandler) GetShop(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, http.StatusOK, "Shop retrieved successfully", shop)
+	shopResponse := dto.ToShopResponse(*shop)
+	c.JSON(http.StatusOK, shopResponse)
 }
 
 // ListShops retrieves a list of shops
@@ -94,16 +126,40 @@ func (h *ShopHandler) ListShops(c *gin.Context) {
 		return
 	}
 
-	shops, err := h.shopUseCase.ListShops(c.Request.Context(), limit, offset)
+	// Get domain access info to apply filtering
+	domainAccess, err := auth.GetUserDomainAccess(c, h.roleRepo, h.shopRepo)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to get user access info", err.Error())
+		return
+	}
+
+	var shops []*entities.Shop
+
+	// Apply domain-specific filtering
+	if domainAccess.HasGlobalAccess {
+		// Super admin and admin can see all shops
+		shops, err = h.shopUseCase.ListShops(c.Request.Context(), limit, offset)
+	} else {
+		// Filter by accessible shop/license IDs for tenant users
+		shopFilter := domainAccess.GetShopFilter()
+		licenseFilter := domainAccess.GetLicenseFilter()
+		
+		if len(shopFilter) == 0 && len(licenseFilter) == 0 {
+			// User has no accessible shops or licenses
+			shops = []*entities.Shop{}
+			err = nil
+		} else {
+			shops, err = h.shopUseCase.ListShopsFiltered(c.Request.Context(), shopFilter, licenseFilter, limit, offset)
+		}
+	}
+
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "Failed to retrieve shops", err.Error())
 		return
 	}
 
-	response.Success(c, http.StatusOK, "Shops retrieved successfully", gin.H{
-		"shops": shops,
-		"count": len(shops),
-	})
+	shopsResponse := dto.ToShopsListResponse(shops)
+	c.JSON(http.StatusOK, shopsResponse)
 }
 
 // UpdateShop updates an existing shop
@@ -161,7 +217,15 @@ func (h *ShopHandler) UpdateShop(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, http.StatusOK, "Shop updated successfully", existingShop)
+	// Retrieve the updated shop with relationships
+	updatedShop, err := h.shopUseCase.GetShop(c.Request.Context(), existingShop.ID)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to retrieve updated shop", err.Error())
+		return
+	}
+
+	shopResponse := dto.ToShopResponse(*updatedShop)
+	c.JSON(http.StatusOK, shopResponse)
 }
 
 // DeleteShop deletes a shop
@@ -196,10 +260,8 @@ func (h *ShopHandler) GetShopsByLicense(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, http.StatusOK, "Shops retrieved successfully", gin.H{
-		"shops": shops,
-		"count": len(shops),
-	})
+	shopsResponse := dto.ToShopsListResponse(shops)
+	c.JSON(http.StatusOK, shopsResponse)
 }
 
 // GetShopsByOwner retrieves shops by owner ID
@@ -217,8 +279,6 @@ func (h *ShopHandler) GetShopsByOwner(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, http.StatusOK, "Shops retrieved successfully", gin.H{
-		"shops": shops,
-		"count": len(shops),
-	})
+	shopsResponse := dto.ToShopsListResponse(shops)
+	c.JSON(http.StatusOK, shopsResponse)
 }

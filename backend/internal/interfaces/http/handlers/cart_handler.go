@@ -5,19 +5,26 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/terminator791/t-pos/internal/domain/entities"
+	"github.com/terminator791/t-pos/internal/domain/repositories"
 	"github.com/terminator791/t-pos/internal/domain/usecases"
+	"github.com/terminator791/t-pos/internal/infrastructure/auth"
 	"github.com/terminator791/t-pos/pkg/response"
 )
 
 // CartHandler handles cart-related HTTP requests
 type CartHandler struct {
 	cartUseCase *usecases.CartUseCase
+	roleRepo    repositories.RoleRepository
+	shopRepo    repositories.ShopRepository
 }
 
 // NewCartHandler creates a new CartHandler
-func NewCartHandler(cartUseCase *usecases.CartUseCase) *CartHandler {
+func NewCartHandler(cartUseCase *usecases.CartUseCase, roleRepo repositories.RoleRepository, shopRepo repositories.ShopRepository) *CartHandler {
 	return &CartHandler{
 		cartUseCase: cartUseCase,
+		roleRepo:    roleRepo,
+		shopRepo:    shopRepo,
 	}
 }
 
@@ -38,6 +45,22 @@ func (h *CartHandler) AddToCart(c *gin.Context) {
 	var req AddToCartRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.ErrorBadRequest(c, "Invalid request body", err.Error())
+		return
+	}
+
+	// Validate user has access to the shop before adding to cart
+	domainAccess, err := auth.GetUserDomainAccess(c, h.roleRepo, h.shopRepo)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to get user access info", err.Error())
+		return
+	}
+
+	if !domainAccess.CanAccessShop(req.ShopID) {
+		response.ErrorForbidden(c, "Cannot add product from this shop to cart", map[string]interface{}{
+			"shop_id": req.ShopID,
+			"user_id": domainAccess.UserID,
+			"role":    domainAccess.Role,
+		})
 		return
 	}
 
@@ -197,7 +220,7 @@ func (h *CartHandler) ClearCart(c *gin.Context) {
 	response.SuccessOK(c, "Cart cleared successfully", nil)
 }
 
-// ListAllCarts handles GET /carts/all (admin function)
+// ListAllCarts handles GET /carts/all - with domain-specific filtering
 func (h *CartHandler) ListAllCarts(c *gin.Context) {
 	limitStr := c.DefaultQuery("limit", "10")
 	offsetStr := c.DefaultQuery("offset", "0")
@@ -212,7 +235,31 @@ func (h *CartHandler) ListAllCarts(c *gin.Context) {
 		offset = 0
 	}
 
-	carts, err := h.cartUseCase.ListCarts(c.Request.Context(), limit, offset)
+	// Get domain access info to apply filtering
+	domainAccess, err := auth.GetUserDomainAccess(c, h.roleRepo, h.shopRepo)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to get user access info", err.Error())
+		return
+	}
+
+	var carts []*entities.Cart
+
+	// Apply domain-specific filtering
+	if domainAccess.HasGlobalAccess {
+		// Super admin and admin can see all carts
+		carts, err = h.cartUseCase.ListCarts(c.Request.Context(), limit, offset)
+	} else {
+		// Filter by accessible shop IDs for tenant users
+		shopFilter := domainAccess.GetShopFilter()
+		if len(shopFilter) == 0 {
+			// User has no accessible shops
+			carts = []*entities.Cart{}
+			err = nil
+		} else {
+			carts, err = h.cartUseCase.ListCartsByShopIDs(c.Request.Context(), shopFilter, limit, offset)
+		}
+	}
+
 	if err != nil {
 		response.ErrorInternalServer(c, "Failed to retrieve carts", err.Error())
 		return

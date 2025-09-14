@@ -11,6 +11,7 @@ import (
 	"github.com/terminator791/t-pos/internal/domain/repositories"
 	"github.com/terminator791/t-pos/internal/infrastructure/auth"
 	"github.com/terminator791/t-pos/internal/infrastructure/casbin"
+	"github.com/terminator791/t-pos/internal/infrastructure/seeders"
 	"github.com/terminator791/t-pos/pkg/response"
 	"gorm.io/gorm"
 )
@@ -25,6 +26,7 @@ type AuthHandler struct {
 	jwtService      *auth.JWTService
 	passwordService *auth.PasswordService
 	enforcerService *casbin.EnforcerService
+	authSeeder      *seeders.AuthSeeder
 }
 
 // LoginRequest represents login request payload
@@ -79,6 +81,7 @@ func NewAuthHandler(
 	jwtService *auth.JWTService,
 	passwordService *auth.PasswordService,
 	enforcerService *casbin.EnforcerService,
+	authSeeder *seeders.AuthSeeder,
 ) *AuthHandler {
 	return &AuthHandler{
 		userRepo:        userRepo,
@@ -89,6 +92,7 @@ func NewAuthHandler(
 		jwtService:      jwtService,
 		passwordService: passwordService,
 		enforcerService: enforcerService,
+		authSeeder:      authSeeder,
 	}
 }
 
@@ -143,34 +147,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		}
 		domain = license.SerialNumber
 	} else {
-		// For users without license (superadmin, admin), set domain based on role and user domains
-		switch role.Name {
-		case "super_admin":
-			// Super admin gets access to all domains
-			domain = "*"
-		case "admin":
-			// Admin can access all shops, but prefer specific domain if available
-			userDomains, err := h.userDomainRepo.GetByUserID(context.Background(), user.ID)
-			if err == nil && len(userDomains) > 0 {
-				// Use first domain if available, otherwise use wildcard
-				domain = userDomains[0].Domain
-			} else {
-				domain = "*"
-			}
-		default:
-			// For other roles, get domain from user domains
-			userDomains, err := h.userDomainRepo.GetByUserID(context.Background(), user.ID)
-			if err != nil {
-				response.ErrorInternalServer(c, "Failed to get user domains", err.Error())
-				return
-			}
-			if len(userDomains) > 0 {
-				domain = userDomains[0].Domain
-			} else {
-				response.ErrorUnauthorized(c, "User has no assigned domain", nil)
-				return
-			}
-		}
+		// For users without license cant login
+		response.ErrorForbidden(c, "User has no license assigned", nil)
+		return
 	}
 
 	// Generate JWT token
@@ -184,11 +163,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		email = *user.Email
 	}
 
-	// Get shop_id if user is a cashier
-	var shopID *uuid.UUID
-	if role.Name == "cashier" && user.ShopID != nil {
-		shopID = user.ShopID
-	}
+	// not set shopID (its always owner_business login)
+	var shopID *uuid.UUID = nil
 
 	token, err := h.jwtService.GenerateToken(user.ID, email, username, user.Name, domain, shopID)
 	if err != nil {
@@ -297,20 +273,19 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	// Assign domain access based on role (use license.SerialNumber as domain)
 	var domains []string
 
-	switch defaultRole.Name {
-	case "super_admin":
-		// Super admin gets access to all domains
-		domains = []string{"*"}
-	case "admin":
-		// Admin gets access to all shops (shop*)
-		domains = []string{"shop*"}
-	case "owner_business":
+	if defaultRole.Name == "owner_business" {
 		// Owner business gets access to their license domain (can access all shops under it)
 		domains = []string{license.SerialNumber}
-	case "cashier":
-		// Cashier needs to be assigned to specific shop - this would be done by owner_business later
-		// For now, give no domain access (will be assigned by owner)
-		domains = []string{}
+		
+		// Assign domain-specific policies for owner_business
+		if err := h.authSeeder.AssignPoliciesForRole("owner_business", license.SerialNumber); err != nil {
+			log.Printf("Failed to assign policies for owner_business %s: %v", user.ID, err)
+			// Don't fail registration, but log the error
+		}
+	} else {
+		// response with error since default role must be owner_business
+		response.ErrorForbidden(c, "Role must be owner_business", nil)
+		return
 	}
 
 	// Create user domain records
@@ -469,6 +444,12 @@ func (h *AuthHandler) RegisterCashier(c *gin.Context) {
 
 	if err := h.userDomainRepo.Create(context.Background(), userDomain); err != nil {
 		log.Printf("Failed to create user domain %s for cashier %s: %v", domain, user.ID, err)
+	}
+
+	// Assign domain-specific policies for cashier
+	if err := h.authSeeder.AssignPoliciesForRole("cashier", domain); err != nil {
+		log.Printf("Failed to assign policies for cashier %s: %v", user.ID, err)
+		// Don't fail registration, but log the error
 	}
 
 	// Add role to Casbin for this shop domain
@@ -805,10 +786,23 @@ func (h *AuthHandler) GetPermissions(c *gin.Context) {
 		return
 	}
 
-	domain, _ := auth.GetUserDomainFromContext(c)
-	if domain == "" {
-		domain = "*"
-	}
+	// Retrieve claims directly from context to get the domain
+    claimsInterface, exists := c.Get("claims")
+    if !exists {
+        response.ErrorUnauthorized(c, "No valid token found", nil)
+        return
+    }
+
+    claims, ok := claimsInterface.(*auth.Claims)
+    if !ok {
+        response.ErrorUnauthorized(c, "Invalid token claims", nil)
+        return
+    }
+
+    domain := claims.Domain
+    if domain == "" {
+        domain = "*"
+    }
 
 	// Get user
 	user, err := h.userRepo.GetByID(context.Background(), userID)

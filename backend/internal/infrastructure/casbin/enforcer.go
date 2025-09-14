@@ -54,15 +54,23 @@ func NewEnforcerService(db *gorm.DB, modelPath string) (*EnforcerService, error)
 			return
 		}
 
-		// Enable auto-save
+		// Enable auto-save for real-time policy updates
 		enforcer.EnableAutoSave(true)
+		
+		// Enable logging for policy operations
+		enforcer.EnableLog(true)
 
 		enforcerInstance = &EnforcerService{
 			enforcer: enforcer,
 			adapter:  adapter,
 		}
 
-		log.Println("Casbin enforcer initialized successfully")
+		log.Println("Casbin enforcer initialized successfully with policy auto-loading")
+		
+		// Log policy statistics for monitoring
+		policies := enforcerInstance.GetAllPolicies()
+		groupings := enforcerInstance.GetAllRoles()
+		log.Printf("Loaded %d policies and %d grouping rules", len(policies), len(groupings))
 	})
 
 	return enforcerInstance, err
@@ -73,7 +81,34 @@ func (e *EnforcerService) Enforce(user, domain, object, action string) (bool, er
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
-	return e.enforcer.Enforce(user, domain, object, action)
+	// Enhanced debug logging for policy enforcement
+	log.Printf("DEBUG: Casbin Enforce called with params: user=%s, domain=%s, object=%s, action=%s", user, domain, object, action)
+	
+	// Check user role assignments
+	roles := e.enforcer.GetRolesForUserInDomain(user, domain)
+	log.Printf("DEBUG: User %s roles in domain %s: %v", user, domain, roles)
+	
+	// Get all policies for this user's roles
+	for _, role := range roles {
+		rolePolicies, err := e.enforcer.GetFilteredPolicy(0, role, domain)
+		if err != nil {
+			log.Printf("DEBUG: Error getting policies for role %s in domain %s: %v", role, domain, err)
+		} else {
+			log.Printf("DEBUG: Policies for role %s in domain %s: %v", role, domain, rolePolicies)
+		}
+	}
+	
+	// Perform the actual enforcement
+	result, err := e.enforcer.Enforce(user, domain, object, action)
+	log.Printf("DEBUG: Casbin Enforce result: %v, error: %v", result, err)
+	
+	// Additional debugging: check for wildcard policies
+	if !result && domain != "*" {
+		wildcardResult, wildcardErr := e.enforcer.Enforce(user, "*", object, action)
+		log.Printf("DEBUG: Wildcard domain check result: %v, error: %v", wildcardResult, wildcardErr)
+	}
+	
+	return result, err
 }
 
 // AddPolicy adds a new policy rule
@@ -156,4 +191,125 @@ func (e *EnforcerService) GetAllRoles() [][]string {
 
 	roles, _ := e.enforcer.GetGroupingPolicy()
 	return roles
+}
+
+// AddPolicies adds multiple policy rules in batch
+func (e *EnforcerService) AddPolicies(policies [][]string) (bool, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	return e.enforcer.AddPolicies(policies)
+}
+
+// AddPoliciesForRole adds multiple policies for a specific role and domain
+func (e *EnforcerService) AddPoliciesForRole(role, domain string, permissions [][]string) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	// Convert permissions to full policy format
+	var policies [][]string
+	for _, perm := range permissions {
+		if len(perm) >= 2 { // object, action
+			policy := []string{role, domain, perm[0], perm[1]}
+			policies = append(policies, policy)
+		}
+	}
+
+	if len(policies) > 0 {
+		_, err := e.enforcer.AddPolicies(policies)
+		return err
+	}
+
+	return nil
+}
+
+// AddGroupingPolicy adds a grouping policy (user-role assignment with domain)
+func (e *EnforcerService) AddGroupingPolicy(user, role, domain string) (bool, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	return e.enforcer.AddGroupingPolicy(user, role, domain)
+}
+
+// RemoveGroupingPolicy removes a grouping policy
+func (e *EnforcerService) RemoveGroupingPolicy(user, role, domain string) (bool, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	return e.enforcer.RemoveGroupingPolicy(user, role, domain)
+}
+
+// GetGroupingPolicy returns all grouping policies
+func (e *EnforcerService) GetGroupingPolicy() [][]string {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	policies, _ := e.enforcer.GetGroupingPolicy()
+	return policies
+}
+
+// GetPolicy returns all policies
+func (e *EnforcerService) GetPolicy() [][]string {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	policies, _ := e.enforcer.GetPolicy()
+	return policies
+}
+
+// ReloadPolicyWithValidation reloads policies with validation and error handling
+func (e *EnforcerService) ReloadPolicyWithValidation() error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	// Get current policy count for comparison
+	beforeCount := len(e.GetAllPolicies())
+	beforeGroupingCount := len(e.GetAllRoles())
+
+	// Reload policies from database
+	if err := e.enforcer.LoadPolicy(); err != nil {
+		return fmt.Errorf("failed to reload policies: %w", err)
+	}
+
+	// Get updated counts
+	afterCount := len(e.GetAllPolicies())
+	afterGroupingCount := len(e.GetAllRoles())
+
+	log.Printf("Policy reload completed: policies %d->%d, groupings %d->%d", 
+		beforeCount, afterCount, beforeGroupingCount, afterGroupingCount)
+
+	return nil
+}
+
+// ValidatePolicyIntegrity checks if all necessary policies are loaded
+func (e *EnforcerService) ValidatePolicyIntegrity() error {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	policies := e.GetAllPolicies()
+	groupings := e.GetAllRoles()
+
+	if len(policies) == 0 {
+		return fmt.Errorf("no policies loaded - this indicates a configuration issue")
+	}
+
+	if len(groupings) == 0 {
+		log.Printf("Warning: No grouping policies found - users may not have role assignments")
+	}
+
+	// Basic validation that essential admin policies exist
+	hasAdminPolicy := false
+	for _, policy := range policies {
+		if len(policy) >= 4 && (policy[0] == "super_admin" || policy[0] == "admin") {
+			hasAdminPolicy = true
+			break
+		}
+	}
+
+	if !hasAdminPolicy {
+		return fmt.Errorf("no admin policies found - this could prevent administrative access")
+	}
+
+	log.Printf("Policy integrity validation passed: %d policies, %d groupings", len(policies), len(groupings))
+	return nil
 }

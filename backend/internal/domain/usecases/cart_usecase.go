@@ -249,3 +249,8 @@ func (uc *CartUseCase) UpdateCartQuantity(ctx context.Context, cartID uuid.UUID,
 func (uc *CartUseCase) ListCarts(ctx context.Context, limit, offset int) ([]*entities.Cart, error) {
 	return uc.cartRepo.List(ctx, limit, offset)
 }
+
+// ListCartsByShopIDs retrieves cart items filtered by accessible shop IDs for multi-tenant access
+func (uc *CartUseCase) ListCartsByShopIDs(ctx context.Context, shopIDs []uuid.UUID, limit, offset int) ([]*entities.Cart, error) {
+	return uc.cartRepo.ListByShopIDs(ctx, shopIDs, limit, offset)
+}

@@ -5,26 +5,55 @@ import (
 	"github.com/google/uuid"
 	"github.com/terminator791/t-pos/internal/domain/entities"
 	"github.com/terminator791/t-pos/internal/domain/repositories"
+	"github.com/terminator791/t-pos/internal/infrastructure/auth"
 	"github.com/terminator791/t-pos/pkg/response"
 )
 
 // PaymentHandler handles payment-related HTTP requests
 type PaymentHandler struct {
 	paymentRepo repositories.PaymentRepository
+	roleRepo    repositories.RoleRepository
+	shopRepo    repositories.ShopRepository
 }
 
 // NewPaymentHandler creates a new PaymentHandler
-func NewPaymentHandler(paymentRepo repositories.PaymentRepository) *PaymentHandler {
+func NewPaymentHandler(paymentRepo repositories.PaymentRepository, roleRepo repositories.RoleRepository, shopRepo repositories.ShopRepository) *PaymentHandler {
 	return &PaymentHandler{
 		paymentRepo: paymentRepo,
+		roleRepo:    roleRepo,
+		shopRepo:    shopRepo,
 	}
 }
 
-// ListPayments handles GET /payments - super admin and admin only
+// ListPayments handles GET /payments - with domain-specific filtering
 func (h *PaymentHandler) ListPayments(c *gin.Context) {
 	limit, offset := parsePaginationFromContext(c)
 
-	payments, err := h.paymentRepo.List(c.Request.Context(), limit, offset)
+	// Get domain access info to apply filtering
+	domainAccess, err := auth.GetUserDomainAccess(c, h.roleRepo, h.shopRepo)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to get user access info", err.Error())
+		return
+	}
+
+	var payments []*entities.Payment
+
+	// Apply domain-specific filtering
+	if domainAccess.HasGlobalAccess {
+		// Super admin and admin can see all payments
+		payments, err = h.paymentRepo.List(c.Request.Context(), limit, offset)
+	} else {
+		// Filter by accessible shop IDs for tenant users
+		shopFilter := domainAccess.GetShopFilter()
+		if len(shopFilter) == 0 {
+			// User has no accessible shops
+			payments = []*entities.Payment{}
+			err = nil
+		} else {
+			payments, err = h.paymentRepo.ListByShopIDs(c.Request.Context(), shopFilter, limit, offset)
+		}
+	}
+
 	if err != nil {
 		response.ErrorInternalServer(c, "Failed to retrieve payments", err.Error())
 		return

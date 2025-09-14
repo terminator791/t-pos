@@ -95,3 +95,17 @@ func (uc *ShopUseCase) DeleteShop(ctx context.Context, id uuid.UUID) error {
 func (uc *ShopUseCase) ListShops(ctx context.Context, limit, offset int) ([]*entities.Shop, error) {
 	return uc.shopRepo.List(ctx, limit, offset)
 }
+
+// ListShopsFiltered retrieves a list of shops filtered by accessible shop or license IDs
+func (uc *ShopUseCase) ListShopsFiltered(ctx context.Context, shopIDs []uuid.UUID, licenseIDs []uuid.UUID, limit, offset int) ([]*entities.Shop, error) {
+	if len(shopIDs) > 0 {
+		// Filter by specific shop IDs (for cashiers)
+		return uc.shopRepo.ListByShopIDs(ctx, shopIDs, limit, offset)
+	} else if len(licenseIDs) > 0 {
+		// Filter by license IDs (for owner_business)
+		return uc.shopRepo.ListByLicenseIDs(ctx, licenseIDs, limit, offset)
+	} else {
+		// No accessible shops
+		return []*entities.Shop{}, nil
+	}
+}

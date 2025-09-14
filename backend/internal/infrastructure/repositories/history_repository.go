@@ -66,3 +66,33 @@ func (r *HistoryRepositoryImpl) List(ctx context.Context, limit, offset int) ([]
 	err := r.db.WithContext(ctx).Limit(limit).Offset(offset).Find(&histories).Error
 	return histories, err
 }
+
+// ListByShopIDs retrieves histories filtered by accessible shop IDs for multi-tenant access
+func (r *HistoryRepositoryImpl) ListByShopIDs(ctx context.Context, shopIDs []uuid.UUID, limit, offset int) ([]*entities.History, error) {
+	var histories []*entities.History
+	if len(shopIDs) == 0 {
+		return histories, nil // Return empty slice if no accessible shops
+	}
+	
+	err := r.db.WithContext(ctx).
+		Where("shop_id IN (?)", shopIDs).
+		Limit(limit).
+		Offset(offset).
+		Find(&histories).Error
+		
+	return histories, err
+}
+
+// GetByShopIDs retrieves all histories for specified shop IDs (no pagination)
+func (r *HistoryRepositoryImpl) GetByShopIDs(ctx context.Context, shopIDs []uuid.UUID) ([]*entities.History, error) {
+	var histories []*entities.History
+	if len(shopIDs) == 0 {
+		return histories, nil // Return empty slice if no accessible shops
+	}
+	
+	err := r.db.WithContext(ctx).
+		Where("shop_id IN (?)", shopIDs).
+		Find(&histories).Error
+		
+	return histories, err
+}

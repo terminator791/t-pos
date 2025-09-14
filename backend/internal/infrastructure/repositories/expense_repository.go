@@ -74,3 +74,35 @@ func (r *ExpenseRepositoryImpl) List(ctx context.Context, limit, offset int) ([]
 	err := r.db.WithContext(ctx).Preload("Shop").Limit(limit).Offset(offset).Find(&expenses).Error
 	return expenses, err
 }
+
+// ListByShopIDs retrieves expenses filtered by accessible shop IDs for multi-tenant access
+func (r *ExpenseRepositoryImpl) ListByShopIDs(ctx context.Context, shopIDs []uuid.UUID, limit, offset int) ([]*entities.Expense, error) {
+	var expenses []*entities.Expense
+	if len(shopIDs) == 0 {
+		return expenses, nil // Return empty slice if no accessible shops
+	}
+	
+	err := r.db.WithContext(ctx).
+		Preload("Shop").
+		Where("shop_id IN (?)", shopIDs).
+		Limit(limit).
+		Offset(offset).
+		Find(&expenses).Error
+		
+	return expenses, err
+}
+
+// GetByShopIDs retrieves all expenses for specified shop IDs (no pagination)
+func (r *ExpenseRepositoryImpl) GetByShopIDs(ctx context.Context, shopIDs []uuid.UUID) ([]*entities.Expense, error) {
+	var expenses []*entities.Expense
+	if len(shopIDs) == 0 {
+		return expenses, nil // Return empty slice if no accessible shops
+	}
+	
+	err := r.db.WithContext(ctx).
+		Preload("Shop").
+		Where("shop_id IN (?)", shopIDs).
+		Find(&expenses).Error
+		
+	return expenses, err
+}

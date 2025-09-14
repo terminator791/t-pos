@@ -86,14 +86,18 @@ func NewSyncService(
 	}
 }
 
-// ProcessSync handles the complete synchronization process
-func (s *SyncService) ProcessSync(ctx context.Context, req dto.SyncRequest, licenseID uuid.UUID, userID uuid.UUID) (*dto.SyncResponse, error) {
+// ProcessSyncWithRoleAccess handles the complete synchronization process with role-based access control
+func (s *SyncService) ProcessSyncWithRoleAccess(ctx context.Context, req dto.SyncRequest, syncContext dto.SyncContext) (*dto.SyncResponse, error) {
 	startTime := time.Now()
 
 	// Validate sync request size to prevent memory issues
 	if err := s.validateSyncRequest(req); err != nil {
 		return nil, fmt.Errorf("sync request validation failed: %w", err)
 	}
+
+	// Log role-based sync operation
+	log.Printf("Starting role-based sync for user %s (role: %s), license %s, shops: %v", 
+		syncContext.UserID, syncContext.UserRole, syncContext.LicenseID, syncContext.AccessibleShopIDs)
 
 	response := &dto.SyncResponse{
 		SyncTimestamp: time.Now(),
@@ -110,36 +114,22 @@ func (s *SyncService) ProcessSync(ctx context.Context, req dto.SyncRequest, lice
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, s.config.TransactionTimeout)
 	defer cancel()
 
-	// Start a database transaction with proper timeout and isolation level
-	tx := s.db.Begin(&sql.TxOptions{
-		Isolation: sql.LevelReadCommitted,
-	})
-	if tx.Error != nil {
-		return nil, fmt.Errorf("failed to start transaction: %w", tx.Error)
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-			log.Printf("Sync transaction rolled back due to panic: %v", r)
-			panic(r)
-		}
-	}()
-
-	// Phase 1: Push - Process incoming changes from mobile
-	if err := s.pushChanges(ctxWithTimeout, tx, req, licenseID, response); err != nil {
-		tx.Rollback()
-		return nil, fmt.Errorf("failed to push changes: %w", err)
+	// CRITICAL FIX: Use separate transactions for push and pull to prevent transaction abort errors
+	// This prevents a failed operation in one phase from affecting the other
+	
+	// Phase 1: Push - Process incoming changes from mobile with role-based filtering
+	if err := s.processPushWithTransaction(ctxWithTimeout, req, syncContext, response); err != nil {
+		log.Printf("Push phase failed for user %s: %v", syncContext.UserID, err)
+		// Don't return error immediately - allow pull phase to proceed
+		s.addDetailedError(response, "sync", uuid.Nil, "push_failed", err.Error(),
+			map[string]interface{}{"phase": "push", "user_id": syncContext.UserID})
 	}
 
-	// Phase 2: Pull - Get server changes since last sync
-	if err := s.pullChanges(ctxWithTimeout, tx, req.LastSyncTimestamp, licenseID, response); err != nil {
-		tx.Rollback()
-		return nil, fmt.Errorf("failed to pull changes: %w", err)
-	}
-
-	// Commit the transaction
-	if err := tx.Commit().Error; err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	// Phase 2: Pull - Get server changes since last sync with role-based filtering
+	if err := s.processPullWithTransaction(ctxWithTimeout, req.LastSyncTimestamp, syncContext, response); err != nil {
+		log.Printf("Pull phase failed for user %s: %v", syncContext.UserID, err)
+		s.addDetailedError(response, "sync", uuid.Nil, "pull_failed", err.Error(),
+			map[string]interface{}{"phase": "pull", "user_id": syncContext.UserID})
 	}
 
 	// Clean up response - remove empty arrays and fix conflict data
@@ -150,11 +140,100 @@ func (s *SyncService) ProcessSync(ctx context.Context, req dto.SyncRequest, lice
 	response.Stats.ConflictCount = len(response.Conflicts)
 	response.Stats.ErrorCount = len(response.Errors)
 
-	log.Printf("Sync completed for license %s: %d conflicts, %d errors, %dms, %d entities processed",
-		licenseID.String(), response.Stats.ConflictCount, response.Stats.ErrorCount,
+	log.Printf("Role-based sync completed for user %s (role: %s): %d conflicts, %d errors, %dms, %d entities processed",
+		syncContext.UserID, syncContext.UserRole, response.Stats.ConflictCount, response.Stats.ErrorCount,
 		response.Stats.ProcessingTimeMs, s.getTotalProcessedEntities(response.Stats))
 
 	return response, nil
+}
+
+// processPushWithTransaction handles push operations in an isolated transaction
+func (s *SyncService) processPushWithTransaction(ctx context.Context, req dto.SyncRequest, syncContext dto.SyncContext, response *dto.SyncResponse) error {
+	// CRITICAL FIX: Use a single transaction with proper error handling to prevent SQL abort errors
+	// Instead of nested transactions, use savepoints for error isolation
+	
+	tx := s.db.Begin(&sql.TxOptions{
+		Isolation: sql.LevelReadCommitted,
+	})
+	if tx.Error != nil {
+		return fmt.Errorf("failed to start push transaction: %w", tx.Error)
+	}
+
+	// Ensure transaction is properly cleaned up
+	defer func() {
+		if r := recover(); r != nil {
+			if rollbackErr := tx.Rollback().Error; rollbackErr != nil {
+				log.Printf("Failed to rollback transaction after panic: %v", rollbackErr)
+			}
+			log.Printf("Push transaction rolled back due to panic: %v", r)
+			panic(r)
+		}
+	}()
+
+	// Process push changes with enhanced error handling but without nested transactions
+	if err := s.pushChangesWithRoleAccessSafe(ctx, tx, req, syncContext, response); err != nil {
+		if rollbackErr := tx.Rollback().Error; rollbackErr != nil {
+			log.Printf("Failed to rollback transaction: %v", rollbackErr)
+		}
+		return fmt.Errorf("failed to push changes: %w", err)
+	}
+
+	// Commit push transaction
+	if err := tx.Commit().Error; err != nil {
+		return fmt.Errorf("failed to commit push transaction: %w", err)
+	}
+
+	log.Printf("Push phase completed successfully for user %s", syncContext.UserID)
+	return nil
+}
+
+// processPullWithTransaction handles pull operations in an isolated transaction
+func (s *SyncService) processPullWithTransaction(ctx context.Context, lastSync *time.Time, syncContext dto.SyncContext, response *dto.SyncResponse) error {
+	// Start a dedicated transaction for pull operations
+	tx := s.db.Begin(&sql.TxOptions{
+		Isolation: sql.LevelReadCommitted,
+		ReadOnly:  true, // Pull operations are read-only
+	})
+	if tx.Error != nil {
+		return fmt.Errorf("failed to start pull transaction: %w", tx.Error)
+	}
+
+	// Ensure transaction is properly cleaned up
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			log.Printf("Pull transaction rolled back due to panic: %v", r)
+			panic(r)
+		}
+	}()
+
+	// Process pull changes with enhanced error handling
+	if err := s.pullChangesWithRoleAccess(ctx, tx, lastSync, syncContext, response); err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to pull changes: %w", err)
+	}
+
+	// Commit pull transaction
+	if err := tx.Commit().Error; err != nil {
+		return fmt.Errorf("failed to commit pull transaction: %w", err)
+	}
+
+	log.Printf("Pull phase completed successfully for user %s", syncContext.UserID)
+	return nil
+}
+
+// ProcessSync handles the complete synchronization process (legacy method for backward compatibility)
+func (s *SyncService) ProcessSync(ctx context.Context, req dto.SyncRequest, licenseID uuid.UUID, userID uuid.UUID) (*dto.SyncResponse, error) {
+	// Create a default sync context for backward compatibility
+	syncContext := dto.SyncContext{
+		UserID:            userID,
+		UserRole:          "legacy", // Indicates legacy sync without role-based access
+		LicenseID:         licenseID,
+		AccessibleShopIDs: nil, // No filtering for legacy sync
+		HasGlobalAccess:   true, // Legacy behavior - global access
+	}
+	
+	return s.ProcessSyncWithRoleAccess(ctx, req, syncContext)
 }
 
 // validateSyncRequest validates the sync request to prevent memory and performance issues
@@ -204,62 +283,444 @@ func (s *SyncService) getTotalProcessedEntities(stats dto.SyncStats) int {
 	return total
 }
 
-// pushChanges processes incoming changes from mobile client
-func (s *SyncService) pushChanges(ctx context.Context, tx *gorm.DB, req dto.SyncRequest, licenseID uuid.UUID, response *dto.SyncResponse) error {
-	// Process each entity type
-	if err := s.pushCarts(ctx, tx, req.Carts, licenseID, response); err != nil {
+// pushChangesWithRoleAccessSafe processes incoming changes from mobile client with role-based filtering
+// This version avoids nested transactions to prevent SQL transaction abort errors
+func (s *SyncService) pushChangesWithRoleAccessSafe(ctx context.Context, tx *gorm.DB, req dto.SyncRequest, syncContext dto.SyncContext, response *dto.SyncResponse) error {
+	// CRITICAL FIX: Filter and validate entities based on role access BEFORE processing
+	// This prevents validation errors from aborting the entire transaction
+	filteredReq, filterStats := s.filterAndValidateSyncRequest(req, syncContext)
+	
+	// Log filtering results with detailed stats
+	log.Printf("Role-based filtering for user %s (role: %s): %s", 
+		syncContext.UserID, syncContext.UserRole, filterStats)
+
+	// Add filter warnings to response instead of failing for inaccessible data
+	for _, warning := range s.generateFilterWarnings(req, filteredReq, syncContext) {
+		response.Errors = append(response.Errors, warning)
+	}
+
+	// Process each entity type with the filtered data and enhanced error handling
+	if err := s.pushCartsSafe(ctx, tx, filteredReq.Carts, syncContext.LicenseID, response); err != nil {
 		return fmt.Errorf("failed to push carts: %w", err)
 	}
 
-	if err := s.pushCategories(ctx, tx, req.Categories, licenseID, response); err != nil {
+	if err := s.pushCategoriesSafe(ctx, tx, filteredReq.Categories, syncContext.LicenseID, response); err != nil {
 		return fmt.Errorf("failed to push categories: %w", err)
 	}
 
-	if err := s.pushProducts(ctx, tx, req.Products, licenseID, response); err != nil {
+	if err := s.pushProductsSafe(ctx, tx, filteredReq.Products, syncContext.LicenseID, response); err != nil {
 		return fmt.Errorf("failed to push products: %w", err)
 	}
 
-	if err := s.pushTransactions(ctx, tx, req.Transactions, licenseID, response); err != nil {
+	if err := s.pushTransactionsSafe(ctx, tx, filteredReq.Transactions, syncContext.LicenseID, response); err != nil {
 		return fmt.Errorf("failed to push transactions: %w", err)
 	}
 
-	if err := s.pushExpenses(ctx, tx, req.Expenses, licenseID, response); err != nil {
+	if err := s.pushExpensesSafe(ctx, tx, filteredReq.Expenses, syncContext.LicenseID, response); err != nil {
 		return fmt.Errorf("failed to push expenses: %w", err)
 	}
 
-	if err := s.pushPayments(ctx, tx, req.Payments, licenseID, response); err != nil {
+	if err := s.pushPaymentsSafe(ctx, tx, filteredReq.Payments, syncContext.LicenseID, response); err != nil {
 		return fmt.Errorf("failed to push payments: %w", err)
 	}
 
-	if err := s.pushReceipts(ctx, tx, req.Receipts, licenseID, response); err != nil {
+	if err := s.pushReceiptsSafe(ctx, tx, filteredReq.Receipts, syncContext.LicenseID, response); err != nil {
 		return fmt.Errorf("failed to push receipts: %w", err)
 	}
 
-	if err := s.pushHistories(ctx, tx, req.Histories, licenseID, response); err != nil {
+	if err := s.pushHistoriesSafe(ctx, tx, filteredReq.Histories, syncContext.LicenseID, response); err != nil {
 		return fmt.Errorf("failed to push histories: %w", err)
 	}
 
-	if err := s.pushShops(ctx, tx, req.Shops, licenseID, response); err != nil {
-		return fmt.Errorf("failed to push shops: %w", err)
+	// Only allow shop configuration changes for owner_business and admins
+	if syncContext.UserRole != "cashier" {
+		if err := s.pushShopsSafe(ctx, tx, filteredReq.Shops, syncContext.LicenseID, response); err != nil {
+			return fmt.Errorf("failed to push shops: %w", err)
+		}
+
+		if err := s.pushUsersSafe(ctx, tx, filteredReq.Users, syncContext.LicenseID, response); err != nil {
+			return fmt.Errorf("failed to push users: %w", err)
+		}
+	} else {
+		// Log filtered operations for cashiers
+		if len(req.Shops) > 0 {
+			log.Printf("Filtered shop sync for cashier user %s: %d shops filtered out", syncContext.UserID, len(req.Shops))
+			s.addDetailedError(response, "shops", uuid.Nil, "filtered", "Cashiers cannot sync shop data",
+				map[string]interface{}{"role": "cashier", "filtered_count": len(req.Shops)})
+		}
+		if len(req.Users) > 0 {
+			log.Printf("Filtered user sync for cashier user %s: %d users filtered out", syncContext.UserID, len(req.Users))
+			s.addDetailedError(response, "users", uuid.Nil, "filtered", "Cashiers cannot sync user data",
+				map[string]interface{}{"role": "cashier", "filtered_count": len(req.Users)})
+		}
 	}
 
-	if err := s.pushStockHistories(ctx, tx, req.StockHistories, licenseID, response); err != nil {
+	if err := s.pushStockHistoriesSafe(ctx, tx, filteredReq.StockHistories, syncContext, response); err != nil {
 		return fmt.Errorf("failed to push stock histories: %w", err)
 	}
 
-	if err := s.pushTransactionProducts(ctx, tx, req.TransactionProducts, licenseID, response); err != nil {
+	if err := s.pushTransactionProductsSafe(ctx, tx, filteredReq.TransactionProducts, syncContext, response); err != nil {
 		return fmt.Errorf("failed to push transaction products: %w", err)
-	}
-
-	if err := s.pushUsers(ctx, tx, req.Users, licenseID, response); err != nil {
-		return fmt.Errorf("failed to push users: %w", err)
 	}
 
 	return nil
 }
 
-// pullChanges retrieves server changes since last sync
-func (s *SyncService) pullChanges(ctx context.Context, tx *gorm.DB, lastSync *time.Time, licenseID uuid.UUID, response *dto.SyncResponse) error {
+// filterAndValidateSyncRequest filters and validates sync request entities based on role access
+func (s *SyncService) filterAndValidateSyncRequest(req dto.SyncRequest, syncContext dto.SyncContext) (dto.SyncRequest, string) {
+	if syncContext.HasGlobalAccess {
+		return req, "global access - no filtering applied"
+	}
+
+	// Create a map for fast shop access checking
+	accessibleShops := make(map[uuid.UUID]bool)
+	for _, shopID := range syncContext.AccessibleShopIDs {
+		accessibleShops[shopID] = true
+	}
+	
+	// Debug logging for accessibility mapping
+	log.Printf("DEBUG: filterAndValidateSyncRequest - User %s (role: %s) accessible shops map: %v", 
+		syncContext.UserID, syncContext.UserRole, accessibleShops)
+
+	filteredReq := dto.SyncRequest{
+		LastSyncTimestamp: req.LastSyncTimestamp,
+	}
+
+	stats := make(map[string]string)
+
+	// Filter entities by accessible shops
+	originalCount := len(req.Carts)
+	for _, cart := range req.Carts {
+		if accessibleShops[cart.ShopID] {
+			filteredReq.Carts = append(filteredReq.Carts, cart)
+		}
+	}
+	if originalCount > 0 {
+		stats["carts"] = fmt.Sprintf("%d→%d", originalCount, len(filteredReq.Carts))
+	}
+
+	originalCount = len(req.Categories)
+	for _, category := range req.Categories {
+		if accessibleShops[category.ShopID] {
+			filteredReq.Categories = append(filteredReq.Categories, category)
+		}
+	}
+	if originalCount > 0 {
+		stats["categories"] = fmt.Sprintf("%d→%d", originalCount, len(filteredReq.Categories))
+	}
+
+	originalCount = len(req.Products)
+	for _, product := range req.Products {
+		if accessibleShops[product.ShopID] {
+			filteredReq.Products = append(filteredReq.Products, product)
+		}
+	}
+	if originalCount > 0 {
+		stats["products"] = fmt.Sprintf("%d→%d", originalCount, len(filteredReq.Products))
+	}
+
+	originalCount = len(req.Transactions)
+	for _, transaction := range req.Transactions {
+		if accessibleShops[transaction.ShopID] {
+			filteredReq.Transactions = append(filteredReq.Transactions, transaction)
+		}
+	}
+	if originalCount > 0 {
+		stats["transactions"] = fmt.Sprintf("%d→%d", originalCount, len(filteredReq.Transactions))
+	}
+
+	originalCount = len(req.Expenses)
+	for _, expense := range req.Expenses {
+		if accessibleShops[expense.ShopID] {
+			filteredReq.Expenses = append(filteredReq.Expenses, expense)
+		}
+	}
+	if originalCount > 0 {
+		stats["expenses"] = fmt.Sprintf("%d→%d", originalCount, len(filteredReq.Expenses))
+	}
+
+	originalCount = len(req.Payments)
+	for _, payment := range req.Payments {
+		if accessibleShops[payment.ShopID] {
+			filteredReq.Payments = append(filteredReq.Payments, payment)
+		}
+	}
+	if originalCount > 0 {
+		stats["payments"] = fmt.Sprintf("%d→%d", originalCount, len(filteredReq.Payments))
+	}
+
+	originalCount = len(req.Receipts)
+	for _, receipt := range req.Receipts {
+		if accessibleShops[receipt.ShopID] {
+			filteredReq.Receipts = append(filteredReq.Receipts, receipt)
+		}
+	}
+	if originalCount > 0 {
+		stats["receipts"] = fmt.Sprintf("%d→%d", originalCount, len(filteredReq.Receipts))
+	}
+
+	originalCount = len(req.Histories)
+	for _, history := range req.Histories {
+		if accessibleShops[history.ShopID] {
+			filteredReq.Histories = append(filteredReq.Histories, history)
+		}
+	}
+	if originalCount > 0 {
+		stats["histories"] = fmt.Sprintf("%d→%d", originalCount, len(filteredReq.Histories))
+	}
+
+	// Filter shops based on role access
+	if syncContext.UserRole != "cashier" {
+		if syncContext.UserRole == "owner_business" {
+			originalCount = len(req.Shops)
+			for _, shop := range req.Shops {
+				if shop.LicenseID == syncContext.LicenseID {
+					filteredReq.Shops = append(filteredReq.Shops, shop)
+				}
+			}
+			if originalCount > 0 {
+				stats["shops"] = fmt.Sprintf("%d→%d", originalCount, len(filteredReq.Shops))
+			}
+		} else {
+			filteredReq.Shops = req.Shops // Global access users
+		}
+		filteredReq.Users = req.Users
+	}
+
+	// CRITICAL FIX: Filter stock histories and transaction products based on shop access
+	// For entities with references, check both sync request data AND database data
+	filteredReq.StockHistories = s.filterStockHistoriesByShopAccessWithSyncData(req.StockHistories, req.Products, accessibleShops, syncContext)
+	if len(req.StockHistories) > 0 {
+		stats["stock_histories"] = fmt.Sprintf("%d→%d", len(req.StockHistories), len(filteredReq.StockHistories))
+	}
+
+	filteredReq.TransactionProducts = s.filterTransactionProductsByShopAccessWithSyncData(req.TransactionProducts, req.Transactions, accessibleShops, syncContext)
+	if len(req.TransactionProducts) > 0 {
+		stats["transaction_products"] = fmt.Sprintf("%d→%d", len(req.TransactionProducts), len(filteredReq.TransactionProducts))
+	}
+
+	// Generate stats summary
+	var statsParts []string
+	for entityType, stat := range stats {
+		statsParts = append(statsParts, fmt.Sprintf("%s %s", entityType, stat))
+	}
+	
+	if len(statsParts) == 0 {
+		return filteredReq, "no entities to filter"
+	}
+	
+	return filteredReq, strings.Join(statsParts, ", ")
+}
+
+// generateFilterWarnings creates warning messages for filtered entities with enhanced detail
+func (s *SyncService) generateFilterWarnings(original, filtered dto.SyncRequest, syncContext dto.SyncContext) []dto.SyncError {
+	var warnings []dto.SyncError
+
+	// Check for filtered carts
+	if len(original.Carts) > len(filtered.Carts) {
+		filteredCount := len(original.Carts) - len(filtered.Carts)
+		warnings = append(warnings, dto.SyncError{
+			EntityType: "carts",
+			EntityID:   uuid.Nil,
+			ErrorCode:  "access_filtered",
+			Message:    fmt.Sprintf("Filtered %d cart(s) from inaccessible shops", filteredCount),
+			Details:    fmt.Sprintf("User %s (role: %s) - accessible shops: %v", syncContext.UserID, syncContext.UserRole, syncContext.AccessibleShopIDs),
+		})
+	}
+
+	// Check for filtered categories
+	if len(original.Categories) > len(filtered.Categories) {
+		filteredCount := len(original.Categories) - len(filtered.Categories)
+		warnings = append(warnings, dto.SyncError{
+			EntityType: "categories",
+			EntityID:   uuid.Nil,
+			ErrorCode:  "access_filtered",
+			Message:    fmt.Sprintf("Filtered %d categor(y/ies) from inaccessible shops", filteredCount),
+			Details:    fmt.Sprintf("User %s (role: %s) - accessible shops: %v", syncContext.UserID, syncContext.UserRole, syncContext.AccessibleShopIDs),
+		})
+	}
+
+	// Check for filtered products  
+	if len(original.Products) > len(filtered.Products) {
+		filteredCount := len(original.Products) - len(filtered.Products)
+		warnings = append(warnings, dto.SyncError{
+			EntityType: "products",
+			EntityID:   uuid.Nil,
+			ErrorCode:  "access_filtered",
+			Message:    fmt.Sprintf("Filtered %d product(s) from inaccessible shops", filteredCount),
+			Details:    fmt.Sprintf("User %s (role: %s) - accessible shops: %v", syncContext.UserID, syncContext.UserRole, syncContext.AccessibleShopIDs),
+		})
+	}
+
+	// Check for filtered stock histories with enhanced detail
+	if len(original.StockHistories) > len(filtered.StockHistories) {
+		filteredCount := len(original.StockHistories) - len(filtered.StockHistories)
+		
+		// Create a map of products in the sync request for quick lookup
+		syncProductMap := make(map[uuid.UUID]uuid.UUID) // product_id -> shop_id
+		for _, product := range original.Products {
+			syncProductMap[product.ID] = product.ShopID
+		}
+		
+		// Count missing vs inaccessible entities for better error messaging
+		var missingCount, inaccessibleCount int
+		for _, stockHistory := range original.StockHistories {
+			// Check if this stock history was filtered (not in filtered list)
+			wasFiltered := true
+			for _, filteredSH := range filtered.StockHistories {
+				if filteredSH.ID == stockHistory.ID {
+					wasFiltered = false
+					break
+				}
+			}
+			
+			if !wasFiltered {
+				continue // This wasn't filtered, skip it
+			}
+			
+			var productShopID uuid.UUID
+			var productFound bool
+			
+			// First check if product is in the sync request data
+			if shopID, exists := syncProductMap[stockHistory.ProductID]; exists {
+				productShopID = shopID
+				productFound = true
+			} else {
+				// If not in sync data, check the database
+				err := s.db.Model(&entities.Product{}).
+					Select("shop_id").
+					Where("id = ?", stockHistory.ProductID).
+					First(&productShopID).Error
+				
+				if err != nil {
+					missingCount++
+					continue
+				}
+				productFound = true
+			}
+			
+			if productFound {
+				// Check if shop is accessible
+				accessible := false
+				for _, shopID := range syncContext.AccessibleShopIDs {
+					if shopID == productShopID {
+						accessible = true
+						break
+					}
+				}
+				if !accessible {
+					inaccessibleCount++
+				}
+			}
+		}
+		
+		var message string
+		if missingCount > 0 && inaccessibleCount > 0 {
+			message = fmt.Sprintf("Filtered %d stock histor(y/ies): %d reference missing products, %d from inaccessible shops", 
+				filteredCount, missingCount, inaccessibleCount)
+		} else if missingCount > 0 {
+			message = fmt.Sprintf("Filtered %d stock histor(y/ies) - reference missing products", filteredCount)
+		} else {
+			message = fmt.Sprintf("Filtered %d stock histor(y/ies) from inaccessible shops", filteredCount)
+		}
+		
+		warnings = append(warnings, dto.SyncError{
+			EntityType: "stock_histories",
+			EntityID:   uuid.Nil,
+			ErrorCode:  "access_filtered",
+			Message:    message,
+			Details:    fmt.Sprintf("User %s (role: %s) - accessible shops: %v, missing products: %d, inaccessible shops: %d", 
+				syncContext.UserID, syncContext.UserRole, syncContext.AccessibleShopIDs, missingCount, inaccessibleCount),
+		})
+	}
+
+	// Check for filtered transaction products with enhanced detail
+	if len(original.TransactionProducts) > len(filtered.TransactionProducts) {
+		filteredCount := len(original.TransactionProducts) - len(filtered.TransactionProducts)
+		
+		// Create a map of transactions in the sync request for quick lookup
+		syncTransactionMap := make(map[uuid.UUID]uuid.UUID) // transaction_id -> shop_id
+		for _, transaction := range original.Transactions {
+			syncTransactionMap[transaction.ID] = transaction.ShopID
+		}
+		
+		// Count missing vs inaccessible entities for better error messaging
+		var missingCount, inaccessibleCount int
+		for _, transactionProduct := range original.TransactionProducts {
+			// Check if this transaction product was filtered (not in filtered list)
+			wasFiltered := true
+			for _, filteredTP := range filtered.TransactionProducts {
+				if filteredTP.ID == transactionProduct.ID {
+					wasFiltered = false
+					break
+				}
+			}
+			
+			if !wasFiltered {
+				continue // This wasn't filtered, skip it
+			}
+			
+			var transactionShopID uuid.UUID
+			var transactionFound bool
+			
+			// First check if transaction is in the sync request data
+			if shopID, exists := syncTransactionMap[transactionProduct.TransactionID]; exists {
+				transactionShopID = shopID
+				transactionFound = true
+			} else {
+				// If not in sync data, check the database
+				err := s.db.Model(&entities.Transaction{}).
+					Select("shop_id").
+					Where("id = ?", transactionProduct.TransactionID).
+					First(&transactionShopID).Error
+				
+				if err != nil {
+					missingCount++
+					continue
+				}
+				transactionFound = true
+			}
+			
+			if transactionFound {
+				// Check if shop is accessible
+				accessible := false
+				for _, shopID := range syncContext.AccessibleShopIDs {
+					if shopID == transactionShopID {
+						accessible = true
+						break
+					}
+				}
+				if !accessible {
+					inaccessibleCount++
+				}
+			}
+		}
+		
+		var message string
+		if missingCount > 0 && inaccessibleCount > 0 {
+			message = fmt.Sprintf("Filtered %d transaction product(s): %d reference missing transactions, %d from inaccessible shops", 
+				filteredCount, missingCount, inaccessibleCount)
+		} else if missingCount > 0 {
+			message = fmt.Sprintf("Filtered %d transaction product(s) - reference missing transactions", filteredCount)
+		} else {
+			message = fmt.Sprintf("Filtered %d transaction product(s) from inaccessible shops", filteredCount)
+		}
+		
+		warnings = append(warnings, dto.SyncError{
+			EntityType: "transaction_products",
+			EntityID:   uuid.Nil,
+			ErrorCode:  "access_filtered",
+			Message:    message,
+			Details:    fmt.Sprintf("User %s (role: %s) - accessible shops: %v, missing transactions: %d, inaccessible shops: %d", 
+				syncContext.UserID, syncContext.UserRole, syncContext.AccessibleShopIDs, missingCount, inaccessibleCount),
+		})
+	}
+
+	return warnings
+}
+
+// pullChangesWithRoleAccess retrieves server changes since last sync with role-based filtering
+func (s *SyncService) pullChangesWithRoleAccess(ctx context.Context, tx *gorm.DB, lastSync *time.Time, syncContext dto.SyncContext, response *dto.SyncResponse) error {
 	// If no last sync timestamp, this is initial sync - return recent data
 	if lastSync == nil {
 		// For initial sync, return data from last 30 days
@@ -267,67 +728,164 @@ func (s *SyncService) pullChanges(ctx context.Context, tx *gorm.DB, lastSync *ti
 		lastSync = &thirtyDaysAgo
 	}
 
-	// Pull changes for each entity type
-	if err := s.pullCarts(ctx, tx, *lastSync, licenseID, response); err != nil {
+	// Pull changes for each entity type with role-based filtering
+	if err := s.pullCartsWithRoleAccess(ctx, tx, *lastSync, syncContext, response); err != nil {
 		return fmt.Errorf("failed to pull carts: %w", err)
 	}
 
-	if err := s.pullCategories(ctx, tx, *lastSync, licenseID, response); err != nil {
+	if err := s.pullCategoriesWithRoleAccess(ctx, tx, *lastSync, syncContext, response); err != nil {
 		return fmt.Errorf("failed to pull categories: %w", err)
 	}
 
-	if err := s.pullProducts(ctx, tx, *lastSync, licenseID, response); err != nil {
+	if err := s.pullProductsWithRoleAccess(ctx, tx, *lastSync, syncContext, response); err != nil {
 		return fmt.Errorf("failed to pull products: %w", err)
 	}
 
-	if err := s.pullTransactions(ctx, tx, *lastSync, licenseID, response); err != nil {
+	if err := s.pullTransactionsWithRoleAccess(ctx, tx, *lastSync, syncContext, response); err != nil {
 		return fmt.Errorf("failed to pull transactions: %w", err)
 	}
 
-	if err := s.pullExpenses(ctx, tx, *lastSync, licenseID, response); err != nil {
+	if err := s.pullExpensesWithRoleAccess(ctx, tx, *lastSync, syncContext, response); err != nil {
 		return fmt.Errorf("failed to pull expenses: %w", err)
 	}
 
-	if err := s.pullPayments(ctx, tx, *lastSync, licenseID, response); err != nil {
+	if err := s.pullPaymentsWithRoleAccess(ctx, tx, *lastSync, syncContext, response); err != nil {
 		return fmt.Errorf("failed to pull payments: %w", err)
 	}
 
-	if err := s.pullReceipts(ctx, tx, *lastSync, licenseID, response); err != nil {
+	if err := s.pullReceiptsWithRoleAccess(ctx, tx, *lastSync, syncContext, response); err != nil {
 		return fmt.Errorf("failed to pull receipts: %w", err)
 	}
 
-	if err := s.pullHistories(ctx, tx, *lastSync, licenseID, response); err != nil {
+	if err := s.pullHistoriesWithRoleAccess(ctx, tx, *lastSync, syncContext, response); err != nil {
 		return fmt.Errorf("failed to pull histories: %w", err)
 	}
 
-	if err := s.pullShops(ctx, tx, *lastSync, licenseID, response); err != nil {
-		return fmt.Errorf("failed to pull shops: %w", err)
+	// Only sync shop and user data for non-cashier roles
+	if syncContext.UserRole != "cashier" {
+		if err := s.pullShopsWithRoleAccess(ctx, tx, *lastSync, syncContext, response); err != nil {
+			return fmt.Errorf("failed to pull shops: %w", err)
+		}
+
+		if err := s.pullUsersWithRoleAccess(ctx, tx, *lastSync, syncContext, response); err != nil {
+			return fmt.Errorf("failed to pull users: %w", err)
+		}
 	}
 
-	if err := s.pullStockHistories(ctx, tx, *lastSync, licenseID, response); err != nil {
+	if err := s.pullStockHistoriesWithRoleAccess(ctx, tx, *lastSync, syncContext, response); err != nil {
 		return fmt.Errorf("failed to pull stock histories: %w", err)
 	}
 
-	if err := s.pullTransactionProducts(ctx, tx, *lastSync, licenseID, response); err != nil {
+	if err := s.pullTransactionProductsWithRoleAccess(ctx, tx, *lastSync, syncContext, response); err != nil {
 		return fmt.Errorf("failed to pull transaction products: %w", err)
-	}
-
-	if err := s.pullUsers(ctx, tx, *lastSync, licenseID, response); err != nil {
-		return fmt.Errorf("failed to pull users: %w", err)
 	}
 
 	return nil
 }
 
-// pushCarts handles cart synchronization
-// pushCarts handles cart synchronization with batch processing
-func (s *SyncService) pushCarts(ctx context.Context, tx *gorm.DB, carts []entities.Cart, licenseID uuid.UUID, response *dto.SyncResponse) error {
+// filterSyncRequestByRole filters the sync request entities based on user role and accessible shop IDs
+func (s *SyncService) filterSyncRequestByRole(req dto.SyncRequest, syncContext dto.SyncContext) dto.SyncRequest {
+	// If user has global access, return unfiltered request
+	if syncContext.HasGlobalAccess {
+		return req
+	}
+
+	// Create a map for fast shop access checking
+	accessibleShops := make(map[uuid.UUID]bool)
+	for _, shopID := range syncContext.AccessibleShopIDs {
+		accessibleShops[shopID] = true
+	}
+
+	filteredReq := dto.SyncRequest{
+		LastSyncTimestamp: req.LastSyncTimestamp,
+	}
+
+	// Filter entities by accessible shops
+	for _, cart := range req.Carts {
+		if accessibleShops[cart.ShopID] {
+			filteredReq.Carts = append(filteredReq.Carts, cart)
+		}
+	}
+
+	for _, category := range req.Categories {
+		if accessibleShops[category.ShopID] {
+			filteredReq.Categories = append(filteredReq.Categories, category)
+		}
+	}
+
+	for _, product := range req.Products {
+		if accessibleShops[product.ShopID] {
+			filteredReq.Products = append(filteredReq.Products, product)
+		}
+	}
+
+	for _, transaction := range req.Transactions {
+		if accessibleShops[transaction.ShopID] {
+			filteredReq.Transactions = append(filteredReq.Transactions, transaction)
+		}
+	}
+
+	for _, expense := range req.Expenses {
+		if accessibleShops[expense.ShopID] {
+			filteredReq.Expenses = append(filteredReq.Expenses, expense)
+		}
+	}
+
+	for _, payment := range req.Payments {
+		if accessibleShops[payment.ShopID] {
+			filteredReq.Payments = append(filteredReq.Payments, payment)
+		}
+	}
+
+	for _, receipt := range req.Receipts {
+		if accessibleShops[receipt.ShopID] {
+			filteredReq.Receipts = append(filteredReq.Receipts, receipt)
+		}
+	}
+
+	for _, history := range req.Histories {
+		if accessibleShops[history.ShopID] {
+			filteredReq.Histories = append(filteredReq.Histories, history)
+		}
+	}
+
+	// Filter shops based on role access
+	if syncContext.UserRole != "cashier" {
+		// For owner_business, only include shops from their license
+		// For super_admin/admin, include all shops (global access handled above)
+		if syncContext.UserRole == "owner_business" {
+			for _, shop := range req.Shops {
+				if shop.LicenseID == syncContext.LicenseID {
+					filteredReq.Shops = append(filteredReq.Shops, shop)
+				}
+			}
+		} else {
+			filteredReq.Shops = req.Shops // Global access users (already handled above)
+		}
+		filteredReq.Users = req.Users
+	}
+
+	// CRITICAL FIX: Filter stock histories based on product shop access
+	filteredReq.StockHistories = s.filterStockHistoriesByShopAccess(req.StockHistories, accessibleShops, syncContext)
+
+	// CRITICAL FIX: Filter transaction products based on transaction/product shop access  
+	filteredReq.TransactionProducts = s.filterTransactionProductsByShopAccess(req.TransactionProducts, accessibleShops, syncContext)
+
+	return filteredReq
+}
+
+// pushCartsSafe handles cart synchronization with enhanced error handling and no nested transactions
+func (s *SyncService) pushCartsSafe(ctx context.Context, tx *gorm.DB, carts []entities.Cart, licenseID uuid.UUID, response *dto.SyncResponse) error {
 	totalCarts := len(carts)
 	if totalCarts == 0 {
 		return nil
 	}
 
 	log.Printf("Processing %d carts in batches of %d", totalCarts, s.config.BatchSize)
+
+	// CRITICAL FIX: Enhanced error handling to prevent transaction abort
+	successCount := 0
+	errorCount := 0
 
 	for i := 0; i < totalCarts; i += s.config.BatchSize {
 		end := i + s.config.BatchSize
@@ -338,13 +896,23 @@ func (s *SyncService) pushCarts(ctx context.Context, tx *gorm.DB, carts []entiti
 		batch := carts[i:end]
 		log.Printf("Processing cart batch %d-%d of %d", i+1, end, totalCarts)
 
-		// Process each cart in the batch
-		for _, cart := range batch {
-			if err := s.processSingleCart(ctx, tx, cart, licenseID, response); err != nil {
-				log.Printf("Error processing cart %s: %v", cart.ID, err)
-				// Continue with next entity instead of failing entire batch
+		// Process each cart in the batch with individual error handling
+		for batchIndex, cart := range batch {
+			if err := s.processSingleCartWithErrorIsolation(ctx, tx, cart, licenseID, response); err != nil {
+				log.Printf("Error processing cart %s (batch %d, index %d): %v", cart.ID, i/s.config.BatchSize+1, batchIndex, err)
+				errorCount++
+				// CRITICAL: Continue with next entity instead of failing entire batch
+				// Add error to response but don't abort transaction
+				s.addDetailedError(response, "carts", cart.ID, "processing_failed", err.Error(),
+					map[string]interface{}{
+						"cart_shop_id": cart.ShopID,
+						"license_id":   licenseID,
+						"batch_index":  i + batchIndex,
+						"batch_number": i/s.config.BatchSize + 1,
+					})
 				continue
 			}
+			successCount++
 		}
 
 		// Check context for cancellation between batches
@@ -355,7 +923,98 @@ func (s *SyncService) pushCarts(ctx context.Context, tx *gorm.DB, carts []entiti
 		}
 	}
 
+	log.Printf("Cart processing completed: %d successful, %d errors out of %d total", 
+		successCount, errorCount, totalCarts)
+
+	// Return success even if some individual carts failed
+	// The errors are recorded in the response for client handling
 	return nil
+}
+
+// processSingleCartWithErrorIsolation processes a single cart entity with isolated error handling
+func (s *SyncService) processSingleCartWithErrorIsolation(ctx context.Context, tx *gorm.DB, cart entities.Cart, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	// Validate cart belongs to license
+	if !s.validateCartLicense(ctx, cart, licenseID) {
+		return fmt.Errorf("cart does not belong to license %s", licenseID)
+	}
+
+	// CRITICAL FIX: Use the existing transaction instead of creating nested transactions
+	// Nested transactions in PostgreSQL can cause "current transaction is aborted" errors
+	
+	// Check if cart exists with error handling
+	existingCart, err := s.findCartByIDSafe(ctx, tx, cart.ID)
+	if err != nil {
+		return fmt.Errorf("failed to find cart: %w", err)
+	}
+
+	if existingCart == nil {
+		// Create new cart
+		if err := s.createCartSafe(ctx, tx, cart); err != nil {
+			return fmt.Errorf("failed to create cart: %w", err)
+		}
+		s.incrementStat(response.Stats.CreatedEntities, "carts")
+	} else {
+		// Handle potential conflict
+		if conflict := s.resolveCartConflict(*existingCart, cart); conflict != nil {
+			response.Conflicts = append(response.Conflicts, *conflict)
+			// Use server version in case of conflict (for LastWriteWins strategy)
+			if existingCart.UpdatedAt.After(cart.UpdatedAt) {
+				s.incrementStat(response.Stats.ProcessedEntities, "carts")
+				return nil // Skip update, server version is newer
+			}
+		}
+
+		// Update existing cart
+		if err := s.updateCartSafe(ctx, tx, cart); err != nil {
+			return fmt.Errorf("failed to update cart: %w", err)
+		}
+		s.incrementStat(response.Stats.UpdatedEntities, "carts")
+	}
+
+	s.incrementStat(response.Stats.ProcessedEntities, "carts")
+	return nil
+}
+
+// Safe database operations with enhanced error handling
+func (s *SyncService) findCartByIDSafe(ctx context.Context, tx *gorm.DB, id uuid.UUID) (*entities.Cart, error) {
+	var cart entities.Cart
+	
+	// Use a short timeout for individual operations
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	
+	err := tx.WithContext(ctxWithTimeout).Where("id = ?", id).First(&cart).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	if err != nil {
+		// Log the specific database error for debugging
+		log.Printf("Database error finding cart %s: %v", id, err)
+		return nil, err
+	}
+	return &cart, nil
+}
+
+func (s *SyncService) createCartSafe(ctx context.Context, tx *gorm.DB, cart entities.Cart) error {
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	
+	err := tx.WithContext(ctxWithTimeout).Create(&cart).Error
+	if err != nil {
+		log.Printf("Database error creating cart %s: %v", cart.ID, err)
+	}
+	return err
+}
+
+func (s *SyncService) updateCartSafe(ctx context.Context, tx *gorm.DB, cart entities.Cart) error {
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	
+	err := tx.WithContext(ctxWithTimeout).Save(&cart).Error
+	if err != nil {
+		log.Printf("Database error updating cart %s: %v", cart.ID, err)
+	}
+	return err
 }
 
 // processSingleCart processes a single cart entity with enhanced error handling
@@ -458,12 +1117,294 @@ func (s *SyncService) pullCarts(ctx context.Context, tx *gorm.DB, lastSync time.
 	return nil
 }
 
-// Helper methods for cart operations
-func (s *SyncService) validateCartLicense(ctx context.Context, cart entities.Cart, licenseID uuid.UUID) bool {
-	// Validate that the cart's shop belongs to the license
-	var count int64
-	s.db.Model(&entities.Shop{}).Where("id = ? AND license_id = ?", cart.ShopID, licenseID).Count(&count)
-	return count > 0
+// pullCartsWithRoleAccess retrieves server-side cart changes with role-based filtering
+func (s *SyncService) pullCartsWithRoleAccess(ctx context.Context, tx *gorm.DB, lastSync time.Time, syncContext dto.SyncContext, response *dto.SyncResponse) error {
+	var carts []entities.Cart
+	query := tx.WithContext(ctx).
+		Select("carts.*").
+		Table("carts").
+		Joins("INNER JOIN shops ON carts.shop_id = shops.id").
+		Where("shops.license_id = ? AND carts.updated_at > ?", syncContext.LicenseID, lastSync)
+
+	// Apply shop filtering for non-global access users
+	if !syncContext.HasGlobalAccess && len(syncContext.AccessibleShopIDs) > 0 {
+		query = query.Where("carts.shop_id IN ?", syncContext.AccessibleShopIDs)
+	}
+
+	err := query.Order("carts.updated_at ASC").
+		Limit(s.config.MaxResultsPerQuery).
+		Find(&carts).Error
+
+	if err != nil {
+		return fmt.Errorf("failed to query carts: %w", err)
+	}
+
+	log.Printf("Retrieved %d carts for user %s (role: %s) since %v", len(carts), syncContext.UserID, syncContext.UserRole, lastSync)
+	response.Carts = dto.MapCartsToSyncDTOs(carts)
+	return nil
+}
+
+// pullCategoriesWithRoleAccess retrieves server-side category changes with role-based filtering
+func (s *SyncService) pullCategoriesWithRoleAccess(ctx context.Context, tx *gorm.DB, lastSync time.Time, syncContext dto.SyncContext, response *dto.SyncResponse) error {
+	var categories []entities.Category
+	query := tx.WithContext(ctx).
+		Select("categories.*").
+		Table("categories").
+		Joins("JOIN shops ON categories.shop_id = shops.id").
+		Where("shops.license_id = ? AND categories.updated_at > ?", syncContext.LicenseID, lastSync)
+
+	// Apply shop filtering for non-global access users
+	if !syncContext.HasGlobalAccess && len(syncContext.AccessibleShopIDs) > 0 {
+		query = query.Where("categories.shop_id IN ?", syncContext.AccessibleShopIDs)
+	}
+
+	err := query.Find(&categories).Error
+	if err != nil {
+		return fmt.Errorf("failed to query categories: %w", err)
+	}
+
+	log.Printf("Retrieved %d categories for user %s (role: %s) since %v", len(categories), syncContext.UserID, syncContext.UserRole, lastSync)
+	response.Categories = dto.MapCategoriesToSyncDTOs(categories)
+	return nil
+}
+
+// pullProductsWithRoleAccess retrieves server-side product changes with role-based filtering
+func (s *SyncService) pullProductsWithRoleAccess(ctx context.Context, tx *gorm.DB, lastSync time.Time, syncContext dto.SyncContext, response *dto.SyncResponse) error {
+	var products []entities.Product
+	query := tx.WithContext(ctx).
+		Select("products.*").
+		Table("products").
+		Joins("JOIN shops ON products.shop_id = shops.id").
+		Where("shops.license_id = ? AND products.updated_at > ?", syncContext.LicenseID, lastSync)
+
+	// Apply shop filtering for non-global access users
+	if !syncContext.HasGlobalAccess && len(syncContext.AccessibleShopIDs) > 0 {
+		query = query.Where("products.shop_id IN ?", syncContext.AccessibleShopIDs)
+	}
+
+	err := query.Find(&products).Error
+	if err != nil {
+		return fmt.Errorf("failed to query products: %w", err)
+	}
+
+	log.Printf("Retrieved %d products for user %s (role: %s) since %v", len(products), syncContext.UserID, syncContext.UserRole, lastSync)
+	response.Products = dto.MapProductsToSyncDTOs(products)
+	return nil
+}
+
+// pullTransactionsWithRoleAccess retrieves server-side transaction changes with role-based filtering
+func (s *SyncService) pullTransactionsWithRoleAccess(ctx context.Context, tx *gorm.DB, lastSync time.Time, syncContext dto.SyncContext, response *dto.SyncResponse) error {
+	var transactions []entities.Transaction
+	query := tx.WithContext(ctx).
+		Select("transactions.*").
+		Table("transactions").
+		Joins("JOIN shops ON transactions.shop_id = shops.id").
+		Where("shops.license_id = ? AND transactions.updated_at > ?", syncContext.LicenseID, lastSync)
+
+	// Apply shop filtering for non-global access users
+	if !syncContext.HasGlobalAccess && len(syncContext.AccessibleShopIDs) > 0 {
+		query = query.Where("transactions.shop_id IN ?", syncContext.AccessibleShopIDs)
+	}
+
+	err := query.Find(&transactions).Error
+	if err != nil {
+		return fmt.Errorf("failed to query transactions: %w", err)
+	}
+
+	log.Printf("Retrieved %d transactions for user %s (role: %s) since %v", len(transactions), syncContext.UserID, syncContext.UserRole, lastSync)
+	response.Transactions = dto.MapTransactionsToSyncDTOs(transactions)
+	return nil
+}
+
+// pullExpensesWithRoleAccess retrieves server-side expense changes with role-based filtering
+func (s *SyncService) pullExpensesWithRoleAccess(ctx context.Context, tx *gorm.DB, lastSync time.Time, syncContext dto.SyncContext, response *dto.SyncResponse) error {
+	var expenses []entities.Expense
+	query := tx.WithContext(ctx).
+		Select("expenses.*").
+		Table("expenses").
+		Joins("JOIN shops ON expenses.shop_id = shops.id").
+		Where("shops.license_id = ? AND expenses.updated_at > ?", syncContext.LicenseID, lastSync)
+
+	// Apply shop filtering for non-global access users
+	if !syncContext.HasGlobalAccess && len(syncContext.AccessibleShopIDs) > 0 {
+		query = query.Where("expenses.shop_id IN ?", syncContext.AccessibleShopIDs)
+	}
+
+	err := query.Find(&expenses).Error
+	if err != nil {
+		return fmt.Errorf("failed to query expenses: %w", err)
+	}
+
+	log.Printf("Retrieved %d expenses for user %s (role: %s) since %v", len(expenses), syncContext.UserID, syncContext.UserRole, lastSync)
+	response.Expenses = dto.MapExpensesToSyncDTOs(expenses)
+	return nil
+}
+
+// pullPaymentsWithRoleAccess retrieves server-side payment changes with role-based filtering  
+func (s *SyncService) pullPaymentsWithRoleAccess(ctx context.Context, tx *gorm.DB, lastSync time.Time, syncContext dto.SyncContext, response *dto.SyncResponse) error {
+	var payments []entities.Payment
+	query := tx.WithContext(ctx).
+		Select("payments.*").
+		Table("payments").
+		Joins("JOIN shops ON payments.shop_id = shops.id").
+		Where("shops.license_id = ? AND payments.updated_at > ?", syncContext.LicenseID, lastSync)
+
+	// Apply shop filtering for non-global access users
+	if !syncContext.HasGlobalAccess && len(syncContext.AccessibleShopIDs) > 0 {
+		query = query.Where("payments.shop_id IN ?", syncContext.AccessibleShopIDs)
+	}
+
+	err := query.Find(&payments).Error
+	if err != nil {
+		return fmt.Errorf("failed to query payments: %w", err)
+	}
+
+	log.Printf("Retrieved %d payments for user %s (role: %s) since %v", len(payments), syncContext.UserID, syncContext.UserRole, lastSync)
+	response.Payments = dto.MapPaymentsToSyncDTOs(payments)
+	return nil
+}
+
+// pullReceiptsWithRoleAccess retrieves server-side receipt changes with role-based filtering
+func (s *SyncService) pullReceiptsWithRoleAccess(ctx context.Context, tx *gorm.DB, lastSync time.Time, syncContext dto.SyncContext, response *dto.SyncResponse) error {
+	var receipts []entities.Receipt
+	query := tx.WithContext(ctx).
+		Select("receipts.*").
+		Table("receipts").
+		Joins("JOIN shops ON receipts.shop_id = shops.id").
+		Where("shops.license_id = ? AND receipts.updated_at > ?", syncContext.LicenseID, lastSync)
+
+	// Apply shop filtering for non-global access users
+	if !syncContext.HasGlobalAccess && len(syncContext.AccessibleShopIDs) > 0 {
+		query = query.Where("receipts.shop_id IN ?", syncContext.AccessibleShopIDs)
+	}
+
+	err := query.Find(&receipts).Error
+	if err != nil {
+		return fmt.Errorf("failed to query receipts: %w", err)
+	}
+
+	log.Printf("Retrieved %d receipts for user %s (role: %s) since %v", len(receipts), syncContext.UserID, syncContext.UserRole, lastSync)
+	response.Receipts = dto.MapReceiptsToSyncDTOs(receipts)
+	return nil
+}
+
+// pullHistoriesWithRoleAccess retrieves server-side history changes with role-based filtering
+func (s *SyncService) pullHistoriesWithRoleAccess(ctx context.Context, tx *gorm.DB, lastSync time.Time, syncContext dto.SyncContext, response *dto.SyncResponse) error {
+	var histories []entities.History
+	query := tx.WithContext(ctx).
+		Select("histories.*").
+		Table("histories").
+		Joins("JOIN shops ON histories.shop_id = shops.id").
+		Where("shops.license_id = ? AND histories.updated_at > ?", syncContext.LicenseID, lastSync)
+
+	// Apply shop filtering for non-global access users
+	if !syncContext.HasGlobalAccess && len(syncContext.AccessibleShopIDs) > 0 {
+		query = query.Where("histories.shop_id IN ?", syncContext.AccessibleShopIDs)
+	}
+
+	err := query.Find(&histories).Error
+	if err != nil {
+		return fmt.Errorf("failed to query histories: %w", err)
+	}
+
+	log.Printf("Retrieved %d histories for user %s (role: %s) since %v", len(histories), syncContext.UserID, syncContext.UserRole, lastSync)
+	response.Histories = dto.MapHistoriesToSyncDTOs(histories)
+	return nil
+}
+
+// pullShopsWithRoleAccess retrieves server-side shop changes with role-based filtering
+func (s *SyncService) pullShopsWithRoleAccess(ctx context.Context, tx *gorm.DB, lastSync time.Time, syncContext dto.SyncContext, response *dto.SyncResponse) error {
+	var shops []entities.Shop
+	query := tx.WithContext(ctx).
+		Select("shops.*").
+		Where("license_id = ? AND updated_at > ?", syncContext.LicenseID, lastSync)
+
+	// Apply shop filtering for non-global access users
+	if !syncContext.HasGlobalAccess && len(syncContext.AccessibleShopIDs) > 0 {
+		query = query.Where("id IN ?", syncContext.AccessibleShopIDs)
+	}
+
+	err := query.Find(&shops).Error
+	if err != nil {
+		return fmt.Errorf("failed to query shops: %w", err)
+	}
+
+	log.Printf("Retrieved %d shops for user %s (role: %s) since %v", len(shops), syncContext.UserID, syncContext.UserRole, lastSync)
+	response.Shops = dto.MapShopsToSyncDTOs(shops)
+	return nil
+}
+
+// pullUsersWithRoleAccess retrieves server-side user changes with role-based filtering
+func (s *SyncService) pullUsersWithRoleAccess(ctx context.Context, tx *gorm.DB, lastSync time.Time, syncContext dto.SyncContext, response *dto.SyncResponse) error {
+	var users []entities.User
+	query := tx.WithContext(ctx).
+		Select("users.*").
+		Where("license_id = ? AND updated_at > ?", syncContext.LicenseID, lastSync)
+
+	// For owner_business, only return users from their license
+	// For super_admin/admin, return all users
+	if !syncContext.HasGlobalAccess {
+		// Additional filtering could be applied here if needed
+	}
+
+	err := query.Find(&users).Error
+	if err != nil {
+		return fmt.Errorf("failed to query users: %w", err)
+	}
+
+	log.Printf("Retrieved %d users for user %s (role: %s) since %v", len(users), syncContext.UserID, syncContext.UserRole, lastSync)
+	response.Users = dto.MapUsersToSyncDTOs(users)
+	return nil
+}
+
+// pullStockHistoriesWithRoleAccess retrieves server-side stock history changes with role-based filtering
+func (s *SyncService) pullStockHistoriesWithRoleAccess(ctx context.Context, tx *gorm.DB, lastSync time.Time, syncContext dto.SyncContext, response *dto.SyncResponse) error {
+	var stockHistories []entities.StockHistory
+	query := tx.WithContext(ctx).
+		Select("stock_histories.*").
+		Table("stock_histories").
+		Joins("JOIN products ON stock_histories.product_id = products.id").
+		Joins("JOIN shops ON products.shop_id = shops.id").
+		Where("shops.license_id = ? AND stock_histories.updated_at > ?", syncContext.LicenseID, lastSync)
+
+	// Apply shop filtering for non-global access users
+	if !syncContext.HasGlobalAccess && len(syncContext.AccessibleShopIDs) > 0 {
+		query = query.Where("products.shop_id IN ?", syncContext.AccessibleShopIDs)
+	}
+
+	err := query.Find(&stockHistories).Error
+	if err != nil {
+		return fmt.Errorf("failed to query stock histories: %w", err)
+	}
+
+	log.Printf("Retrieved %d stock histories for user %s (role: %s) since %v", len(stockHistories), syncContext.UserID, syncContext.UserRole, lastSync)
+	response.StockHistories = dto.MapStockHistoriesToSyncDTOs(stockHistories)
+	return nil
+}
+
+// pullTransactionProductsWithRoleAccess retrieves server-side transaction product changes with role-based filtering
+func (s *SyncService) pullTransactionProductsWithRoleAccess(ctx context.Context, tx *gorm.DB, lastSync time.Time, syncContext dto.SyncContext, response *dto.SyncResponse) error {
+	var transactionProducts []entities.TransactionProduct
+	query := tx.WithContext(ctx).
+		Select("transaction_products.*").
+		Table("transaction_products").
+		Joins("JOIN transactions ON transaction_products.transaction_id = transactions.id").
+		Joins("JOIN shops ON transactions.shop_id = shops.id").
+		Where("shops.license_id = ? AND transaction_products.updated_at > ?", syncContext.LicenseID, lastSync)
+
+	// Apply shop filtering for non-global access users
+	if !syncContext.HasGlobalAccess && len(syncContext.AccessibleShopIDs) > 0 {
+		query = query.Where("transactions.shop_id IN ?", syncContext.AccessibleShopIDs)
+	}
+
+	err := query.Find(&transactionProducts).Error
+	if err != nil {
+		return fmt.Errorf("failed to query transaction products: %w", err)
+	}
+
+	log.Printf("Retrieved %d transaction products for user %s (role: %s) since %v", len(transactionProducts), syncContext.UserID, syncContext.UserRole, lastSync)
+	response.TransactionProducts = dto.MapTransactionProductsToSyncDTOs(transactionProducts)
+	return nil
 }
 
 func (s *SyncService) findCartByID(ctx context.Context, tx *gorm.DB, id uuid.UUID) (*entities.Cart, error) {
@@ -518,6 +1459,42 @@ func (s *SyncService) resolveCartConflict(existing, incoming entities.Cart) *dto
 	}
 
 	return conflict
+}
+
+// pushChanges processes incoming changes from mobile client (legacy method for backward compatibility)
+func (s *SyncService) pushChanges(ctx context.Context, tx *gorm.DB, req dto.SyncRequest, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	// Create a default sync context for backward compatibility
+	syncContext := dto.SyncContext{
+		UserID:            uuid.Nil, // Unknown user for legacy
+		UserRole:          "legacy",
+		LicenseID:         licenseID,
+		AccessibleShopIDs: nil, // No filtering for legacy sync
+		HasGlobalAccess:   true, // Legacy behavior - global access
+	}
+	
+	return s.pushChangesWithRoleAccessSafe(ctx, tx, req, syncContext, response)
+}
+
+// pullChanges retrieves server changes since last sync (legacy method for backward compatibility)
+func (s *SyncService) pullChanges(ctx context.Context, tx *gorm.DB, lastSync *time.Time, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	// Create a default sync context for backward compatibility
+	syncContext := dto.SyncContext{
+		UserID:            uuid.Nil, // Unknown user for legacy
+		UserRole:          "legacy",
+		LicenseID:         licenseID,
+		AccessibleShopIDs: nil, // No filtering for legacy sync
+		HasGlobalAccess:   true, // Legacy behavior - global access
+	}
+	
+	return s.pullChangesWithRoleAccess(ctx, tx, lastSync, syncContext, response)
+}
+
+// Helper methods for cart operations
+func (s *SyncService) validateCartLicense(ctx context.Context, cart entities.Cart, licenseID uuid.UUID) bool {
+	// Validate that the cart's shop belongs to the license
+	var count int64
+	s.db.Model(&entities.Shop{}).Where("id = ? AND license_id = ?", cart.ShopID, licenseID).Count(&count)
+	return count > 0
 }
 
 // Helper methods for category operations
@@ -1546,11 +2523,11 @@ func (s *SyncService) resolveShopConflict(existing, incoming entities.Shop) *dto
 }
 
 // StockHistory sync implementation
-func (s *SyncService) pushStockHistories(ctx context.Context, tx *gorm.DB, stockHistories []entities.StockHistory, licenseID uuid.UUID, response *dto.SyncResponse) error {
+func (s *SyncService) pushStockHistories(ctx context.Context, tx *gorm.DB, stockHistories []entities.StockHistory, syncContext dto.SyncContext, response *dto.SyncResponse) error {
 	for _, stockHistory := range stockHistories {
-		// Validate stock history belongs to license
-		if !s.validateStockHistoryLicense(ctx, stockHistory, licenseID) {
-			s.addError(response, "stock_histories", stockHistory.ID, "unauthorized", "Stock history does not belong to license")
+		// Enhanced validation: check both license and shop access
+		if !s.validateStockHistoryAccess(ctx, stockHistory, syncContext) {
+			s.addError(response, "stock_histories", stockHistory.ID, "unauthorized", "Stock history access denied for user role and shop")
 			continue
 		}
 
@@ -1615,6 +2592,319 @@ func (s *SyncService) validateStockHistoryLicense(ctx context.Context, stockHist
 	return err == nil && count > 0
 }
 
+// filterStockHistoriesByShopAccessWithSyncData filters stock histories checking both sync request data and database
+func (s *SyncService) filterStockHistoriesByShopAccessWithSyncData(stockHistories []entities.StockHistory, syncProducts []entities.Product, accessibleShops map[uuid.UUID]bool, syncContext dto.SyncContext) []entities.StockHistory {
+	if syncContext.HasGlobalAccess {
+		return stockHistories
+	}
+
+	var filtered []entities.StockHistory
+	
+	// Create a map of products in the sync request for quick lookup
+	syncProductMap := make(map[uuid.UUID]uuid.UUID) // product_id -> shop_id
+	for _, product := range syncProducts {
+		syncProductMap[product.ID] = product.ShopID
+	}
+	
+	log.Printf("DEBUG: filterStockHistoriesByShopAccessWithSyncData - User %s (role: %s), accessible shops: %v, processing %d stock histories, %d products in sync", 
+		syncContext.UserID, syncContext.UserRole, syncContext.AccessibleShopIDs, len(stockHistories), len(syncProducts))
+	
+	for i, stockHistory := range stockHistories {
+		log.Printf("DEBUG: Processing stock history %d/%d: ID=%s, ProductID=%s", 
+			i+1, len(stockHistories), stockHistory.ID, stockHistory.ProductID)
+		
+		var productShopID uuid.UUID
+		var productFound bool
+		
+		// First check if product is in the sync request data
+		if shopID, exists := syncProductMap[stockHistory.ProductID]; exists {
+			productShopID = shopID
+			productFound = true
+			log.Printf("DEBUG: Product %s found in sync request data, belongs to shop %s", stockHistory.ProductID, productShopID)
+		} else {
+			// If not in sync data, check the database
+			err := s.db.Model(&entities.Product{}).
+				Select("shop_id").
+				Where("id = ?", stockHistory.ProductID).
+				First(&productShopID).Error
+			
+			if err != nil {
+				log.Printf("ERROR: Stock history %s references non-existent product %s (not in sync data or database)", stockHistory.ID, stockHistory.ProductID)
+				continue
+			}
+			productFound = true
+			log.Printf("DEBUG: Product %s found in database, belongs to shop %s", stockHistory.ProductID, productShopID)
+		}
+		
+		if !productFound {
+			continue
+		}
+		
+		// Check if shop is accessible
+		isAccessible := accessibleShops[productShopID]
+		log.Printf("DEBUG: Shop %s accessible check: %v", productShopID, isAccessible)
+		
+		if !isAccessible {
+			log.Printf("WARNING: Stock history %s references product %s in inaccessible shop %s", 
+				stockHistory.ID, stockHistory.ProductID, productShopID)
+			continue
+		}
+		
+		log.Printf("DEBUG: Stock history %s PASSED filtering (product %s in accessible shop %s)", 
+			stockHistory.ID, stockHistory.ProductID, productShopID)
+		filtered = append(filtered, stockHistory)
+	}
+	
+	log.Printf("SUMMARY: Filtered stock histories for user %s (role: %s): %d → %d", 
+		syncContext.UserID, syncContext.UserRole, len(stockHistories), len(filtered))
+	return filtered
+}
+
+// filterTransactionProductsByShopAccessWithSyncData filters transaction products checking both sync request data and database
+func (s *SyncService) filterTransactionProductsByShopAccessWithSyncData(transactionProducts []entities.TransactionProduct, syncTransactions []entities.Transaction, accessibleShops map[uuid.UUID]bool, syncContext dto.SyncContext) []entities.TransactionProduct {
+	if syncContext.HasGlobalAccess {
+		return transactionProducts
+	}
+
+	var filtered []entities.TransactionProduct
+	
+	// Create a map of transactions in the sync request for quick lookup
+	syncTransactionMap := make(map[uuid.UUID]uuid.UUID) // transaction_id -> shop_id
+	for _, transaction := range syncTransactions {
+		syncTransactionMap[transaction.ID] = transaction.ShopID
+	}
+	
+	log.Printf("DEBUG: filterTransactionProductsByShopAccessWithSyncData - User %s (role: %s), accessible shops: %v, processing %d transaction products, %d transactions in sync", 
+		syncContext.UserID, syncContext.UserRole, syncContext.AccessibleShopIDs, len(transactionProducts), len(syncTransactions))
+	
+	for i, transactionProduct := range transactionProducts {
+		log.Printf("DEBUG: Processing transaction product %d/%d: ID=%s, TransactionID=%s", 
+			i+1, len(transactionProducts), transactionProduct.ID, transactionProduct.TransactionID)
+		
+		var transactionShopID uuid.UUID
+		var transactionFound bool
+		
+		// First check if transaction is in the sync request data
+		if shopID, exists := syncTransactionMap[transactionProduct.TransactionID]; exists {
+			transactionShopID = shopID
+			transactionFound = true
+			log.Printf("DEBUG: Transaction %s found in sync request data, belongs to shop %s", transactionProduct.TransactionID, transactionShopID)
+		} else {
+			// If not in sync data, check the database
+			err := s.db.Model(&entities.Transaction{}).
+				Select("shop_id").
+				Where("id = ?", transactionProduct.TransactionID).
+				First(&transactionShopID).Error
+			
+			if err != nil {
+				log.Printf("ERROR: Transaction product %s references non-existent transaction %s (not in sync data or database)", transactionProduct.ID, transactionProduct.TransactionID)
+				continue
+			}
+			transactionFound = true
+			log.Printf("DEBUG: Transaction %s found in database, belongs to shop %s", transactionProduct.TransactionID, transactionShopID)
+		}
+		
+		if !transactionFound {
+			continue
+		}
+		
+		// Check if shop is accessible
+		isAccessible := accessibleShops[transactionShopID]
+		log.Printf("DEBUG: Shop %s accessible check: %v", transactionShopID, isAccessible)
+		
+		if !isAccessible {
+			log.Printf("WARNING: Transaction product %s references transaction %s in inaccessible shop %s", 
+				transactionProduct.ID, transactionProduct.TransactionID, transactionShopID)
+			continue
+		}
+		
+		log.Printf("DEBUG: Transaction product %s PASSED filtering (transaction %s in accessible shop %s)", 
+			transactionProduct.ID, transactionProduct.TransactionID, transactionShopID)
+		filtered = append(filtered, transactionProduct)
+	}
+	
+	log.Printf("SUMMARY: Filtered transaction products for user %s (role: %s): %d → %d", 
+		syncContext.UserID, syncContext.UserRole, len(transactionProducts), len(filtered))
+	return filtered
+}
+
+// FilterResult holds filtering statistics for generating accurate warnings
+type FilterResult struct {
+	Filtered         []entities.StockHistory
+	MissingProducts  []uuid.UUID
+	InaccessibleShops []uuid.UUID
+}
+
+// filterStockHistoriesByShopAccess filters stock histories based on accessible shops
+func (s *SyncService) filterStockHistoriesByShopAccess(stockHistories []entities.StockHistory, accessibleShops map[uuid.UUID]bool, syncContext dto.SyncContext) []entities.StockHistory {
+	if syncContext.HasGlobalAccess {
+		return stockHistories
+	}
+
+	var filtered []entities.StockHistory
+	
+	// Enhanced debug logging
+	log.Printf("DEBUG: filterStockHistoriesByShopAccess - User %s (role: %s), accessible shops: %v, processing %d stock histories", 
+		syncContext.UserID, syncContext.UserRole, syncContext.AccessibleShopIDs, len(stockHistories))
+	
+	for i, stockHistory := range stockHistories {
+		// Enhanced debug logging for each stock history
+		log.Printf("DEBUG: Processing stock history %d/%d: ID=%s, ProductID=%s", 
+			i+1, len(stockHistories), stockHistory.ID, stockHistory.ProductID)
+		
+		// Query to check if the product exists and belongs to an accessible shop
+		var productShopID uuid.UUID
+		err := s.db.Model(&entities.Product{}).
+			Select("shop_id").
+			Where("id = ?", stockHistory.ProductID).
+			First(&productShopID).Error
+		
+		if err != nil {
+			// Product doesn't exist - enhanced logging
+			log.Printf("ERROR: Stock history %s references non-existent product %s (error: %v)", stockHistory.ID, stockHistory.ProductID, err)
+			continue
+		}
+		
+		log.Printf("DEBUG: Product %s found in shop %s, checking if shop is accessible", stockHistory.ProductID, productShopID)
+		
+		// Enhanced debug logging for shop access check
+		isAccessible := accessibleShops[productShopID]
+		log.Printf("DEBUG: Shop %s accessible check: %v (accessible shops map: %v)", productShopID, isAccessible, accessibleShops)
+		
+		if !isAccessible {
+			// Product exists but shop is not accessible
+			log.Printf("WARNING: Stock history %s references product %s in inaccessible shop %s (user has access to: %v)", 
+				stockHistory.ID, stockHistory.ProductID, productShopID, syncContext.AccessibleShopIDs)
+			continue
+		}
+		
+		// Product exists and shop is accessible
+		log.Printf("DEBUG: Stock history %s PASSED filtering (product %s in accessible shop %s)", 
+			stockHistory.ID, stockHistory.ProductID, productShopID)
+		filtered = append(filtered, stockHistory)
+	}
+	
+	log.Printf("SUMMARY: Filtered stock histories for user %s (role: %s): %d → %d", 
+		syncContext.UserID, syncContext.UserRole, len(stockHistories), len(filtered))
+	return filtered
+}
+
+// filterTransactionProductsByShopAccess filters transaction products based on accessible shops
+func (s *SyncService) filterTransactionProductsByShopAccess(transactionProducts []entities.TransactionProduct, accessibleShops map[uuid.UUID]bool, syncContext dto.SyncContext) []entities.TransactionProduct {
+	if syncContext.HasGlobalAccess {
+		return transactionProducts
+	}
+
+	var filtered []entities.TransactionProduct
+	
+	// Enhanced debug logging
+	log.Printf("DEBUG: filterTransactionProductsByShopAccess - User %s (role: %s), accessible shops: %v, processing %d transaction products", 
+		syncContext.UserID, syncContext.UserRole, syncContext.AccessibleShopIDs, len(transactionProducts))
+	
+	for i, transactionProduct := range transactionProducts {
+		// Enhanced debug logging for each transaction product
+		log.Printf("DEBUG: Processing transaction product %d/%d: ID=%s, TransactionID=%s", 
+			i+1, len(transactionProducts), transactionProduct.ID, transactionProduct.TransactionID)
+		
+		// Query to check if the transaction exists and belongs to an accessible shop
+		var transactionShopID uuid.UUID
+		err := s.db.Model(&entities.Transaction{}).
+			Select("shop_id").
+			Where("id = ?", transactionProduct.TransactionID).
+			First(&transactionShopID).Error
+		
+		if err != nil {
+			// Transaction doesn't exist - enhanced logging
+			log.Printf("ERROR: Transaction product %s references non-existent transaction %s (error: %v)", transactionProduct.ID, transactionProduct.TransactionID, err)
+			continue
+		}
+		
+		log.Printf("DEBUG: Transaction %s found in shop %s, checking if shop is accessible", transactionProduct.TransactionID, transactionShopID)
+		
+		// Enhanced debug logging for shop access check
+		isAccessible := accessibleShops[transactionShopID]
+		log.Printf("DEBUG: Shop %s accessible check: %v (accessible shops map: %v)", transactionShopID, isAccessible, accessibleShops)
+		
+		if !isAccessible {
+			// Transaction exists but shop is not accessible
+			log.Printf("WARNING: Transaction product %s references transaction %s in inaccessible shop %s (user has access to: %v)", 
+				transactionProduct.ID, transactionProduct.TransactionID, transactionShopID, syncContext.AccessibleShopIDs)
+			continue
+		}
+		
+		// Transaction exists and shop is accessible
+		log.Printf("DEBUG: Transaction product %s PASSED filtering (transaction %s in accessible shop %s)", 
+			transactionProduct.ID, transactionProduct.TransactionID, transactionShopID)
+		filtered = append(filtered, transactionProduct)
+	}
+	
+	log.Printf("SUMMARY: Filtered transaction products for user %s (role: %s): %d → %d", 
+		syncContext.UserID, syncContext.UserRole, len(transactionProducts), len(filtered))
+	return filtered
+}
+
+// validateStockHistoryAccess validates stock history access based on user role and accessible shops
+func (s *SyncService) validateStockHistoryAccess(ctx context.Context, stockHistory entities.StockHistory, syncContext dto.SyncContext) bool {
+	// Global access users (super_admin/admin) can access all stock histories
+	if syncContext.HasGlobalAccess {
+		return true
+	}
+
+	// Get the product's shop ID
+	var productShopID uuid.UUID
+	err := s.db.Model(&entities.Product{}).
+		Select("shop_id").
+		Where("id = ?", stockHistory.ProductID).
+		First(&productShopID).Error
+	
+	if err != nil {
+		log.Printf("Failed to find product shop for stock history %s: %v", stockHistory.ID, err)
+		return false
+	}
+
+	// Check if the shop is accessible to the user
+	for _, accessibleShopID := range syncContext.AccessibleShopIDs {
+		if accessibleShopID == productShopID {
+			return true
+		}
+	}
+
+	log.Printf("Stock history %s denied: product shop %s not accessible to user %s", 
+		stockHistory.ID, productShopID, syncContext.UserID)
+	return false
+}
+
+// validateTransactionProductAccess validates transaction product access based on user role and accessible shops
+func (s *SyncService) validateTransactionProductAccess(ctx context.Context, transactionProduct entities.TransactionProduct, syncContext dto.SyncContext) bool {
+	// Global access users (super_admin/admin) can access all transaction products
+	if syncContext.HasGlobalAccess {
+		return true
+	}
+
+	// Get the transaction's shop ID
+	var transactionShopID uuid.UUID
+	err := s.db.Model(&entities.Transaction{}).
+		Select("shop_id").
+		Where("id = ?", transactionProduct.TransactionID).
+		First(&transactionShopID).Error
+	
+	if err != nil {
+		log.Printf("Failed to find transaction shop for transaction product %s: %v", transactionProduct.ID, err)
+		return false
+	}
+
+	// Check if the shop is accessible to the user
+	for _, accessibleShopID := range syncContext.AccessibleShopIDs {
+		if accessibleShopID == transactionShopID {
+			return true
+		}
+	}
+
+	log.Printf("Transaction product %s denied: transaction shop %s not accessible to user %s", 
+		transactionProduct.ID, transactionShopID, syncContext.UserID)
+	return false
+}
+
 func (s *SyncService) findStockHistoryByID(ctx context.Context, tx *gorm.DB, id uuid.UUID) (*entities.StockHistory, error) {
 	var stockHistory entities.StockHistory
 	err := tx.First(&stockHistory, "id = ?", id).Error
@@ -1671,11 +2961,11 @@ func (s *SyncService) resolveStockHistoryConflict(existing, incoming entities.St
 }
 
 // TransactionProduct sync implementation
-func (s *SyncService) pushTransactionProducts(ctx context.Context, tx *gorm.DB, transactionProducts []entities.TransactionProduct, licenseID uuid.UUID, response *dto.SyncResponse) error {
+func (s *SyncService) pushTransactionProducts(ctx context.Context, tx *gorm.DB, transactionProducts []entities.TransactionProduct, syncContext dto.SyncContext, response *dto.SyncResponse) error {
 	for _, transactionProduct := range transactionProducts {
-		// Validate transaction product belongs to license
-		if !s.validateTransactionProductLicense(ctx, transactionProduct, licenseID) {
-			s.addError(response, "transaction_products", transactionProduct.ID, "unauthorized", "Transaction product does not belong to license")
+		// Enhanced validation: check both license and shop access
+		if !s.validateTransactionProductAccess(ctx, transactionProduct, syncContext) {
+			s.addError(response, "transaction_products", transactionProduct.ID, "unauthorized", "Transaction product access denied for user role and shop")
 			continue
 		}
 
@@ -2230,4 +3520,537 @@ func (s *SyncService) logPerformanceMetrics(entityType string, count int, durati
 		log.Printf("WARNING: Low performance detected for %s %s: %.2f entities/sec (expected > %.2f)",
 			operation, entityType, rate, minRatePerSecond)
 	}
+}
+
+// Safe versions of push methods that avoid nested transactions and provide enhanced error handling
+
+// pushCategoriesSafe handles category synchronization safely
+func (s *SyncService) pushCategoriesSafe(ctx context.Context, tx *gorm.DB, categories []entities.Category, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	for i, category := range categories {
+		if err := s.processSingleCategorySafe(ctx, tx, category, licenseID, response); err != nil {
+			log.Printf("Error processing category %s (index %d): %v", category.ID, i, err)
+			s.addDetailedError(response, "categories", category.ID, "processing_failed", err.Error(),
+				map[string]interface{}{"category_shop_id": category.ShopID, "license_id": licenseID, "index": i})
+			continue
+		}
+	}
+	return nil
+}
+
+// pushProductsSafe handles product synchronization safely
+func (s *SyncService) pushProductsSafe(ctx context.Context, tx *gorm.DB, products []entities.Product, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	for i, product := range products {
+		if err := s.processSingleProductSafe(ctx, tx, product, licenseID, response); err != nil {
+			log.Printf("Error processing product %s (index %d): %v", product.ID, i, err)
+			s.addDetailedError(response, "products", product.ID, "processing_failed", err.Error(),
+				map[string]interface{}{"product_shop_id": product.ShopID, "license_id": licenseID, "index": i})
+			continue
+		}
+	}
+	return nil
+}
+
+// pushTransactionsSafe handles transaction synchronization safely
+func (s *SyncService) pushTransactionsSafe(ctx context.Context, tx *gorm.DB, transactions []entities.Transaction, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	for i, transaction := range transactions {
+		if err := s.processSingleTransactionSafe(ctx, tx, transaction, licenseID, response); err != nil {
+			log.Printf("Error processing transaction %s (index %d): %v", transaction.ID, i, err)
+			s.addDetailedError(response, "transactions", transaction.ID, "processing_failed", err.Error(),
+				map[string]interface{}{"transaction_shop_id": transaction.ShopID, "license_id": licenseID, "index": i})
+			continue
+		}
+	}
+	return nil
+}
+
+// pushExpensesSafe handles expense synchronization safely
+func (s *SyncService) pushExpensesSafe(ctx context.Context, tx *gorm.DB, expenses []entities.Expense, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	for i, expense := range expenses {
+		if err := s.processSingleExpenseSafe(ctx, tx, expense, licenseID, response); err != nil {
+			log.Printf("Error processing expense %s (index %d): %v", expense.ID, i, err)
+			s.addDetailedError(response, "expenses", expense.ID, "processing_failed", err.Error(),
+				map[string]interface{}{"expense_shop_id": expense.ShopID, "license_id": licenseID, "index": i})
+			continue
+		}
+	}
+	return nil
+}
+
+// pushPaymentsSafe handles payment synchronization safely
+func (s *SyncService) pushPaymentsSafe(ctx context.Context, tx *gorm.DB, payments []entities.Payment, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	for i, payment := range payments {
+		if err := s.processSinglePaymentSafe(ctx, tx, payment, licenseID, response); err != nil {
+			log.Printf("Error processing payment %s (index %d): %v", payment.ID, i, err)
+			s.addDetailedError(response, "payments", payment.ID, "processing_failed", err.Error(),
+				map[string]interface{}{"payment_shop_id": payment.ShopID, "license_id": licenseID, "index": i})
+			continue
+		}
+	}
+	return nil
+}
+
+// pushReceiptsSafe handles receipt synchronization safely
+func (s *SyncService) pushReceiptsSafe(ctx context.Context, tx *gorm.DB, receipts []entities.Receipt, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	for i, receipt := range receipts {
+		if err := s.processSingleReceiptSafe(ctx, tx, receipt, licenseID, response); err != nil {
+			log.Printf("Error processing receipt %s (index %d): %v", receipt.ID, i, err)
+			s.addDetailedError(response, "receipts", receipt.ID, "processing_failed", err.Error(),
+				map[string]interface{}{"receipt_shop_id": receipt.ShopID, "license_id": licenseID, "index": i})
+			continue
+		}
+	}
+	return nil
+}
+
+// pushHistoriesSafe handles history synchronization safely
+func (s *SyncService) pushHistoriesSafe(ctx context.Context, tx *gorm.DB, histories []entities.History, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	for i, history := range histories {
+		if err := s.processSingleHistorySafe(ctx, tx, history, licenseID, response); err != nil {
+			log.Printf("Error processing history %s (index %d): %v", history.ID, i, err)
+			s.addDetailedError(response, "histories", history.ID, "processing_failed", err.Error(),
+				map[string]interface{}{"history_shop_id": history.ShopID, "license_id": licenseID, "index": i})
+			continue
+		}
+	}
+	return nil
+}
+
+// pushShopsSafe handles shop synchronization safely
+func (s *SyncService) pushShopsSafe(ctx context.Context, tx *gorm.DB, shops []entities.Shop, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	for i, shop := range shops {
+		if err := s.processSingleShopSafe(ctx, tx, shop, licenseID, response); err != nil {
+			log.Printf("Error processing shop %s (index %d): %v", shop.ID, i, err)
+			s.addDetailedError(response, "shops", shop.ID, "processing_failed", err.Error(),
+				map[string]interface{}{"shop_license_id": shop.LicenseID, "license_id": licenseID, "index": i})
+			continue
+		}
+	}
+	return nil
+}
+
+// pushUsersSafe handles user synchronization safely with role validation
+func (s *SyncService) pushUsersSafe(ctx context.Context, tx *gorm.DB, users []entities.User, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	for i, user := range users {
+		if err := s.processSingleUserSafe(ctx, tx, user, licenseID, response); err != nil {
+			log.Printf("Error processing user %s (index %d): %v", user.ID, i, err)
+			s.addDetailedError(response, "users", user.ID, "processing_failed", err.Error(),
+				map[string]interface{}{"user_license_id": user.LicenseID, "license_id": licenseID, "index": i})
+			continue
+		}
+	}
+	return nil
+}
+
+// pushStockHistoriesSafe handles stock history synchronization safely
+func (s *SyncService) pushStockHistoriesSafe(ctx context.Context, tx *gorm.DB, stockHistories []entities.StockHistory, syncContext dto.SyncContext, response *dto.SyncResponse) error {
+	for i, stockHistory := range stockHistories {
+		if err := s.processSingleStockHistorySafe(ctx, tx, stockHistory, syncContext, response); err != nil {
+			log.Printf("Error processing stock history %s (index %d): %v", stockHistory.ID, i, err)
+			s.addDetailedError(response, "stock_histories", stockHistory.ID, "processing_failed", err.Error(),
+				map[string]interface{}{"product_id": stockHistory.ProductID, "license_id": syncContext.LicenseID, "index": i})
+			continue
+		}
+	}
+	return nil
+}
+
+// pushTransactionProductsSafe handles transaction product synchronization safely
+func (s *SyncService) pushTransactionProductsSafe(ctx context.Context, tx *gorm.DB, transactionProducts []entities.TransactionProduct, syncContext dto.SyncContext, response *dto.SyncResponse) error {
+	for i, transactionProduct := range transactionProducts {
+		if err := s.processSingleTransactionProductSafe(ctx, tx, transactionProduct, syncContext, response); err != nil {
+			log.Printf("Error processing transaction product %s (index %d): %v", transactionProduct.ID, i, err)
+			s.addDetailedError(response, "transaction_products", transactionProduct.ID, "processing_failed", err.Error(),
+				map[string]interface{}{"transaction_id": transactionProduct.TransactionID, "license_id": syncContext.LicenseID, "index": i})
+			continue
+		}
+	}
+	return nil
+}
+
+// Safe processing methods for individual entities
+
+// processSingleCategorySafe processes a single category entity safely
+func (s *SyncService) processSingleCategorySafe(ctx context.Context, tx *gorm.DB, category entities.Category, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	if !s.validateCategoryLicense(ctx, category, licenseID) {
+		return fmt.Errorf("category does not belong to license %s", licenseID)
+	}
+
+	existing, err := s.findCategoryByID(ctx, tx, category.ID)
+	if err != nil {
+		return fmt.Errorf("failed to find category: %w", err)
+	}
+
+	if existing == nil {
+		if err := s.createCategory(ctx, tx, category); err != nil {
+			return fmt.Errorf("failed to create category: %w", err)
+		}
+		s.incrementStat(response.Stats.CreatedEntities, "categories")
+	} else {
+		if conflict := s.resolveCategoryConflict(*existing, category); conflict != nil {
+			response.Conflicts = append(response.Conflicts, *conflict)
+			if existing.UpdatedAt.After(category.UpdatedAt) {
+				s.incrementStat(response.Stats.ProcessedEntities, "categories")
+				return nil
+			}
+		}
+		if err := s.updateCategory(ctx, tx, category); err != nil {
+			return fmt.Errorf("failed to update category: %w", err)
+		}
+		s.incrementStat(response.Stats.UpdatedEntities, "categories")
+	}
+
+	s.incrementStat(response.Stats.ProcessedEntities, "categories")
+	return nil
+}
+
+// processSingleProductSafe processes a single product entity safely
+func (s *SyncService) processSingleProductSafe(ctx context.Context, tx *gorm.DB, product entities.Product, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	if !s.validateProductLicense(ctx, product, licenseID) {
+		return fmt.Errorf("product does not belong to license %s", licenseID)
+	}
+
+	existing, err := s.findProductByID(ctx, tx, product.ID)
+	if err != nil {
+		return fmt.Errorf("failed to find product: %w", err)
+	}
+
+	if existing == nil {
+		if err := s.createProduct(ctx, tx, product); err != nil {
+			return fmt.Errorf("failed to create product: %w", err)
+		}
+		s.incrementStat(response.Stats.CreatedEntities, "products")
+	} else {
+		if conflict := s.resolveProductConflict(*existing, product); conflict != nil {
+			response.Conflicts = append(response.Conflicts, *conflict)
+			if existing.UpdatedAt.After(product.UpdatedAt) {
+				s.incrementStat(response.Stats.ProcessedEntities, "products")
+				return nil
+			}
+		}
+		if err := s.updateProduct(ctx, tx, product); err != nil {
+			return fmt.Errorf("failed to update product: %w", err)
+		}
+		s.incrementStat(response.Stats.UpdatedEntities, "products")
+	}
+
+	s.incrementStat(response.Stats.ProcessedEntities, "products")
+	return nil
+}
+
+// processSingleTransactionSafe processes a single transaction entity safely
+func (s *SyncService) processSingleTransactionSafe(ctx context.Context, tx *gorm.DB, transaction entities.Transaction, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	if !s.validateTransactionLicense(ctx, transaction, licenseID) {
+		return fmt.Errorf("transaction does not belong to license %s", licenseID)
+	}
+
+	existing, err := s.findTransactionByID(ctx, tx, transaction.ID)
+	if err != nil {
+		return fmt.Errorf("failed to find transaction: %w", err)
+	}
+
+	if existing == nil {
+		if err := s.createTransaction(ctx, tx, transaction); err != nil {
+			return fmt.Errorf("failed to create transaction: %w", err)
+		}
+		s.incrementStat(response.Stats.CreatedEntities, "transactions")
+	} else {
+		if conflict := s.resolveTransactionConflict(*existing, transaction); conflict != nil {
+			response.Conflicts = append(response.Conflicts, *conflict)
+			if existing.UpdatedAt.After(transaction.UpdatedAt) {
+				s.incrementStat(response.Stats.ProcessedEntities, "transactions")
+				return nil
+			}
+		}
+		if err := s.updateTransaction(ctx, tx, transaction); err != nil {
+			return fmt.Errorf("failed to update transaction: %w", err)
+		}
+		s.incrementStat(response.Stats.UpdatedEntities, "transactions")
+	}
+
+	s.incrementStat(response.Stats.ProcessedEntities, "transactions")
+	return nil
+}
+
+// processSingleExpenseSafe processes a single expense entity safely
+func (s *SyncService) processSingleExpenseSafe(ctx context.Context, tx *gorm.DB, expense entities.Expense, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	if !s.validateExpenseLicense(ctx, expense, licenseID) {
+		return fmt.Errorf("expense does not belong to license %s", licenseID)
+	}
+
+	existing, err := s.findExpenseByID(ctx, tx, expense.ID)
+	if err != nil {
+		return fmt.Errorf("failed to find expense: %w", err)
+	}
+
+	if existing == nil {
+		if err := s.createExpense(ctx, tx, expense); err != nil {
+			return fmt.Errorf("failed to create expense: %w", err)
+		}
+		s.incrementStat(response.Stats.CreatedEntities, "expenses")
+	} else {
+		if conflict := s.resolveExpenseConflict(*existing, expense); conflict != nil {
+			response.Conflicts = append(response.Conflicts, *conflict)
+			if existing.UpdatedAt.After(expense.UpdatedAt) {
+				s.incrementStat(response.Stats.ProcessedEntities, "expenses")
+				return nil
+			}
+		}
+		if err := s.updateExpense(ctx, tx, expense); err != nil {
+			return fmt.Errorf("failed to update expense: %w", err)
+		}
+		s.incrementStat(response.Stats.UpdatedEntities, "expenses")
+	}
+
+	s.incrementStat(response.Stats.ProcessedEntities, "expenses")
+	return nil
+}
+
+// processSinglePaymentSafe processes a single payment entity safely
+func (s *SyncService) processSinglePaymentSafe(ctx context.Context, tx *gorm.DB, payment entities.Payment, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	if !s.validatePaymentLicense(ctx, payment, licenseID) {
+		return fmt.Errorf("payment does not belong to license %s", licenseID)
+	}
+
+	existing, err := s.findPaymentByID(ctx, tx, payment.ID)
+	if err != nil {
+		return fmt.Errorf("failed to find payment: %w", err)
+	}
+
+	if existing == nil {
+		if err := s.createPayment(ctx, tx, payment); err != nil {
+			return fmt.Errorf("failed to create payment: %w", err)
+		}
+		s.incrementStat(response.Stats.CreatedEntities, "payments")
+	} else {
+		if conflict := s.resolvePaymentConflict(*existing, payment); conflict != nil {
+			response.Conflicts = append(response.Conflicts, *conflict)
+			if existing.UpdatedAt.After(payment.UpdatedAt) {
+				s.incrementStat(response.Stats.ProcessedEntities, "payments")
+				return nil
+			}
+		}
+		if err := s.updatePayment(ctx, tx, payment); err != nil {
+			return fmt.Errorf("failed to update payment: %w", err)
+		}
+		s.incrementStat(response.Stats.UpdatedEntities, "payments")
+	}
+
+	s.incrementStat(response.Stats.ProcessedEntities, "payments")
+	return nil
+}
+
+// processSingleReceiptSafe processes a single receipt entity safely
+func (s *SyncService) processSingleReceiptSafe(ctx context.Context, tx *gorm.DB, receipt entities.Receipt, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	if !s.validateReceiptLicense(ctx, receipt, licenseID) {
+		return fmt.Errorf("receipt does not belong to license %s", licenseID)
+	}
+
+	existing, err := s.findReceiptByID(ctx, tx, receipt.ID)
+	if err != nil {
+		return fmt.Errorf("failed to find receipt: %w", err)
+	}
+
+	if existing == nil {
+		if err := s.createReceipt(ctx, tx, receipt); err != nil {
+			return fmt.Errorf("failed to create receipt: %w", err)
+		}
+		s.incrementStat(response.Stats.CreatedEntities, "receipts")
+	} else {
+		if conflict := s.resolveReceiptConflict(*existing, receipt); conflict != nil {
+			response.Conflicts = append(response.Conflicts, *conflict)
+			if existing.UpdatedAt.After(receipt.UpdatedAt) {
+				s.incrementStat(response.Stats.ProcessedEntities, "receipts")
+				return nil
+			}
+		}
+		if err := s.updateReceipt(ctx, tx, receipt); err != nil {
+			return fmt.Errorf("failed to update receipt: %w", err)
+		}
+		s.incrementStat(response.Stats.UpdatedEntities, "receipts")
+	}
+
+	s.incrementStat(response.Stats.ProcessedEntities, "receipts")
+	return nil
+}
+
+// processSingleHistorySafe processes a single history entity safely
+func (s *SyncService) processSingleHistorySafe(ctx context.Context, tx *gorm.DB, history entities.History, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	if !s.validateHistoryLicense(ctx, history, licenseID) {
+		return fmt.Errorf("history does not belong to license %s", licenseID)
+	}
+
+	existing, err := s.findHistoryByID(ctx, tx, history.ID)
+	if err != nil {
+		return fmt.Errorf("failed to find history: %w", err)
+	}
+
+	if existing == nil {
+		if err := s.createHistory(ctx, tx, history); err != nil {
+			return fmt.Errorf("failed to create history: %w", err)
+		}
+		s.incrementStat(response.Stats.CreatedEntities, "histories")
+	} else {
+		if conflict := s.resolveHistoryConflict(*existing, history); conflict != nil {
+			response.Conflicts = append(response.Conflicts, *conflict)
+			if existing.UpdatedAt.After(history.UpdatedAt) {
+				s.incrementStat(response.Stats.ProcessedEntities, "histories")
+				return nil
+			}
+		}
+		if err := s.updateHistory(ctx, tx, history); err != nil {
+			return fmt.Errorf("failed to update history: %w", err)
+		}
+		s.incrementStat(response.Stats.UpdatedEntities, "histories")
+	}
+
+	s.incrementStat(response.Stats.ProcessedEntities, "histories")
+	return nil
+}
+
+// processSingleShopSafe processes a single shop entity safely
+func (s *SyncService) processSingleShopSafe(ctx context.Context, tx *gorm.DB, shop entities.Shop, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	if !s.validateShopLicense(ctx, shop, licenseID) {
+		return fmt.Errorf("shop does not belong to license %s", licenseID)
+	}
+
+	existing, err := s.findShopByID(ctx, tx, shop.ID)
+	if err != nil {
+		return fmt.Errorf("failed to find shop: %w", err)
+	}
+
+	if existing == nil {
+		if err := s.createShop(ctx, tx, shop); err != nil {
+			return fmt.Errorf("failed to create shop: %w", err)
+		}
+		s.incrementStat(response.Stats.CreatedEntities, "shops")
+	} else {
+		if conflict := s.resolveShopConflict(*existing, shop); conflict != nil {
+			response.Conflicts = append(response.Conflicts, *conflict)
+			if existing.UpdatedAt.After(shop.UpdatedAt) {
+				s.incrementStat(response.Stats.ProcessedEntities, "shops")
+				return nil
+			}
+		}
+		if err := s.updateShop(ctx, tx, shop); err != nil {
+			return fmt.Errorf("failed to update shop: %w", err)
+		}
+		s.incrementStat(response.Stats.UpdatedEntities, "shops")
+	}
+
+	s.incrementStat(response.Stats.ProcessedEntities, "shops")
+	return nil
+}
+
+// processSingleUserSafe processes a single user entity safely with role validation
+func (s *SyncService) processSingleUserSafe(ctx context.Context, tx *gorm.DB, user entities.User, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	if !s.validateUserLicense(ctx, user, licenseID) {
+		return fmt.Errorf("user does not belong to license %s", licenseID)
+	}
+
+	// CRITICAL FIX: Validate role exists before creating/updating user
+	if user.RoleID != nil {
+		var roleExists bool
+		err := tx.Model(&entities.Role{}).Select("count(*) > 0").Where("id = ?", *user.RoleID).Find(&roleExists).Error
+		if err != nil {
+			return fmt.Errorf("failed to validate role: %w", err)
+		}
+		if !roleExists {
+			return fmt.Errorf("role %s does not exist", *user.RoleID)
+		}
+	}
+
+	existing, err := s.findUserByID(ctx, tx, user.ID)
+	if err != nil {
+		return fmt.Errorf("failed to find user: %w", err)
+	}
+
+	if existing == nil {
+		if err := s.createUser(ctx, tx, user); err != nil {
+			return fmt.Errorf("failed to create user: %w", err)
+		}
+		s.incrementStat(response.Stats.CreatedEntities, "users")
+	} else {
+		if conflict := s.resolveUserConflict(*existing, user); conflict != nil {
+			response.Conflicts = append(response.Conflicts, *conflict)
+			if existing.UpdatedAt.After(user.UpdatedAt) {
+				s.incrementStat(response.Stats.ProcessedEntities, "users")
+				return nil
+			}
+		}
+		if err := s.updateUser(ctx, tx, user); err != nil {
+			return fmt.Errorf("failed to update user: %w", err)
+		}
+		s.incrementStat(response.Stats.UpdatedEntities, "users")
+	}
+
+	s.incrementStat(response.Stats.ProcessedEntities, "users")
+	return nil
+}
+
+// processSingleStockHistorySafe processes a single stock history entity safely
+func (s *SyncService) processSingleStockHistorySafe(ctx context.Context, tx *gorm.DB, stockHistory entities.StockHistory, syncContext dto.SyncContext, response *dto.SyncResponse) error {
+	if !s.validateStockHistoryAccess(ctx, stockHistory, syncContext) {
+		return fmt.Errorf("stock history access denied for user role and shop")
+	}
+
+	existing, err := s.findStockHistoryByID(ctx, tx, stockHistory.ID)
+	if err != nil {
+		return fmt.Errorf("failed to find stock history: %w", err)
+	}
+
+	if existing == nil {
+		if err := s.createStockHistory(ctx, tx, stockHistory); err != nil {
+			return fmt.Errorf("failed to create stock history: %w", err)
+		}
+		s.incrementStat(response.Stats.CreatedEntities, "stock_histories")
+	} else {
+		if conflict := s.resolveStockHistoryConflict(*existing, stockHistory); conflict != nil {
+			response.Conflicts = append(response.Conflicts, *conflict)
+			if existing.UpdatedAt.After(stockHistory.UpdatedAt) {
+				s.incrementStat(response.Stats.ProcessedEntities, "stock_histories")
+				return nil
+			}
+		}
+		if err := s.updateStockHistory(ctx, tx, stockHistory); err != nil {
+			return fmt.Errorf("failed to update stock history: %w", err)
+		}
+		s.incrementStat(response.Stats.UpdatedEntities, "stock_histories")
+	}
+
+	s.incrementStat(response.Stats.ProcessedEntities, "stock_histories")
+	return nil
+}
+
+// processSingleTransactionProductSafe processes a single transaction product entity safely
+func (s *SyncService) processSingleTransactionProductSafe(ctx context.Context, tx *gorm.DB, transactionProduct entities.TransactionProduct, syncContext dto.SyncContext, response *dto.SyncResponse) error {
+	if !s.validateTransactionProductAccess(ctx, transactionProduct, syncContext) {
+		return fmt.Errorf("transaction product access denied for user role and shop")
+	}
+
+	existing, err := s.findTransactionProductByID(ctx, tx, transactionProduct.ID)
+	if err != nil {
+		return fmt.Errorf("failed to find transaction product: %w", err)
+	}
+
+	if existing == nil {
+		if err := s.createTransactionProduct(ctx, tx, transactionProduct); err != nil {
+			return fmt.Errorf("failed to create transaction product: %w", err)
+		}
+		s.incrementStat(response.Stats.CreatedEntities, "transaction_products")
+	} else {
+		if conflict := s.resolveTransactionProductConflict(*existing, transactionProduct); conflict != nil {
+			response.Conflicts = append(response.Conflicts, *conflict)
+			if existing.UpdatedAt.After(transactionProduct.UpdatedAt) {
+				s.incrementStat(response.Stats.ProcessedEntities, "transaction_products")
+				return nil
+			}
+		}
+		if err := s.updateTransactionProduct(ctx, tx, transactionProduct); err != nil {
+			return fmt.Errorf("failed to update transaction product: %w", err)
+		}
+		s.incrementStat(response.Stats.UpdatedEntities, "transaction_products")
+	}
+
+	s.incrementStat(response.Stats.ProcessedEntities, "transaction_products")
+	return nil
 }

@@ -91,10 +91,14 @@ func TestNewSyncHandler(t *testing.T) {
 	var db *gorm.DB = nil
 	var syncService *services.SyncService = nil
 	var userRepo = repositories.NewUserRepository(db)
+	var shopRepo = repositories.NewShopRepository(db)
+	var roleRepo = repositories.NewRoleRepository(db)
 
-	syncHandler := NewSyncHandler(syncService, userRepo)
+	syncHandler := NewSyncHandler(syncService, userRepo, shopRepo, roleRepo)
 
 	assert.NotNil(t, syncHandler)
 	assert.Equal(t, syncService, syncHandler.syncService)
 	assert.Equal(t, userRepo, syncHandler.userRepo)
+	assert.Equal(t, shopRepo, syncHandler.shopRepo)
+	assert.Equal(t, roleRepo, syncHandler.roleRepo)
 }
