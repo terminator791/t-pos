@@ -152,6 +152,12 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	// check in role is owner_business
+	if role.Name != "owner_business" {
+		response.ErrorForbidden(c, "This endpoint is for owner business only", nil)
+		return
+	}
+
 	// Generate JWT token
 	username := ""
 	if user.Username != nil {

@@ -318,7 +318,7 @@ func (h *SyncHandler) validateCashierEntitiesShopID(req *dto.SyncRequest, expect
 func (h *SyncHandler) validateNonCashierShopIDRequirements(req *dto.SyncRequest, userRole string, user *entities.User) error {
 	// Collect all shop_ids mentioned in the request
 	shopIDsInRequest := make(map[uuid.UUID]bool)
-	
+
 	for _, cart := range req.Carts {
 		shopIDsInRequest[cart.ShopID] = true
 	}
@@ -346,42 +346,57 @@ func (h *SyncHandler) validateNonCashierShopIDRequirements(req *dto.SyncRequest,
 	for _, shop := range req.Shops {
 		shopIDsInRequest[shop.ID] = true
 	}
-	
+
 	// For owner_business, validate all shop_ids belong to their license
 	if userRole == "owner_business" {
 		if user.LicenseID == nil {
 			return fmt.Errorf("owner_business user has no license assignment")
 		}
-		
+
 		// Validate each shop_id belongs to the user's license
 		for shopID := range shopIDsInRequest {
 			shop, err := h.shopRepo.GetByID(context.Background(), shopID)
 			if err != nil {
-				return fmt.Errorf("invalid shop_id %s: shop not found", shopID)
+				// CRITICAL FIX: For sync operations, if shop doesn't exist, allow it to be created
+				// Only fail if it's an unexpected database error, not "not found"
+				if err.Error() != "record not found" && err.Error() != "sql: no rows in result set" {
+					return fmt.Errorf("invalid shop_id %s: database error: %w", shopID, err)
+				}
+				// Shop doesn't exist - this is OK for sync, it will be created
+				log.Printf("DEBUG: Shop %s not found in database, will be created during sync", shopID)
+				continue
 			}
-			
+
 			if shop.LicenseID != *user.LicenseID {
-				return fmt.Errorf("shop_id %s belongs to license %s, but user belongs to license %s (domain mismatch)", 
+				return fmt.Errorf("shop_id %s belongs to license %s, but user belongs to license %s (domain mismatch)",
 					shopID, shop.LicenseID, *user.LicenseID)
 			}
 		}
-		
+
 		// Validate products and other referenced entities belong to correct domain
 		if err := h.validateProductDomainAccess(req, *user.LicenseID); err != nil {
 			return fmt.Errorf("product domain validation failed: %w", err)
 		}
 	}
-	
+
 	// For admin/super_admin, they can access any shop but we still validate they exist
 	if userRole == "admin" || userRole == "super_admin" {
 		for shopID := range shopIDsInRequest {
 			_, err := h.shopRepo.GetByID(context.Background(), shopID)
 			if err != nil {
-				return fmt.Errorf("invalid shop_id %s: shop not found", shopID)
+				// CRITICAL FIX: For sync operations, if shop doesn't exist, allow it to be created
+				// Only fail if it's an unexpected database error, not "not found"
+				if err.Error() != "record not found" && err.Error() != "sql: no rows in result set" {
+					return fmt.Errorf("invalid shop_id %s: database error: %w", shopID, err)
+				}
+				// Shop doesn't exist - this is OK for sync, it will be created
+				log.Printf("DEBUG: Shop %s not found in database, will be created during sync", shopID)
+				continue
 			}
+			// Shop exists and is accessible (admins have global access)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -413,7 +428,14 @@ func (h *SyncHandler) validateProductDomainAccess(req *dto.SyncRequest, userLice
 		// Validate the product's shop belongs to user's license
 		shop, err := h.shopRepo.GetByID(context.Background(), productShopID)
 		if err != nil {
-			return fmt.Errorf("stock_history[%d] references product %s in invalid shop %s", i, stockHistory.ProductID, productShopID)
+			// CRITICAL FIX: For sync operations, if shop doesn't exist, allow it to be created
+			// Only fail if it's an unexpected database error, not "not found"
+			if err.Error() != "record not found" && err.Error() != "sql: no rows in result set" {
+				return fmt.Errorf("stock_history[%d] references product %s in invalid shop %s: database error: %w", i, stockHistory.ProductID, productShopID, err)
+			}
+			// Shop doesn't exist - this is OK for sync, it will be created
+			log.Printf("DEBUG: Stock history %d references product %s in shop %s (not found in DB, will be created)", i, stockHistory.ProductID, productShopID)
+			continue
 		}
 		
 		if shop.LicenseID != userLicenseID {
@@ -448,7 +470,14 @@ func (h *SyncHandler) validateProductDomainAccess(req *dto.SyncRequest, userLice
 		// Validate the transaction's shop belongs to user's license
 		shop, err := h.shopRepo.GetByID(context.Background(), transactionShopID)
 		if err != nil {
-			return fmt.Errorf("transaction_product[%d] references transaction %s in invalid shop %s", i, transactionProduct.TransactionID, transactionShopID)
+			// CRITICAL FIX: For sync operations, if shop doesn't exist, allow it to be created
+			// Only fail if it's an unexpected database error, not "not found"
+			if err.Error() != "record not found" && err.Error() != "sql: no rows in result set" {
+				return fmt.Errorf("transaction_product[%d] references transaction %s in invalid shop %s: database error: %w", i, transactionProduct.TransactionID, transactionShopID, err)
+			}
+			// Shop doesn't exist - this is OK for sync, it will be created
+			log.Printf("DEBUG: Transaction product %d references transaction %s in shop %s (not found in DB, will be created)", i, transactionProduct.TransactionID, transactionShopID)
+			continue
 		}
 		
 		if shop.LicenseID != userLicenseID {
