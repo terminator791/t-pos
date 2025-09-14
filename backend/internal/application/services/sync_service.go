@@ -507,7 +507,7 @@ func (s *SyncService) filterAndValidateSyncRequest(req dto.SyncRequest, syncCont
 	return filteredReq, strings.Join(statsParts, ", ")
 }
 
-// generateFilterWarnings creates warning messages for filtered entities
+// generateFilterWarnings creates warning messages for filtered entities with enhanced detail
 func (s *SyncService) generateFilterWarnings(original, filtered dto.SyncRequest, syncContext dto.SyncContext) []dto.SyncError {
 	var warnings []dto.SyncError
 
@@ -547,27 +547,103 @@ func (s *SyncService) generateFilterWarnings(original, filtered dto.SyncRequest,
 		})
 	}
 
-	// Check for filtered stock histories
+	// Check for filtered stock histories with enhanced detail
 	if len(original.StockHistories) > len(filtered.StockHistories) {
 		filteredCount := len(original.StockHistories) - len(filtered.StockHistories)
+		
+		// Count missing vs inaccessible entities for better error messaging
+		var missingCount, inaccessibleCount int
+		for _, stockHistory := range original.StockHistories {
+			var productShopID uuid.UUID
+			err := s.db.Model(&entities.Product{}).
+				Select("shop_id").
+				Where("id = ?", stockHistory.ProductID).
+				First(&productShopID).Error
+			
+			if err != nil {
+				missingCount++
+			} else {
+				// Check if shop is accessible
+				accessible := false
+				for _, shopID := range syncContext.AccessibleShopIDs {
+					if shopID == productShopID {
+						accessible = true
+						break
+					}
+				}
+				if !accessible {
+					inaccessibleCount++
+				}
+			}
+		}
+		
+		var message string
+		if missingCount > 0 && inaccessibleCount > 0 {
+			message = fmt.Sprintf("Filtered %d stock histor(y/ies): %d reference missing products, %d from inaccessible shops", 
+				filteredCount, missingCount, inaccessibleCount)
+		} else if missingCount > 0 {
+			message = fmt.Sprintf("Filtered %d stock histor(y/ies) - reference missing products", filteredCount)
+		} else {
+			message = fmt.Sprintf("Filtered %d stock histor(y/ies) from inaccessible shops", filteredCount)
+		}
+		
 		warnings = append(warnings, dto.SyncError{
 			EntityType: "stock_histories",
 			EntityID:   uuid.Nil,
 			ErrorCode:  "access_filtered",
-			Message:    fmt.Sprintf("Filtered %d stock histor(y/ies) from inaccessible shops", filteredCount),
-			Details:    fmt.Sprintf("User %s (role: %s) - accessible shops: %v", syncContext.UserID, syncContext.UserRole, syncContext.AccessibleShopIDs),
+			Message:    message,
+			Details:    fmt.Sprintf("User %s (role: %s) - accessible shops: %v, missing products: %d, inaccessible shops: %d", 
+				syncContext.UserID, syncContext.UserRole, syncContext.AccessibleShopIDs, missingCount, inaccessibleCount),
 		})
 	}
 
-	// Check for filtered transaction products
+	// Check for filtered transaction products with enhanced detail
 	if len(original.TransactionProducts) > len(filtered.TransactionProducts) {
 		filteredCount := len(original.TransactionProducts) - len(filtered.TransactionProducts)
+		
+		// Count missing vs inaccessible entities for better error messaging
+		var missingCount, inaccessibleCount int
+		for _, transactionProduct := range original.TransactionProducts {
+			var transactionShopID uuid.UUID
+			err := s.db.Model(&entities.Transaction{}).
+				Select("shop_id").
+				Where("id = ?", transactionProduct.TransactionID).
+				First(&transactionShopID).Error
+			
+			if err != nil {
+				missingCount++
+			} else {
+				// Check if shop is accessible
+				accessible := false
+				for _, shopID := range syncContext.AccessibleShopIDs {
+					if shopID == transactionShopID {
+						accessible = true
+						break
+					}
+				}
+				if !accessible {
+					inaccessibleCount++
+				}
+			}
+		}
+		
+		var message string
+		if missingCount > 0 && inaccessibleCount > 0 {
+			message = fmt.Sprintf("Filtered %d transaction product(s): %d reference missing transactions, %d from inaccessible shops", 
+				filteredCount, missingCount, inaccessibleCount)
+		} else if missingCount > 0 {
+			message = fmt.Sprintf("Filtered %d transaction product(s) - reference missing transactions", filteredCount)
+		} else {
+			message = fmt.Sprintf("Filtered %d transaction product(s) from inaccessible shops", filteredCount)
+		}
+		
 		warnings = append(warnings, dto.SyncError{
 			EntityType: "transaction_products",
 			EntityID:   uuid.Nil,
 			ErrorCode:  "access_filtered",
-			Message:    fmt.Sprintf("Filtered %d transaction product(s) from inaccessible shops", filteredCount),
-			Details:    fmt.Sprintf("User %s (role: %s) - accessible shops: %v", syncContext.UserID, syncContext.UserRole, syncContext.AccessibleShopIDs),
+			Message:    message,
+			Details:    fmt.Sprintf("User %s (role: %s) - accessible shops: %v, missing transactions: %d, inaccessible shops: %d", 
+				syncContext.UserID, syncContext.UserRole, syncContext.AccessibleShopIDs, missingCount, inaccessibleCount),
 		})
 	}
 
@@ -2454,21 +2530,47 @@ func (s *SyncService) filterStockHistoriesByShopAccess(stockHistories []entities
 	}
 
 	var filtered []entities.StockHistory
+	var missingProducts []uuid.UUID
+	var inaccessibleShops []uuid.UUID
+	
 	for _, stockHistory := range stockHistories {
-		// Query to check if the product belongs to an accessible shop
+		// Query to check if the product exists and belongs to an accessible shop
 		var productShopID uuid.UUID
 		err := s.db.Model(&entities.Product{}).
 			Select("shop_id").
 			Where("id = ?", stockHistory.ProductID).
 			First(&productShopID).Error
 		
-		if err == nil && accessibleShops[productShopID] {
-			filtered = append(filtered, stockHistory)
+		if err != nil {
+			// Product doesn't exist
+			missingProducts = append(missingProducts, stockHistory.ProductID)
+			log.Printf("Stock history %s references non-existent product %s", stockHistory.ID, stockHistory.ProductID)
+			continue
 		}
+		
+		if !accessibleShops[productShopID] {
+			// Product exists but shop is not accessible
+			inaccessibleShops = append(inaccessibleShops, productShopID)
+			log.Printf("Stock history %s references product in inaccessible shop %s", stockHistory.ID, productShopID)
+			continue
+		}
+		
+		// Product exists and shop is accessible
+		filtered = append(filtered, stockHistory)
 	}
 	
-	log.Printf("Filtered stock histories for user %s (role: %s): %d → %d", 
-		syncContext.UserID, syncContext.UserRole, len(stockHistories), len(filtered))
+	// Enhanced logging with detailed information
+	if len(missingProducts) > 0 {
+		log.Printf("Stock histories filtered due to missing products for user %s (role: %s): missing products %v", 
+			syncContext.UserID, syncContext.UserRole, missingProducts)
+	}
+	if len(inaccessibleShops) > 0 {
+		log.Printf("Stock histories filtered due to inaccessible shops for user %s (role: %s): inaccessible shops %v", 
+			syncContext.UserID, syncContext.UserRole, inaccessibleShops)
+	}
+	
+	log.Printf("Filtered stock histories for user %s (role: %s): %d → %d (missing products: %d, inaccessible shops: %d)", 
+		syncContext.UserID, syncContext.UserRole, len(stockHistories), len(filtered), len(missingProducts), len(inaccessibleShops))
 	return filtered
 }
 
@@ -2479,21 +2581,47 @@ func (s *SyncService) filterTransactionProductsByShopAccess(transactionProducts 
 	}
 
 	var filtered []entities.TransactionProduct
+	var missingTransactions []uuid.UUID
+	var inaccessibleShops []uuid.UUID
+	
 	for _, transactionProduct := range transactionProducts {
-		// Query to check if the transaction belongs to an accessible shop
+		// Query to check if the transaction exists and belongs to an accessible shop
 		var transactionShopID uuid.UUID
 		err := s.db.Model(&entities.Transaction{}).
 			Select("shop_id").
 			Where("id = ?", transactionProduct.TransactionID).
 			First(&transactionShopID).Error
 		
-		if err == nil && accessibleShops[transactionShopID] {
-			filtered = append(filtered, transactionProduct)
+		if err != nil {
+			// Transaction doesn't exist
+			missingTransactions = append(missingTransactions, transactionProduct.TransactionID)
+			log.Printf("Transaction product %s references non-existent transaction %s", transactionProduct.ID, transactionProduct.TransactionID)
+			continue
 		}
+		
+		if !accessibleShops[transactionShopID] {
+			// Transaction exists but shop is not accessible
+			inaccessibleShops = append(inaccessibleShops, transactionShopID)
+			log.Printf("Transaction product %s references transaction in inaccessible shop %s", transactionProduct.ID, transactionShopID)
+			continue
+		}
+		
+		// Transaction exists and shop is accessible
+		filtered = append(filtered, transactionProduct)
 	}
 	
-	log.Printf("Filtered transaction products for user %s (role: %s): %d → %d", 
-		syncContext.UserID, syncContext.UserRole, len(transactionProducts), len(filtered))
+	// Enhanced logging with detailed information
+	if len(missingTransactions) > 0 {
+		log.Printf("Transaction products filtered due to missing transactions for user %s (role: %s): missing transactions %v", 
+			syncContext.UserID, syncContext.UserRole, missingTransactions)
+	}
+	if len(inaccessibleShops) > 0 {
+		log.Printf("Transaction products filtered due to inaccessible shops for user %s (role: %s): inaccessible shops %v", 
+			syncContext.UserID, syncContext.UserRole, inaccessibleShops)
+	}
+	
+	log.Printf("Filtered transaction products for user %s (role: %s): %d → %d (missing transactions: %d, inaccessible shops: %d)", 
+		syncContext.UserID, syncContext.UserRole, len(transactionProducts), len(filtered), len(missingTransactions), len(inaccessibleShops))
 	return filtered
 }
 
