@@ -31,6 +31,7 @@ type SyncContext struct {
 	LicenseID         uuid.UUID     `json:"license_id"`
 	AccessibleShopIDs []uuid.UUID   `json:"accessible_shop_ids"`
 	HasGlobalAccess   bool          `json:"has_global_access"`
+	LastSyncTime      time.Time     `json:"last_sync_time"`
 }
 
 // SyncResponse represents the sync response sent back to mobile client
