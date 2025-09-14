@@ -49,6 +49,12 @@ func SetupRoutes(
 			cashierAuth.POST("/login", authHandler.LoginCashier)
 		}
 
+		// Admin authentication routes
+		adminAuth := v1.Group("/auth/admin")
+		{
+			adminAuth.POST("/login", authHandler.LoginAdmin)
+		}
+
 		// Protected authentication routes
 		authProtected := v1.Group("/auth")
 		authProtected.Use(authMiddleware.RequireAuth())

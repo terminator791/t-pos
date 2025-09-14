@@ -563,6 +563,102 @@ func (h *AuthHandler) LoginCashier(c *gin.Context) {
 	})
 }
 
+// LoginAdmin handles admin and super_admin login
+func (h *AuthHandler) LoginAdmin(c *gin.Context) {
+	var req LoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ErrorBadRequest(c, "Invalid request data", err.Error())
+		return
+	}
+
+	// Find user by username
+	user, err := h.userRepo.GetByUsername(context.Background(), req.Username)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			response.ErrorUnauthorized(c, "Invalid username or PIN", nil)
+		} else {
+			response.ErrorInternalServer(c, "Failed to get user", err.Error())
+		}
+		return
+	}
+
+	// Verify user is admin or super_admin
+	if user.RoleID == nil {
+		response.ErrorUnauthorized(c, "User has no assigned role", nil)
+		return
+	}
+
+	role, err := h.roleRepo.GetByID(context.Background(), *user.RoleID)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to get user role", err.Error())
+		return
+	}
+
+	if role.Name != "admin" && role.Name != "super_admin" {
+		response.ErrorUnauthorized(c, "This endpoint is for admins only", nil)
+		return
+	}
+
+	// Verify pin
+	if user.Pin == nil {
+		response.ErrorUnauthorized(c, "PIN not set", nil)
+		return
+	}
+	if err := h.passwordService.VerifyPin(*user.Pin, req.Pin); err != nil {
+		response.ErrorUnauthorized(c, "Invalid username or PIN", nil)
+		return
+	}
+
+	// For admin and super_admin, use wildcard domain for system-wide access
+	domain := "*"
+
+	// Generate JWT token
+	username := ""
+	if user.Username != nil {
+		username = *user.Username
+	}
+
+	email := ""
+	if user.Email != nil {
+		email = *user.Email
+	}
+
+	// Admin users don't have shop_id assigned
+	var shopID *uuid.UUID = nil
+
+	token, err := h.jwtService.GenerateToken(user.ID, email, username, user.Name, domain, shopID)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to generate token", err.Error())
+		return
+	}
+
+	// Calculate expires at
+	expiresAt := time.Now().Add(h.jwtService.GetExpiryTime()).Unix()
+
+	// Create user domain record for wildcard access if it doesn't exist
+	userDomain := &entities.UserDomain{
+		UserID: user.ID,
+		Domain: domain,
+	}
+
+	// Try to create, ignore if already exists
+	h.userDomainRepo.Create(context.Background(), userDomain)
+
+	// Add role to Casbin for system domain
+	h.enforcerService.AddRoleForUser(user.ID.String(), role.Name, domain)
+
+	// Remove password from response
+	user.Password = ""
+
+	response.SuccessOK(c, "Login successful", LoginResponse{
+		Token:     token,
+		User:      user,
+		Roles:     []string{role.Name},
+		Domain:    domain,
+		ExpiresAt: expiresAt,
+	})
+}
+
 func (h *AuthHandler) CreatePin(c *gin.Context) {
 	var req CreatePinRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
