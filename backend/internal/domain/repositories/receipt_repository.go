@@ -16,4 +16,6 @@ type ReceiptRepository interface {
 	Update(ctx context.Context, receipt *entities.Receipt) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	List(ctx context.Context, limit, offset int) ([]*entities.Receipt, error)
+	ListByShopIDs(ctx context.Context, shopIDs []uuid.UUID, limit, offset int) ([]*entities.Receipt, error)
+	GetByShopIDs(ctx context.Context, shopIDs []uuid.UUID) ([]*entities.Receipt, error)
 }

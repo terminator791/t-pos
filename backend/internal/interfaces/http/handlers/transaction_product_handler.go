@@ -3,27 +3,57 @@ package handlers
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/terminator791/t-pos/internal/domain/entities"
 	"github.com/terminator791/t-pos/internal/domain/repositories"
+	"github.com/terminator791/t-pos/internal/infrastructure/auth"
 	"github.com/terminator791/t-pos/pkg/response"
 )
 
 // TransactionProductHandler handles transaction product-related HTTP requests
 type TransactionProductHandler struct {
 	transactionProductRepo repositories.TransactionProductRepository
+	roleRepo               repositories.RoleRepository
+	shopRepo               repositories.ShopRepository
 }
 
 // NewTransactionProductHandler creates a new TransactionProductHandler
-func NewTransactionProductHandler(transactionProductRepo repositories.TransactionProductRepository) *TransactionProductHandler {
+func NewTransactionProductHandler(transactionProductRepo repositories.TransactionProductRepository, roleRepo repositories.RoleRepository, shopRepo repositories.ShopRepository) *TransactionProductHandler {
 	return &TransactionProductHandler{
 		transactionProductRepo: transactionProductRepo,
+		roleRepo:               roleRepo,
+		shopRepo:               shopRepo,
 	}
 }
 
-// ListTransactionProducts handles GET /transaction-products - super admin and admin only
+// ListTransactionProducts handles GET /transaction-products - with domain-specific filtering
 func (h *TransactionProductHandler) ListTransactionProducts(c *gin.Context) {
-	limit, offset := parsePaginationFromContext(c)
+	limit, offset := parsePagination(c)
 
-	transactionProducts, err := h.transactionProductRepo.List(c.Request.Context(), limit, offset)
+	// Get domain access info to apply filtering
+	domainAccess, err := auth.GetUserDomainAccess(c, h.roleRepo, h.shopRepo)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to get user access info", err.Error())
+		return
+	}
+
+	var transactionProducts []*entities.TransactionProduct
+
+	// Apply domain-specific filtering
+	if domainAccess.HasGlobalAccess {
+		// Super admin and admin can see all transaction products
+		transactionProducts, err = h.transactionProductRepo.List(c.Request.Context(), limit, offset)
+	} else {
+		// Filter by accessible shop IDs for tenant users
+		shopFilter := domainAccess.GetShopFilter()
+		if len(shopFilter) == 0 {
+			// User has no accessible shops
+			transactionProducts = []*entities.TransactionProduct{}
+			err = nil
+		} else {
+			transactionProducts, err = h.transactionProductRepo.ListByShopIDs(c.Request.Context(), shopFilter, limit, offset)
+		}
+	}
+
 	if err != nil {
 		response.ErrorInternalServer(c, "Failed to retrieve transaction products", err.Error())
 		return
@@ -68,7 +98,7 @@ func (h *TransactionProductHandler) ListTransactionProductsByShop(c *gin.Context
 		return
 	}
 
-	limit, offset := parsePaginationFromContext(c)
+	limit, offset := parsePagination(c)
 
 	transactionProducts, err := h.transactionProductRepo.GetByShopID(c.Request.Context(), shopID)
 	if err != nil {

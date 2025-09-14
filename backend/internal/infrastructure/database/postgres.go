@@ -38,8 +38,14 @@ func Migrate() error {
 		return fmt.Errorf("database not connected")
 	}
 
+	// Enable UUID extension for PostgreSQL
+	err := DB.Exec(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`).Error
+	if err != nil {
+		return fmt.Errorf("failed to enable uuid-ossp extension: %w", err)
+	}
+
 	// First, migrate base entities (no dependencies)
-	err := DB.AutoMigrate(
+	err = DB.AutoMigrate(
 		&entities.License{},
 		&entities.Role{},
 		&entities.Policy{},

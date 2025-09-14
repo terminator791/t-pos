@@ -19,4 +19,6 @@ type TransactionRepository interface {
 	Update(ctx context.Context, transaction *entities.Transaction) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	List(ctx context.Context, limit, offset int) ([]*entities.Transaction, error)
+	ListByShopIDs(ctx context.Context, shopIDs []uuid.UUID, limit, offset int) ([]*entities.Transaction, error)
+	GetByShopIDs(ctx context.Context, shopIDs []uuid.UUID) ([]*entities.Transaction, error)
 }

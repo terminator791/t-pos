@@ -71,3 +71,41 @@ func (r *CartRepositoryImpl) List(ctx context.Context, limit, offset int) ([]*en
 	err := r.db.WithContext(ctx).Preload("Product").Preload("Shop").Preload("User").Limit(limit).Offset(offset).Find(&carts).Error
 	return carts, err
 }
+
+// ListByShopIDs retrieves cart items filtered by accessible shop IDs for multi-tenant access
+func (r *CartRepositoryImpl) ListByShopIDs(ctx context.Context, shopIDs []uuid.UUID, limit, offset int) ([]*entities.Cart, error) {
+	var carts []*entities.Cart
+	if len(shopIDs) == 0 {
+		return carts, nil // Return empty slice if no accessible shops
+	}
+	
+	err := r.db.WithContext(ctx).
+		Preload("Product").
+		Preload("Shop").
+		Preload("User").
+		Joins("JOIN products ON carts.product_id = products.id").
+		Where("products.shop_id IN (?)", shopIDs).
+		Limit(limit).
+		Offset(offset).
+		Find(&carts).Error
+		
+	return carts, err
+}
+
+// GetByShopIDs retrieves all cart items for specified shop IDs (no pagination)
+func (r *CartRepositoryImpl) GetByShopIDs(ctx context.Context, shopIDs []uuid.UUID) ([]*entities.Cart, error) {
+	var carts []*entities.Cart
+	if len(shopIDs) == 0 {
+		return carts, nil // Return empty slice if no accessible shops
+	}
+	
+	err := r.db.WithContext(ctx).
+		Preload("Product").
+		Preload("Shop").
+		Preload("User").
+		Joins("JOIN products ON carts.product_id = products.id").
+		Where("products.shop_id IN (?)", shopIDs).
+		Find(&carts).Error
+		
+	return carts, err
+}

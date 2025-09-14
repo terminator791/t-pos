@@ -11,6 +11,7 @@ import (
 	"github.com/terminator791/t-pos/internal/domain/repositories"
 	"github.com/terminator791/t-pos/internal/infrastructure/auth"
 	"github.com/terminator791/t-pos/internal/infrastructure/casbin"
+	"github.com/terminator791/t-pos/internal/infrastructure/seeders"
 	"github.com/terminator791/t-pos/pkg/response"
 	"gorm.io/gorm"
 )
@@ -25,6 +26,7 @@ type AuthHandler struct {
 	jwtService      *auth.JWTService
 	passwordService *auth.PasswordService
 	enforcerService *casbin.EnforcerService
+	authSeeder      *seeders.AuthSeeder
 }
 
 // LoginRequest represents login request payload
@@ -41,6 +43,13 @@ type RegisterRequest struct {
 	Domain       string `json:"domain,omitempty"` // Optional tenant/shop domain
 	// Pin          string `json:"pin" binding:"required,min=6,max=6"`
 	// Name         string `json:"name" binding:"required"`
+}
+
+// RegisterCashierRequest represents cashier registration request payload
+type RegisterCashierRequest struct {
+	Username string    `json:"username" binding:"required,min=3"`
+	ShopID   uuid.UUID `json:"shop_id" binding:"required"`
+	Name     string    `json:"name"`
 }
 
 type CreatePinRequest struct {
@@ -72,6 +81,7 @@ func NewAuthHandler(
 	jwtService *auth.JWTService,
 	passwordService *auth.PasswordService,
 	enforcerService *casbin.EnforcerService,
+	authSeeder *seeders.AuthSeeder,
 ) *AuthHandler {
 	return &AuthHandler{
 		userRepo:        userRepo,
@@ -82,6 +92,7 @@ func NewAuthHandler(
 		jwtService:      jwtService,
 		passwordService: passwordService,
 		enforcerService: enforcerService,
+		authSeeder:      authSeeder,
 	}
 }
 
@@ -136,34 +147,15 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		}
 		domain = license.SerialNumber
 	} else {
-		// For users without license (superadmin, admin), set domain based on role and user domains
-		switch role.Name {
-		case "super_admin":
-			// Super admin gets access to all domains
-			domain = "*"
-		case "admin":
-			// Admin can access all shops, but prefer specific domain if available
-			userDomains, err := h.userDomainRepo.GetByUserID(context.Background(), user.ID)
-			if err == nil && len(userDomains) > 0 {
-				// Use first domain if available, otherwise use wildcard
-				domain = userDomains[0].Domain
-			} else {
-				domain = "*"
-			}
-		default:
-			// For other roles, get domain from user domains
-			userDomains, err := h.userDomainRepo.GetByUserID(context.Background(), user.ID)
-			if err != nil {
-				response.ErrorInternalServer(c, "Failed to get user domains", err.Error())
-				return
-			}
-			if len(userDomains) > 0 {
-				domain = userDomains[0].Domain
-			} else {
-				response.ErrorUnauthorized(c, "User has no assigned domain", nil)
-				return
-			}
-		}
+		// For users without license cant login
+		response.ErrorForbidden(c, "User has no license assigned", nil)
+		return
+	}
+
+	// check in role is owner_business
+	if role.Name != "owner_business" {
+		response.ErrorForbidden(c, "This endpoint is for owner business only", nil)
+		return
 	}
 
 	// Generate JWT token
@@ -177,11 +169,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		email = *user.Email
 	}
 
-	// Get shop_id if user is a cashier
-	var shopID *uuid.UUID
-	if role.Name == "cashier" && user.ShopID != nil {
-		shopID = user.ShopID
-	}
+	// not set shopID (its always owner_business login)
+	var shopID *uuid.UUID = nil
 
 	token, err := h.jwtService.GenerateToken(user.ID, email, username, user.Name, domain, shopID)
 	if err != nil {
@@ -290,20 +279,19 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	// Assign domain access based on role (use license.SerialNumber as domain)
 	var domains []string
 
-	switch defaultRole.Name {
-	case "super_admin":
-		// Super admin gets access to all domains
-		domains = []string{"*"}
-	case "admin":
-		// Admin gets access to all shops (shop*)
-		domains = []string{"shop*"}
-	case "owner_business":
+	if defaultRole.Name == "owner_business" {
 		// Owner business gets access to their license domain (can access all shops under it)
 		domains = []string{license.SerialNumber}
-	case "cashier":
-		// Cashier needs to be assigned to specific shop - this would be done by owner_business later
-		// For now, give no domain access (will be assigned by owner)
-		domains = []string{}
+		
+		// Assign domain-specific policies for owner_business
+		if err := h.authSeeder.AssignPoliciesForRole("owner_business", license.SerialNumber); err != nil {
+			log.Printf("Failed to assign policies for owner_business %s: %v", user.ID, err)
+			// Don't fail registration, but log the error
+		}
+	} else {
+		// response with error since default role must be owner_business
+		response.ErrorForbidden(c, "Role must be owner_business", nil)
+		return
 	}
 
 	// Create user domain records
@@ -334,6 +322,347 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 
 	response.SuccessCreated(c, "User registered successfully", data)
+}
+
+// RegisterCashier handles cashier registration by owner_business
+func (h *AuthHandler) RegisterCashier(c *gin.Context) {
+	var req RegisterCashierRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ErrorBadRequest(c, "Invalid request data", err.Error())
+		return
+	}
+
+	// Get the owner_business from token to verify they can create cashiers
+	userID, exists := auth.GetUserIDFromContext(c)
+	if !exists {
+		response.ErrorUnauthorized(c, "User not authenticated", nil)
+		return
+	}
+
+	// Get the creating user (owner_business)
+	creatingUser, err := h.userRepo.GetByID(context.Background(), userID)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to get creating user", err.Error())
+		return
+	}
+
+	// Verify creating user is owner_business and has license
+	if creatingUser.LicenseID == nil {
+		response.ErrorBadRequest(c, "Only license holders can create cashiers", nil)
+		return
+	}
+
+	// Get user's role to verify it's owner_business
+	if creatingUser.RoleID == nil {
+		response.ErrorUnauthorized(c, "User has no assigned role", nil)
+		return
+	}
+
+	role, err := h.roleRepo.GetByID(context.Background(), *creatingUser.RoleID)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to get user role", err.Error())
+		return
+	}
+
+	if role.Name != "owner_business" {
+		response.ErrorForbidden(c, "Only owner business can create cashiers", nil)
+		return
+	}
+
+	// Verify the shop belongs to the same license as the creating user
+	shop, err := h.shopRepo.GetByID(context.Background(), req.ShopID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			response.ErrorBadRequest(c, "Shop not found", nil)
+		} else {
+			response.ErrorInternalServer(c, "Database error", err.Error())
+		}
+		return
+	}
+
+	// Check if shop belongs to the same license
+	if shop.LicenseID != *creatingUser.LicenseID {
+		response.ErrorForbidden(c, "Can only create cashiers for shops under your license", nil)
+		return
+	}
+
+	// Check if user already exists by username
+	existingUser, err := h.userRepo.GetByUsername(context.Background(), req.Username)
+	if err == nil && existingUser != nil {
+		response.ErrorBadRequest(c, "User with this username already exists", nil)
+		return
+	}
+
+	// Get cashier role
+	cashierRole, err := h.roleRepo.GetByName(context.Background(), "cashier")
+	if err != nil {
+		response.ErrorInternalServer(c, "Cashier role not found", err.Error())
+		return
+	}
+
+	// Create cashier user
+	user := &entities.User{
+		Username:  &req.Username,
+		LicenseID: creatingUser.LicenseID, // Inherit license from creating user
+		RoleID:    &cashierRole.ID,
+		ShopID:    &req.ShopID, // Bind to specific shop
+		Name:      req.Name,
+	}
+
+	if err := h.userRepo.Create(context.Background(), user); err != nil {
+		response.ErrorInternalServer(c, "Failed to create cashier", err.Error())
+		return
+	}
+
+	// Set domain for token (shop domain)
+	domain := shop.Domain
+
+	email := ""
+	if user.Email != nil {
+		email = *user.Email
+	}
+
+	username := ""
+	if user.Username != nil {
+		username = *user.Username
+	}
+
+	name := ""
+	if user.Name != "" {
+		name = user.Name
+	}
+
+	// Generate token for cashier
+	token, err := h.jwtService.GenerateToken(user.ID, email, username, name, domain, &req.ShopID)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to generate token", err.Error())
+		return
+	}
+
+	// Calculate expires at
+	expiresAt := time.Now().Add(h.jwtService.GetExpiryTime()).Unix()
+
+	// Create user domain record for shop-specific access
+	userDomain := &entities.UserDomain{
+		UserID: user.ID,
+		Domain: domain, // shop domain
+	}
+
+	if err := h.userDomainRepo.Create(context.Background(), userDomain); err != nil {
+		log.Printf("Failed to create user domain %s for cashier %s: %v", domain, user.ID, err)
+	}
+
+	// Assign domain-specific policies for cashier
+	if err := h.authSeeder.AssignPoliciesForRole("cashier", domain); err != nil {
+		log.Printf("Failed to assign policies for cashier %s: %v", user.ID, err)
+		// Don't fail registration, but log the error
+	}
+
+	// Add role to Casbin for this shop domain
+	h.enforcerService.AddRoleForUser(user.ID.String(), "cashier", domain)
+
+	// Remove password from response
+	user.Password = ""
+
+	data := LoginResponse{
+		Token:     token,
+		User:      user,
+		Roles:     []string{"cashier"},
+		Domain:    domain,
+		ExpiresAt: expiresAt,
+	}
+
+	response.SuccessCreated(c, "Cashier registered successfully", data)
+}
+
+// LoginCashier handles cashier login
+func (h *AuthHandler) LoginCashier(c *gin.Context) {
+	var req LoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ErrorBadRequest(c, "Invalid request data", err.Error())
+		return
+	}
+
+	// Find user by username
+	user, err := h.userRepo.GetByUsername(context.Background(), req.Username)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			response.ErrorUnauthorized(c, "Invalid credentials", nil)
+		} else {
+			response.ErrorInternalServer(c, "Database error", err.Error())
+		}
+		return
+	}
+
+	// Verify user is a cashier
+	if user.RoleID == nil {
+		response.ErrorUnauthorized(c, "User has no assigned role", nil)
+		return
+	}
+
+	role, err := h.roleRepo.GetByID(context.Background(), *user.RoleID)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to get user role", err.Error())
+		return
+	}
+
+	if role.Name != "cashier" {
+		response.ErrorUnauthorized(c, "This endpoint is for cashiers only", nil)
+		return
+	}
+
+	// Verify pin
+	if user.Pin == nil {
+		response.ErrorUnauthorized(c, "PIN not set", nil)
+		return
+	}
+	if err := h.passwordService.VerifyPin(*user.Pin, req.Pin); err != nil {
+		response.ErrorUnauthorized(c, "Invalid credentials", nil)
+		return
+	}
+
+	// Verify cashier is assigned to a shop
+	if user.ShopID == nil {
+		response.ErrorUnauthorized(c, "Cashier not assigned to any shop", nil)
+		return
+	}
+
+	// Get assigned shop
+	shop, err := h.shopRepo.GetByID(context.Background(), *user.ShopID)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to get assigned shop", err.Error())
+		return
+	}
+
+	// Set domain to shop domain
+	domain := shop.Domain
+
+	// Generate JWT token
+	username := ""
+	if user.Username != nil {
+		username = *user.Username
+	}
+
+	email := ""
+	if user.Email != nil {
+		email = *user.Email
+	}
+
+	token, err := h.jwtService.GenerateToken(user.ID, email, username, user.Name, domain, user.ShopID)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to generate token", err.Error())
+		return
+	}
+
+	// Calculate expires at
+	expiresAt := time.Now().Add(h.jwtService.GetExpiryTime()).Unix()
+
+	// Remove password from response
+	user.Password = ""
+
+	response.SuccessOK(c, "Login successful", LoginResponse{
+		Token:     token,
+		User:      user,
+		Roles:     []string{role.Name},
+		Domain:    domain,
+		ExpiresAt: expiresAt,
+	})
+}
+
+// LoginAdmin handles admin and super_admin login
+func (h *AuthHandler) LoginAdmin(c *gin.Context) {
+	var req LoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ErrorBadRequest(c, "Invalid request data", err.Error())
+		return
+	}
+
+	// Find user by username
+	user, err := h.userRepo.GetByUsername(context.Background(), req.Username)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			response.ErrorUnauthorized(c, "Invalid username or PIN", nil)
+		} else {
+			response.ErrorInternalServer(c, "Failed to get user", err.Error())
+		}
+		return
+	}
+
+	// Verify user is admin or super_admin
+	if user.RoleID == nil {
+		response.ErrorUnauthorized(c, "User has no assigned role", nil)
+		return
+	}
+
+	role, err := h.roleRepo.GetByID(context.Background(), *user.RoleID)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to get user role", err.Error())
+		return
+	}
+
+	if role.Name != "admin" && role.Name != "super_admin" {
+		response.ErrorUnauthorized(c, "This endpoint is for admins only", nil)
+		return
+	}
+
+	// Verify pin
+	if user.Pin == nil {
+		response.ErrorUnauthorized(c, "PIN not set", nil)
+		return
+	}
+	if err := h.passwordService.VerifyPin(*user.Pin, req.Pin); err != nil {
+		response.ErrorUnauthorized(c, "Invalid username or PIN", nil)
+		return
+	}
+
+	// For admin and super_admin, use wildcard domain for system-wide access
+	domain := "*"
+
+	// Generate JWT token
+	username := ""
+	if user.Username != nil {
+		username = *user.Username
+	}
+
+	email := ""
+	if user.Email != nil {
+		email = *user.Email
+	}
+
+	// Admin users don't have shop_id assigned
+	var shopID *uuid.UUID = nil
+
+	token, err := h.jwtService.GenerateToken(user.ID, email, username, user.Name, domain, shopID)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to generate token", err.Error())
+		return
+	}
+
+	// Calculate expires at
+	expiresAt := time.Now().Add(h.jwtService.GetExpiryTime()).Unix()
+
+	// Create user domain record for wildcard access if it doesn't exist
+	userDomain := &entities.UserDomain{
+		UserID: user.ID,
+		Domain: domain,
+	}
+
+	// Try to create, ignore if already exists
+	h.userDomainRepo.Create(context.Background(), userDomain)
+
+	// Add role to Casbin for system domain
+	h.enforcerService.AddRoleForUser(user.ID.String(), role.Name, domain)
+
+	// Remove password from response
+	user.Password = ""
+
+	response.SuccessOK(c, "Login successful", LoginResponse{
+		Token:     token,
+		User:      user,
+		Roles:     []string{role.Name},
+		Domain:    domain,
+		ExpiresAt: expiresAt,
+	})
 }
 
 func (h *AuthHandler) CreatePin(c *gin.Context) {
@@ -559,10 +888,23 @@ func (h *AuthHandler) GetPermissions(c *gin.Context) {
 		return
 	}
 
-	domain, _ := auth.GetUserDomainFromContext(c)
-	if domain == "" {
-		domain = "*"
-	}
+	// Retrieve claims directly from context to get the domain
+    claimsInterface, exists := c.Get("claims")
+    if !exists {
+        response.ErrorUnauthorized(c, "No valid token found", nil)
+        return
+    }
+
+    claims, ok := claimsInterface.(*auth.Claims)
+    if !ok {
+        response.ErrorUnauthorized(c, "Invalid token claims", nil)
+        return
+    }
+
+    domain := claims.Domain
+    if domain == "" {
+        domain = "*"
+    }
 
 	// Get user
 	user, err := h.userRepo.GetByID(context.Background(), userID)

@@ -537,6 +537,23 @@ func (uc *TransactionUseCase) calculateTotalAndValidateProducts(ctx context.Cont
 	return total, transactionProducts, nil
 }
 
+// ListTransactionsByShopIDs retrieves transactions filtered by accessible shop IDs for multi-tenant access
+func (uc *TransactionUseCase) ListTransactionsByShopIDs(ctx context.Context, shopIDs []uuid.UUID, limit, offset int) ([]*entities.Transaction, error) {
+	return uc.transactionRepo.ListByShopIDs(ctx, shopIDs, limit, offset)
+}
+
+// GetRoleRepo returns the role repository for domain access checks
+func (uc *TransactionUseCase) GetRoleRepo() repositories.RoleRepository {
+	// Note: TransactionUseCase doesn't currently have roleRepo as dependency
+	// This is a temporary solution - ideally we should add roleRepo to the constructor
+	return nil
+}
+
+// GetShopRepo returns the shop repository for domain access checks
+func (uc *TransactionUseCase) GetShopRepo() repositories.ShopRepository {
+	return uc.shopRepo
+}
+
 // stringPtr returns a pointer to the given string
 func stringPtr(s string) *string {
 	return &s

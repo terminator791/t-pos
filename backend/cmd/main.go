@@ -72,29 +72,19 @@ func main() {
 		log.Fatal("Failed to initialize Casbin enforcer:", err)
 	}
 
+	// Validate policy integrity at startup
+	if err := enforcerService.ValidatePolicyIntegrity(); err != nil {
+		log.Printf("Warning: Policy integrity validation failed: %v", err)
+		log.Println("Note: Run 'make seed' to ensure proper policy seeding")
+	}
+
 	// Initialize middleware
-	authMiddleware := auth.NewAuthMiddleware(jwtService, userRepo)
-	authzMiddleware := casbin.NewAuthzMiddleware(enforcerService)
+	authMiddleware := auth.NewAuthMiddleware(jwtService, userRepo, roleRepo, shopRepo)
+	authzMiddleware := casbin.NewAuthzMiddleware(enforcerService, shopRepo, userRepo, roleRepo, transactionRepo, productRepo, categoryRepo)
 
-	// Initialize seeders and seed data
-	authSeeder := seeders.NewAuthSeeder(roleRepo, policyRepo, enforcerService)
-	if err := authSeeder.SeedAll(); err != nil {
-		log.Printf("Warning: Failed to seed auth data: %v", err)
-	}
-
-	initialDataSeeder := seeders.NewInitialDataSeeder(
-		licenseRepo,
-		userRepo,
-		roleRepo,
-		shopRepo,
-		categoryRepo,
-		productRepo,
-		userDomainRepo,
-		enforcerService,
-	)
-	if err := initialDataSeeder.SeedAll(); err != nil {
-		log.Printf("Warning: Failed to seed initial data: %v", err)
-	}
+	// Note: Database seeding is now handled separately via `make seed` command
+	// This prevents unnecessary seeding operations on every application startup
+	// To seed the database, run: `make seed` or `go run cmd/migrate/main.go seed`
 
 	// Initialize use cases
 	productUseCase := usecases.NewProductUseCase(productRepo, categoryRepo, shopRepo)
@@ -128,24 +118,25 @@ func main() {
 	)
 
 	// Initialize handlers
-	authHandler := handlers.NewAuthHandler(userRepo, userDomainRepo, roleRepo, licenseRepo, shopRepo, jwtService, passwordService, enforcerService)
-	productHandler := handlers.NewProductHandler(productUseCase)
+	authSeeder := seeders.NewAuthSeeder(roleRepo, policyRepo, enforcerService)  // Create auth seeder for auth handler
+	authHandler := handlers.NewAuthHandler(userRepo, userDomainRepo, roleRepo, licenseRepo, shopRepo, jwtService, passwordService, enforcerService, authSeeder)
+	productHandler := handlers.NewProductHandler(productUseCase, roleRepo, shopRepo)
 	checkoutHandler := handlers.NewCheckoutHandler(checkoutUseCase)
-	categoryHandler := handlers.NewCategoryHandler(categoryUseCase)
-	cartHandler := handlers.NewCartHandler(cartUseCase)
-	transactionHandler := handlers.NewTransactionHandler(transactionUseCase)
-	expenseHandler := handlers.NewExpenseHandler(expenseRepo)
-	paymentHandler := handlers.NewPaymentHandler(paymentRepo)
-	historyHandler := handlers.NewHistoryHandler(historyRepo)
-	receiptHandler := handlers.NewReceiptHandler(receiptRepo)
-	transactionProductHandler := handlers.NewTransactionProductHandler(transactionProductRepo)
+	categoryHandler := handlers.NewCategoryHandler(categoryUseCase, roleRepo, shopRepo)
+	cartHandler := handlers.NewCartHandler(cartUseCase, roleRepo, shopRepo)
+	transactionHandler := handlers.NewTransactionHandler(transactionUseCase, roleRepo, shopRepo)
+	expenseHandler := handlers.NewExpenseHandler(expenseRepo, roleRepo, shopRepo)
+	paymentHandler := handlers.NewPaymentHandler(paymentRepo, roleRepo, shopRepo)
+	historyHandler := handlers.NewHistoryHandler(historyRepo, roleRepo, shopRepo)
+	receiptHandler := handlers.NewReceiptHandler(receiptRepo, roleRepo, shopRepo)
+	transactionProductHandler := handlers.NewTransactionProductHandler(transactionProductRepo, roleRepo, shopRepo)
 	licenseHandler := handlers.NewLicenseHandler(licenseService)
 	customerHandler := handlers.NewCustomerHandler(customerService)
 	userManagementHandler := handlers.NewUserManagementHandler(userManagementService)
 	roleHandler := handlers.NewRoleHandler(roleRepo)
 	aclHandler := handlers.NewACLHandler(enforcerService, roleRepo, policyRepo)
-	shopHandler := handlers.NewShopHandler(shopUseCase)
-	syncHandler := handlers.NewSyncHandler(syncService, userRepo)
+	shopHandler := handlers.NewShopHandler(shopUseCase, roleRepo, shopRepo)
+	syncHandler := handlers.NewSyncHandler(syncService, userRepo, shopRepo, roleRepo, productRepo, transactionRepo)
 
 	// Initialize Gin router
 	router := gin.Default()
@@ -170,5 +161,6 @@ func main() {
 	// Start server
 	serverAddr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	log.Printf("Starting T-POS server on %s", serverAddr)
+	// router.SetTrustedProxies([]string{"127.0.0.1"})
 	log.Fatal(router.Run(serverAddr))
 }

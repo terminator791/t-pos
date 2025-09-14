@@ -11,8 +11,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/terminator791/t-pos/internal/domain/dto"
 	"github.com/terminator791/t-pos/internal/domain/entities"
+	"github.com/terminator791/t-pos/internal/domain/repositories"
 	"github.com/terminator791/t-pos/internal/domain/usecases"
+	"github.com/terminator791/t-pos/internal/infrastructure/auth"
 	"github.com/terminator791/t-pos/pkg/response"
 )
 
@@ -48,12 +51,16 @@ type UpdateProductRequest struct {
 // ProductHandler handles product-related HTTP requests
 type ProductHandler struct {
 	productUseCase *usecases.ProductUseCase
+	roleRepo       repositories.RoleRepository
+	shopRepo       repositories.ShopRepository
 }
 
 // NewProductHandler creates a new product handler
-func NewProductHandler(productUseCase *usecases.ProductUseCase) *ProductHandler {
+func NewProductHandler(productUseCase *usecases.ProductUseCase, roleRepo repositories.RoleRepository, shopRepo repositories.ShopRepository) *ProductHandler {
 	return &ProductHandler{
 		productUseCase: productUseCase,
+		roleRepo:       roleRepo,
+		shopRepo:       shopRepo,
 	}
 }
 
@@ -120,6 +127,22 @@ func (h *ProductHandler) CreateProductWithFile(c *gin.Context) {
 	shopID, err := uuid.Parse(shopIDStr)
 	if err != nil {
 		response.ErrorBadRequest(c, "Invalid shop ID", err.Error())
+		return
+	}
+
+	// Validate user has access to the shop before creating product
+	domainAccess, err := auth.GetUserDomainAccess(c, h.roleRepo, h.shopRepo)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to get user access info", err.Error())
+		return
+	}
+
+	if !domainAccess.CanAccessShop(shopID) {
+		response.ErrorForbidden(c, "Cannot create product for this shop", map[string]interface{}{
+			"shop_id": shopID,
+			"user_id": domainAccess.UserID,
+			"role":    domainAccess.Role,
+		})
 		return
 	}
 
@@ -230,6 +253,22 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 	shopID, err := uuid.Parse(req.ShopID)
 	if err != nil {
 		response.ErrorBadRequest(c, "Invalid shop ID", err.Error())
+		return
+	}
+
+	// Validate user has access to the shop before creating product
+	domainAccess, err := auth.GetUserDomainAccess(c, h.roleRepo, h.shopRepo)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to get user access info", err.Error())
+		return
+	}
+
+	if !domainAccess.CanAccessShop(shopID) {
+		response.ErrorForbidden(c, "Cannot create product for this shop", map[string]interface{}{
+			"shop_id": shopID,
+			"user_id": domainAccess.UserID,
+			"role":    domainAccess.Role,
+		})
 		return
 	}
 
@@ -445,7 +484,31 @@ func (h *ProductHandler) ListProducts(c *gin.Context) {
 		offset = 0
 	}
 
-	products, err := h.productUseCase.ListProducts(c.Request.Context(), limit, offset)
+	// Get domain access info to apply filtering
+	domainAccess, err := auth.GetUserDomainAccess(c, h.roleRepo, h.shopRepo)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to get user access info", err.Error())
+		return
+	}
+
+	var products []*dto.ProductListDTO
+
+	// Apply domain-specific filtering
+	if domainAccess.HasGlobalAccess {
+		// Super admin and admin can see all products
+		products, err = h.productUseCase.ListProductsForDTO(c.Request.Context(), limit, offset)
+	} else {
+		// Filter by accessible shop IDs for tenant users
+		shopFilter := domainAccess.GetShopFilter()
+		if len(shopFilter) == 0 {
+			// User has no accessible shops
+			products = []*dto.ProductListDTO{}
+			err = nil
+		} else {
+			products, err = h.productUseCase.ListProductsFilteredForDTO(c.Request.Context(), shopFilter, limit, offset)
+		}
+	}
+
 	if err != nil {
 		response.ErrorInternalServer(c, "Failed to retrieve products", err.Error())
 		return
@@ -464,25 +527,65 @@ func (h *ProductHandler) ListProducts(c *gin.Context) {
 func (h *ProductHandler) SearchProducts(c *gin.Context) {
 	query := c.Query("q")
 	shopIDParam := c.Query("shop_id")
+	
 	if query == "" {
 		response.ErrorBadRequest(c, "Search query is required", nil)
 		return
 	}
-	if shopIDParam == "" {
-		response.ErrorBadRequest(c, "Shop ID is required", nil)
+
+	// Get domain access info for filtering
+	domainAccess, err := auth.GetUserDomainAccess(c, h.roleRepo, h.shopRepo)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to get user access info", err.Error())
 		return
 	}
 
-	shopID, err := uuid.Parse(shopIDParam)
-	if err != nil {
-		response.ErrorBadRequest(c, "Invalid shop ID", err.Error())
-		return
-	}
+	var products []*entities.Product
 
-	products, err := h.productUseCase.SearchProducts(c.Request.Context(), query, shopID)
-	if err != nil {
-		response.ErrorInternalServer(c, "Failed to search products", err.Error())
-		return
+	if shopIDParam != "" {
+		// Search within specific shop - validate access first
+		shopID, err := uuid.Parse(shopIDParam)
+		if err != nil {
+			response.ErrorBadRequest(c, "Invalid shop ID", err.Error())
+			return
+		}
+
+		// Check if user can access the requested shop
+		if !domainAccess.CanAccessShop(shopID) {
+			response.ErrorForbidden(c, "Cannot search products in this shop", map[string]interface{}{
+				"requested_shop_id": shopID,
+				"user_role":        domainAccess.Role,
+				"accessible_shops": domainAccess.AccessibleShopIDs,
+			})
+			return
+		}
+
+		var searchErr error
+		products, searchErr = h.productUseCase.SearchProducts(c.Request.Context(), query, shopID)
+		if searchErr != nil {
+			response.ErrorInternalServer(c, "Failed to search products", searchErr.Error())
+			return
+		}
+	} else {
+		// Search across all accessible shops
+		if domainAccess.HasGlobalAccess {
+			response.ErrorBadRequest(c, "Shop ID is required for global search", nil)
+			return
+		} else {
+			// Search within accessible shops for tenant users
+			shopFilter := domainAccess.GetShopFilter()
+			if len(shopFilter) == 0 {
+				// User has no accessible shops
+				products = []*entities.Product{}
+			} else {
+				var searchErr error
+				products, searchErr = h.productUseCase.SearchProductsFiltered(c.Request.Context(), query, shopFilter)
+				if searchErr != nil {
+					response.ErrorInternalServer(c, "Failed to search products", searchErr.Error())
+					return
+				}
+			}
+		}
 	}
 
 	data := gin.H{
@@ -496,21 +599,60 @@ func (h *ProductHandler) SearchProducts(c *gin.Context) {
 // GetLowStockProducts retrieves products with low stock
 func (h *ProductHandler) GetLowStockProducts(c *gin.Context) {
 	shopIDParam := c.Query("shop_id")
-	if shopIDParam == "" {
-		response.ErrorBadRequest(c, "Shop ID is required", nil)
+
+	// Get domain access info for filtering
+	domainAccess, err := auth.GetUserDomainAccess(c, h.roleRepo, h.shopRepo)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to get user access info", err.Error())
 		return
 	}
 
-	shopID, err := uuid.Parse(shopIDParam)
-	if err != nil {
-		response.ErrorBadRequest(c, "Invalid shop ID", err.Error())
-		return
-	}
+	var products []*entities.Product
 
-	products, err := h.productUseCase.GetLowStockProducts(c.Request.Context(), shopID)
-	if err != nil {
-		response.ErrorInternalServer(c, "Failed to get low stock products", err.Error())
-		return
+	if shopIDParam != "" {
+		// Get low stock for specific shop - validate access first
+		shopID, err := uuid.Parse(shopIDParam)
+		if err != nil {
+			response.ErrorBadRequest(c, "Invalid shop ID", err.Error())
+			return
+		}
+
+		// Check if user can access the requested shop
+		if !domainAccess.CanAccessShop(shopID) {
+			response.ErrorForbidden(c, "Cannot access low stock products for this shop", map[string]interface{}{
+				"requested_shop_id": shopID,
+				"user_role":        domainAccess.Role,
+				"accessible_shops": domainAccess.AccessibleShopIDs,
+			})
+			return
+		}
+
+		var lowStockErr error
+		products, lowStockErr = h.productUseCase.GetLowStockProducts(c.Request.Context(), shopID)
+		if lowStockErr != nil {
+			response.ErrorInternalServer(c, "Failed to get low stock products", lowStockErr.Error())
+			return
+		}
+	} else {
+		// Get low stock across all accessible shops
+		if domainAccess.HasGlobalAccess {
+			response.ErrorBadRequest(c, "Shop ID is required for global low stock query", nil)
+			return
+		} else {
+			// Get low stock within accessible shops for tenant users
+			shopFilter := domainAccess.GetShopFilter()
+			if len(shopFilter) == 0 {
+				// User has no accessible shops
+				products = []*entities.Product{}
+			} else {
+				var lowStockErr error
+				products, lowStockErr = h.productUseCase.GetLowStockProductsFiltered(c.Request.Context(), shopFilter)
+				if lowStockErr != nil {
+					response.ErrorInternalServer(c, "Failed to get low stock products", lowStockErr.Error())
+					return
+				}
+			}
+		}
 	}
 
 	data := gin.H{

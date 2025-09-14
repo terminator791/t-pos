@@ -90,6 +90,9 @@ const LicensesPage = lazy(() => import("./pages/main/licenses"));
 const CustomersPage = lazy(() => import("./pages/main/customers"));
 const UsersPage = lazy(() => import("./pages/main/users"));
 const RolesPage = lazy(() => import("./pages/main/roles"));
+const CategoriesPage = lazy(() => import("./pages/main/categories"));
+const ShopsPage = lazy(() => import("./pages/main/shops"));
+const TransactionHistoriesPage = lazy(() => import("./pages/main/transaction-histories"));
 
 import Layout from "./layout/Layout";
 import MainLayout from "./layout/MainLayout";
@@ -172,10 +175,13 @@ function App() {
         <Route path="/main/*" element={<MainLayout />}>
           <Route path="dashboard" element={<MainDashboard />} />
           <Route path="products" element={<ProductsPage />} />
+          <Route path="categories" element={<CategoriesPage />} />
+          <Route path="shops" element={<ShopsPage />} />
           <Route path="licenses" element={<LicensesPage />} />
           <Route path="customers" element={<CustomersPage />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="roles" element={<RolesPage />} />
+          <Route path="transaction-histories" element={<TransactionHistoriesPage />} />
         </Route>
         <Route
           path="/404"

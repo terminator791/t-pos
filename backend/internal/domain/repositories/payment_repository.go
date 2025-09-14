@@ -18,4 +18,6 @@ type PaymentRepository interface {
 	Update(ctx context.Context, payment *entities.Payment) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	List(ctx context.Context, limit, offset int) ([]*entities.Payment, error)
+	ListByShopIDs(ctx context.Context, shopIDs []uuid.UUID, limit, offset int) ([]*entities.Payment, error)
+	GetByShopIDs(ctx context.Context, shopIDs []uuid.UUID) ([]*entities.Payment, error)
 }

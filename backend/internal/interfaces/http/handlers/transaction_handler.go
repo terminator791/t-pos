@@ -7,6 +7,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/terminator791/t-pos/internal/domain/dto"
+	"github.com/terminator791/t-pos/internal/domain/entities"
+	"github.com/terminator791/t-pos/internal/domain/repositories"
 	"github.com/terminator791/t-pos/internal/domain/usecases"
 	"github.com/terminator791/t-pos/internal/infrastructure/auth"
 	"github.com/terminator791/t-pos/pkg/response"
@@ -15,12 +17,16 @@ import (
 // TransactionHandler handles transaction-related HTTP requests
 type TransactionHandler struct {
 	transactionUseCase *usecases.TransactionUseCase
+	roleRepo           repositories.RoleRepository
+	shopRepo           repositories.ShopRepository
 }
 
 // NewTransactionHandler creates a new TransactionHandler
-func NewTransactionHandler(transactionUseCase *usecases.TransactionUseCase) *TransactionHandler {
+func NewTransactionHandler(transactionUseCase *usecases.TransactionUseCase, roleRepo repositories.RoleRepository, shopRepo repositories.ShopRepository) *TransactionHandler {
 	return &TransactionHandler{
 		transactionUseCase: transactionUseCase,
+		roleRepo:           roleRepo,
+		shopRepo:           shopRepo,
 	}
 }
 
@@ -76,6 +82,22 @@ func (h *TransactionHandler) CreateTransaction(c *gin.Context) {
 		shopID = *userShopID
 	} else if req.ShopID != nil {
 		// No shop context but shop_id provided in request (owner business)
+		// Validate user has access to this shop before proceeding
+		domainAccess, err := auth.GetUserDomainAccess(c, h.roleRepo, h.shopRepo)
+		if err != nil {
+			response.ErrorInternalServer(c, "Failed to get user access info", err.Error())
+			return
+		}
+
+		if !domainAccess.CanAccessShop(*req.ShopID) {
+			response.ErrorForbidden(c, "Cannot create transaction for this shop", map[string]interface{}{
+				"shop_id": *req.ShopID,
+				"user_id": domainAccess.UserID,
+				"role":    domainAccess.Role,
+			})
+			return
+		}
+		
 		shopID = *req.ShopID
 	} else {
 		// No shop context and no shop_id in request
@@ -162,12 +184,36 @@ func (h *TransactionHandler) GetTransaction(c *gin.Context) {
 	response.SuccessOK(c, "Transaction retrieved successfully", transaction)
 }
 
-// ListTransactions handles GET /transactions - super admin and admin only
+// ListTransactions handles GET /transactions - with domain-specific filtering
 func (h *TransactionHandler) ListTransactions(c *gin.Context) {
 	// Parse query parameters
 	limit, offset := parsePagination(c)
 
-	transactions, err := h.transactionUseCase.ListTransactions(c.Request.Context(), limit, offset)
+	// Get domain access info to apply filtering
+	domainAccess, err := auth.GetUserDomainAccess(c, h.roleRepo, h.shopRepo)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to get user access info", err.Error())
+		return
+	}
+
+	var transactions []*entities.Transaction
+
+	// Apply domain-specific filtering
+	if domainAccess.HasGlobalAccess {
+		// Super admin and admin can see all transactions
+		transactions, err = h.transactionUseCase.ListTransactions(c.Request.Context(), limit, offset)
+	} else {
+		// Filter by accessible shop IDs for tenant users
+		shopFilter := domainAccess.GetShopFilter()
+		if len(shopFilter) == 0 {
+			// User has no accessible shops
+			transactions = []*entities.Transaction{}
+			err = nil
+		} else {
+			transactions, err = h.transactionUseCase.ListTransactionsByShopIDs(c.Request.Context(), shopFilter, limit, offset)
+		}
+	}
+
 	if err != nil {
 		response.ErrorInternalServer(c, "Failed to retrieve transactions", err.Error())
 		return

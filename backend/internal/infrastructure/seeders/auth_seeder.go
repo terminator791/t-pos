@@ -2,6 +2,7 @@ package seeders
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	"github.com/terminator791/t-pos/internal/domain/entities"
@@ -86,7 +87,8 @@ func (s *AuthSeeder) SeedRoles() error {
 func (s *AuthSeeder) SeedPolicies() error {
 	ctx := context.Background()
 
-	// Define comprehensive policies for different roles with shop-based domain
+	// Define base policies for super_admin and admin only
+	// owner_business and cashier policies will be assigned dynamically when users are created
 	policies := []struct {
 		roleName string
 		domain   string
@@ -101,73 +103,123 @@ func (s *AuthSeeder) SeedPolicies() error {
 
 		// ================== ADMIN - Multi-shop management ==================
 		// Products
-		{"admin", "*", "/api/v1/products", "GET"},
 		{"admin", "*", "/api/v1/products/*", "GET"},
-		{"admin", "*", "/api/v1/products", "POST"},
+		{"admin", "*", "/api/v1/products/*", "POST"},
 		{"admin", "*", "/api/v1/products/*", "PUT"},
 		{"admin", "*", "/api/v1/products/*", "DELETE"},
-		{"admin", "*", "/api/v1/products/search", "GET"},
-		{"admin", "*", "/api/v1/products/barcode/*", "GET"},
-		{"admin", "*", "/api/v1/products/low-stock", "GET"},
-		{"admin", "*", "/api/v1/products/upload", "POST"},
+		{"admin", "*", "/api/v1/products", "GET"},
+		{"admin", "*", "/api/v1/products", "POST"},
+		{"admin", "*", "/api/v1/products", "PUT"},
+		{"admin", "*", "/api/v1/products", "DELETE"},
 
 		// Categories
 		{"admin", "*", "/api/v1/categories", "GET"},
-		{"admin", "*", "/api/v1/categories/*", "GET"},
 		{"admin", "*", "/api/v1/categories", "POST"},
+		{"admin", "*", "/api/v1/categories", "PUT"},
+		{"admin", "*", "/api/v1/categories", "DELETE"},
+		{"admin", "*", "/api/v1/categories/*", "GET"},
+		{"admin", "*", "/api/v1/categories/*", "POST"},
 		{"admin", "*", "/api/v1/categories/*", "PUT"},
 		{"admin", "*", "/api/v1/categories/*", "DELETE"},
 
+		// Shops
+		{"admin", "*", "/api/v1/shops", "GET"},
+		{"admin", "*", "/api/v1/shops", "POST"},
+		{"admin", "*", "/api/v1/shops", "PUT"},
+		{"admin", "*", "/api/v1/shops", "DELETE"},
+		{"admin", "*", "/api/v1/shops/*", "GET"},
+		{"admin", "*", "/api/v1/shops/*", "POST"},
+		{"admin", "*", "/api/v1/shops/*", "PUT"},
+		{"admin", "*", "/api/v1/shops/*", "DELETE"},
+
 		// Carts
 		{"admin", "*", "/api/v1/carts", "GET"},
-		{"admin", "*", "/api/v1/carts/*", "GET"},
 		{"admin", "*", "/api/v1/carts", "POST"},
+		{"admin", "*", "/api/v1/carts", "PUT"},
+		{"admin", "*", "/api/v1/carts", "DELETE"},
+		{"admin", "*", "/api/v1/carts/*", "GET"},
+		{"admin", "*", "/api/v1/carts/*", "POST"},
 		{"admin", "*", "/api/v1/carts/*", "PUT"},
 		{"admin", "*", "/api/v1/carts/*", "DELETE"},
-		{"admin", "*", "/api/v1/carts/all", "GET"},
 
 		// Transactions
 		{"admin", "*", "/api/v1/transactions", "GET"},
-		{"admin", "*", "/api/v1/transactions/*", "GET"},
 		{"admin", "*", "/api/v1/transactions", "POST"},
-		{"admin", "*", "/api/v1/transactions/*/pay", "POST"},
-		{"admin", "*", "/api/v1/transactions/*/cancel", "POST"},
-		{"admin", "*", "/api/v1/transactions/shop/*", "GET"},
-		{"admin", "*", "/api/v1/transactions/shop/*/status/*", "GET"},
-		{"admin", "*", "/api/v1/transactions/shop/*/today", "GET"},
+		{"admin", "*", "/api/v1/transactions", "PUT"},
+		{"admin", "*", "/api/v1/transactions", "DELETE"},
+		{"admin", "*", "/api/v1/transactions/*", "GET"},
+		{"admin", "*", "/api/v1/transactions/*", "POST"},
+		{"admin", "*", "/api/v1/transactions/*", "PUT"},
+		{"admin", "*", "/api/v1/transactions/*", "DELETE"},
 
 		// Expenses
 		{"admin", "*", "/api/v1/expenses", "GET"},
+		{"admin", "*", "/api/v1/expenses", "POST"},
+		{"admin", "*", "/api/v1/expenses", "PUT"},
+		{"admin", "*", "/api/v1/expenses", "DELETE"},
 		{"admin", "*", "/api/v1/expenses/*", "GET"},
-		{"admin", "*", "/api/v1/expenses/shop/*", "GET"},
-		{"admin", "*", "/api/v1/expenses/shop/*/status/*", "GET"},
+		{"admin", "*", "/api/v1/expenses/*", "POST"},
+		{"admin", "*", "/api/v1/expenses/*", "PUT"},
+		{"admin", "*", "/api/v1/expenses/*", "DELETE"},
 
 		// Payments
 		{"admin", "*", "/api/v1/payments", "GET"},
+		{"admin", "*", "/api/v1/payments", "POST"},
+		{"admin", "*", "/api/v1/payments", "PUT"},
+		{"admin", "*", "/api/v1/payments", "DELETE"},
 		{"admin", "*", "/api/v1/payments/*", "GET"},
-		{"admin", "*", "/api/v1/payments/shop/*", "GET"},
-		{"admin", "*", "/api/v1/payments/shop/*/status/*", "GET"},
+		{"admin", "*", "/api/v1/payments/*", "POST"},
+		{"admin", "*", "/api/v1/payments/*", "PUT"},
+		{"admin", "*", "/api/v1/payments/*", "DELETE"},
 
 		// Histories
 		{"admin", "*", "/api/v1/histories", "GET"},
+		{"admin", "*", "/api/v1/histories", "POST"},
+		{"admin", "*", "/api/v1/histories", "PUT"},
+		{"admin", "*", "/api/v1/histories", "DELETE"},
 		{"admin", "*", "/api/v1/histories/*", "GET"},
-		{"admin", "*", "/api/v1/histories/shop/*", "GET"},
+		{"admin", "*", "/api/v1/histories/*", "POST"},
+		{"admin", "*", "/api/v1/histories/*", "PUT"},
+		{"admin", "*", "/api/v1/histories/*", "DELETE"},
 
 		// Receipts
 		{"admin", "*", "/api/v1/receipts", "GET"},
+		{"admin", "*", "/api/v1/receipts", "POST"},
+		{"admin", "*", "/api/v1/receipts", "PUT"},
+		{"admin", "*", "/api/v1/receipts", "DELETE"},
 		{"admin", "*", "/api/v1/receipts/*", "GET"},
-		{"admin", "*", "/api/v1/receipts/shop/*", "GET"},
+		{"admin", "*", "/api/v1/receipts/*", "POST"},
+		{"admin", "*", "/api/v1/receipts/*", "PUT"},
+		{"admin", "*", "/api/v1/receipts/*", "DELETE"},
 
 		// Transaction Products
 		{"admin", "*", "/api/v1/transaction-products", "GET"},
+		{"admin", "*", "/api/v1/transaction-products", "POST"},
+		{"admin", "*", "/api/v1/transaction-products", "PUT"},
+		{"admin", "*", "/api/v1/transaction-products", "DELETE"},
 		{"admin", "*", "/api/v1/transaction-products/*", "GET"},
-		{"admin", "*", "/api/v1/transaction-products/transaction/*", "GET"},
-		{"admin", "*", "/api/v1/transaction-products/shop/*", "GET"},
+		{"admin", "*", "/api/v1/transaction-products/*", "POST"},
+		{"admin", "*", "/api/v1/transaction-products/*", "PUT"},
+		{"admin", "*", "/api/v1/transaction-products/*", "DELETE"},
+
+		// Licenses
+		{"admin", "*", "/api/v1/licenses", "GET"},
+		{"admin", "*", "/api/v1/licenses", "POST"},
+		{"admin", "*", "/api/v1/licenses", "PUT"},
+		{"admin", "*", "/api/v1/licenses", "DELETE"},
+		{"admin", "*", "/api/v1/licenses/*", "GET"},
+		{"admin", "*", "/api/v1/licenses/*", "POST"},
+		{"admin", "*", "/api/v1/licenses/*", "PUT"},
+		{"admin", "*", "/api/v1/licenses/*", "DELETE"},
 
 		// Customers
 		{"admin", "*", "/api/v1/customers", "GET"},
-		{"admin", "*", "/api/v1/customers/*", "GET"},
 		{"admin", "*", "/api/v1/customers", "POST"},
+		{"admin", "*", "/api/v1/customers", "PUT"},
+		{"admin", "*", "/api/v1/customers", "DELETE"},
+		{"admin", "*", "/api/v1/customers/*", "GET"},
+		{"admin", "*", "/api/v1/customers/*", "POST"},
+		{"admin", "*", "/api/v1/customers/*", "PUT"},
 		{"admin", "*", "/api/v1/customers/*", "DELETE"},
 
 		// User Management
@@ -180,186 +232,25 @@ func (s *AuthSeeder) SeedPolicies() error {
 		{"admin", "*", "/api/v1/roles/*", "GET"},
 		{"admin", "*", "/api/v1/roles/name/*", "GET"},
 
-		// shops
-		{"admin", "*", "/api/v1/shops", "GET"},
-		{"admin", "*", "/api/v1/shops/*", "GET"},
-		{"admin", "*", "/api/v1/shops", "POST"},
-		{"admin", "*", "/api/v1/shops/*", "PUT"},
-		{"admin", "*", "/api/v1/shops/*", "DELETE"},
-
 		// Sync
+		{"admin", "*", "/api/v1/sync", "GET"},
 		{"admin", "*", "/api/v1/sync", "POST"},
+		{"admin", "*", "/api/v1/sync", "PUT"},
+		{"admin", "*", "/api/v1/sync", "DELETE"},
 		{"admin", "*", "/api/v1/sync/*", "GET"},
-
-		// ================== OWNER BUSINESS - License-based shop management ==================
-		// Products - Full CRUD within license domain
-		{"owner_business", "*", "/api/v1/products", "GET"},
-		{"owner_business", "*", "/api/v1/products/*", "GET"},
-		{"owner_business", "*", "/api/v1/products", "POST"},
-		{"owner_business", "*", "/api/v1/products/*", "PUT"},
-		{"owner_business", "*", "/api/v1/products/*", "DELETE"},
-		{"owner_business", "*", "/api/v1/products/search", "GET"},
-		{"owner_business", "*", "/api/v1/products/barcode/*", "GET"},
-		{"owner_business", "*", "/api/v1/products/low-stock", "GET"},
-		{"owner_business", "*", "/api/v1/products/upload", "POST"},
-
-		// Categories - Full CRUD
-		{"owner_business", "*", "/api/v1/categories", "GET"},
-		{"owner_business", "*", "/api/v1/categories/*", "GET"},
-		{"owner_business", "*", "/api/v1/categories", "POST"},
-		{"owner_business", "*", "/api/v1/categories/*", "PUT"},
-		{"owner_business", "*", "/api/v1/categories/*", "DELETE"},
-
-		// Carts - Full CRUD
-		{"owner_business", "*", "/api/v1/carts", "GET"},
-		{"owner_business", "*", "/api/v1/carts/*", "GET"},
-		{"owner_business", "*", "/api/v1/carts", "POST"},
-		{"owner_business", "*", "/api/v1/carts/*", "PUT"},
-		{"owner_business", "*", "/api/v1/carts/*", "DELETE"},
-		{"owner_business", "*", "/api/v1/carts/all", "GET"},
-
-		// Transactions - Full CRUD
-		{"owner_business", "*", "/api/v1/transactions", "GET"},
-		{"owner_business", "*", "/api/v1/transactions/*", "GET"},
-		{"owner_business", "*", "/api/v1/transactions", "POST"},
-		{"owner_business", "*", "/api/v1/transactions/*/pay", "POST"},
-		{"owner_business", "*", "/api/v1/transactions/*/cancel", "POST"},
-		{"owner_business", "*", "/api/v1/transactions/shop/*", "GET"},
-		{"owner_business", "*", "/api/v1/transactions/shop/*/status/*", "GET"},
-		{"owner_business", "*", "/api/v1/transactions/shop/*/today", "GET"},
-
-		// Expenses - Read only within license
-		{"owner_business", "*", "/api/v1/expenses/shop/*", "GET"},
-		{"owner_business", "*", "/api/v1/expenses/shop/*/status/*", "GET"},
-		{"owner_business", "*", "/api/v1/expenses/*", "GET"},
-
-		// Payments - Read only within license
-		{"owner_business", "*", "/api/v1/payments/shop/*", "GET"},
-		{"owner_business", "*", "/api/v1/payments/shop/*/status/*", "GET"},
-		{"owner_business", "*", "/api/v1/payments/*", "GET"},
-
-		// Histories - Read only within license
-		{"owner_business", "*", "/api/v1/histories/shop/*", "GET"},
-		{"owner_business", "*", "/api/v1/histories/*", "GET"},
-
-		// Receipts - Read only within license
-		{"owner_business", "*", "/api/v1/receipts/shop/*", "GET"},
-		{"owner_business", "*", "/api/v1/receipts/*", "GET"},
-
-		// Transaction Products - Read only within license
-		{"owner_business", "*", "/api/v1/transaction-products/transaction/*", "GET"},
-		{"owner_business", "*", "/api/v1/transaction-products/shop/*", "GET"},
-		{"owner_business", "*", "/api/v1/transaction-products/*", "GET"},
-
-		// Customers - Create and Delete (not cashier)
-		{"owner_business", "*", "/api/v1/customers", "GET"},
-		{"owner_business", "*", "/api/v1/customers/*", "GET"},
-		{"owner_business", "*", "/api/v1/customers", "POST"},
-		{"owner_business", "*", "/api/v1/customers/*", "DELETE"},
-
-		// sync
-		{"owner_business", "*", "/api/v1/sync", "POST"},
-		{"owner_business", "*", "/api/v1/sync/*", "GET"},
-
-		// ================== CASHIER - Shop-specific POS operations ==================
-		// Products - Full CRUD within shop
-		{"cashier", "shop:*", "/api/v1/products", "GET"},
-		{"cashier", "shop:*", "/api/v1/products/*", "GET"},
-		{"cashier", "shop:*", "/api/v1/products", "POST"},
-		{"cashier", "shop:*", "/api/v1/products/*", "PUT"},
-		{"cashier", "shop:*", "/api/v1/products/*", "DELETE"},
-		{"cashier", "shop:*", "/api/v1/products/search", "GET"},
-		{"cashier", "shop:*", "/api/v1/products/barcode/*", "GET"},
-		{"cashier", "shop:*", "/api/v1/products/low-stock", "GET"},
-		{"cashier", "shop:*", "/api/v1/products/upload", "POST"},
-
-		// Categories - Full CRUD within shop
-		{"cashier", "shop:*", "/api/v1/categories", "GET"},
-		{"cashier", "shop:*", "/api/v1/categories/*", "GET"},
-		{"cashier", "shop:*", "/api/v1/categories", "POST"},
-		{"cashier", "shop:*", "/api/v1/categories/*", "PUT"},
-		{"cashier", "shop:*", "/api/v1/categories/*", "DELETE"},
-
-		// Carts - Full CRUD within shop
-		{"cashier", "shop:*", "/api/v1/carts", "GET"},
-		{"cashier", "shop:*", "/api/v1/carts/*", "GET"},
-		{"cashier", "shop:*", "/api/v1/carts", "POST"},
-		{"cashier", "shop:*", "/api/v1/carts/*", "PUT"},
-		{"cashier", "shop:*", "/api/v1/carts/*", "DELETE"},
-		{"cashier", "shop:*", "/api/v1/carts/all", "GET"},
-
-		// Transactions - Full CRUD within shop
-		{"cashier", "shop:*", "/api/v1/transactions", "POST"},
-		{"cashier", "shop:*", "/api/v1/transactions/*", "GET"},
-		{"cashier", "shop:*", "/api/v1/transactions/*/pay", "POST"},
-		{"cashier", "shop:*", "/api/v1/transactions/*/cancel", "POST"},
-		{"cashier", "shop:*", "/api/v1/transactions/shop/*", "GET"},
-		{"cashier", "shop:*", "/api/v1/transactions/shop/*/status/*", "GET"},
-		{"cashier", "shop:*", "/api/v1/transactions/shop/*/today", "GET"},
-
-		// Expenses - Read only within shop
-		{"cashier", "shop:*", "/api/v1/expenses/shop/*", "GET"},
-		{"cashier", "shop:*", "/api/v1/expenses/shop/*/status/*", "GET"},
-		{"cashier", "shop:*", "/api/v1/expenses/*", "GET"},
-
-		// Payments - Read only within shop
-		{"cashier", "shop:*", "/api/v1/payments/shop/*", "GET"},
-		{"cashier", "shop:*", "/api/v1/payments/shop/*/status/*", "GET"},
-		{"cashier", "shop:*", "/api/v1/payments/*", "GET"},
-
-		// Histories - Read only within shop
-		{"cashier", "shop:*", "/api/v1/histories/shop/*", "GET"},
-		{"cashier", "shop:*", "/api/v1/histories/*", "GET"},
-
-		// Receipts - Read only within shop
-		{"cashier", "shop:*", "/api/v1/receipts/shop/*", "GET"},
-		{"cashier", "shop:*", "/api/v1/receipts/*", "GET"},
-
-		// Transaction Products - Read only within shop
-		{"cashier", "shop:*", "/api/v1/transaction-products/transaction/*", "GET"},
-		{"cashier", "shop:*", "/api/v1/transaction-products/shop/*", "GET"},
-		{"cashier", "shop:*", "/api/v1/transaction-products/*", "GET"},
-
-		// Customers - Read only (cannot create/delete)
-		{"cashier", "shop:*", "/api/v1/customers", "GET"},
-		{"cashier", "shop:*", "/api/v1/customers/*", "GET"},
-
-		// sync
-		{"cashier", "shop:*", "/api/v1/sync", "POST"},
-		{"cashier", "shop:*", "/api/v1/sync/*", "GET"},
+		{"admin", "*", "/api/v1/sync/*", "POST"},
+		{"admin", "*", "/api/v1/sync/*", "PUT"},
+		{"admin", "*", "/api/v1/sync/*", "DELETE"},
 
 		// ================== AUTH ENDPOINTS FOR ALL ROLES ==================
-		{"super_admin", "*", "/api/v1/auth/profile", "GET"},
-		{"super_admin", "*", "/api/v1/auth/logout", "POST"},
-		{"super_admin", "*", "/api/v1/auth/refresh", "POST"},
-		{"super_admin", "*", "/api/v1/auth/permissions", "GET"},
-		{"super_admin", "*", "/api/v1/auth/pin", "POST"},
-		{"super_admin", "*", "/api/v1/auth/pin", "PUT"},
-		{"super_admin", "*", "/api/v1/auth/pin", "DELETE"},
+		{"admin", "*", "/api/v1/auth/*", "GET"},
+		{"admin", "*", "/api/v1/auth/*", "POST"},
+		{"admin", "*", "/api/v1/auth/*", "PUT"},
+		{"admin", "*", "/api/v1/auth/*", "DELETE"},
 
-		{"admin", "*", "/api/v1/auth/profile", "GET"},
-		{"admin", "*", "/api/v1/auth/logout", "POST"},
-		{"admin", "*", "/api/v1/auth/refresh", "POST"},
-		{"admin", "*", "/api/v1/auth/permissions", "GET"},
-		{"admin", "*", "/api/v1/auth/pin", "POST"},
-		{"admin", "*", "/api/v1/auth/pin", "PUT"},
-		{"admin", "*", "/api/v1/auth/pin", "DELETE"},
-
-		{"owner_business", "*", "/api/v1/auth/profile", "GET"},
-		{"owner_business", "*", "/api/v1/auth/logout", "POST"},
-		{"owner_business", "*", "/api/v1/auth/refresh", "POST"},
-		{"owner_business", "*", "/api/v1/auth/permissions", "GET"},
-		{"owner_business", "*", "/api/v1/auth/pin", "POST"},
-		{"owner_business", "*", "/api/v1/auth/pin", "PUT"},
-		{"owner_business", "*", "/api/v1/auth/pin", "DELETE"},
-
-		{"cashier", "shop:*", "/api/v1/auth/profile", "GET"},
-		{"cashier", "shop:*", "/api/v1/auth/logout", "POST"},
-		{"cashier", "shop:*", "/api/v1/auth/refresh", "POST"},
-		{"cashier", "shop:*", "/api/v1/auth/permissions", "GET"},
-		{"cashier", "shop:*", "/api/v1/auth/pin", "POST"},
-		{"cashier", "shop:*", "/api/v1/auth/pin", "PUT"},
-		{"cashier", "shop:*", "/api/v1/auth/pin", "DELETE"},
+		// NOTE: owner_business and cashier policies will be assigned dynamically
+		// in auth handlers with specific domains (license.SerialNumber for owner_business, 
+		// shop.Domain for cashier) to enforce proper multi-tenancy isolation
 	}
 
 	for _, p := range policies {
@@ -395,6 +286,353 @@ func (s *AuthSeeder) SeedPolicies() error {
 
 		log.Printf("Created policy: %s -> %s %s %s", p.roleName, p.domain, p.object, p.action)
 	}
+
+	return nil
+}
+
+// AssignPoliciesForRole assigns policies for a specific role and domain dynamically
+func (s *AuthSeeder) AssignPoliciesForRole(roleName, domain string) error {
+	ctx := context.Background()
+
+	// Define role-specific policies
+	var policies []struct {
+		roleName string
+		domain   string
+		object   string
+		action   string
+	}
+
+	switch roleName {
+	case "owner_business":
+		// Owner business gets full access to all endpoints within their license domain
+		policies = []struct {
+			roleName string
+			domain   string
+			object   string
+			action   string
+		}{
+			// Products
+			{roleName, domain, "/api/v1/products", "GET"},
+			{roleName, domain, "/api/v1/products", "POST"},
+			{roleName, domain, "/api/v1/products", "PUT"},
+			{roleName, domain, "/api/v1/products", "DELETE"},
+			{roleName, domain, "/api/v1/products/*", "GET"},
+			{roleName, domain, "/api/v1/products/*", "POST"},
+			{roleName, domain, "/api/v1/products/*", "PUT"},
+			{roleName, domain, "/api/v1/products/*", "DELETE"},
+
+			// Categories
+			{roleName, domain, "/api/v1/categories", "GET"},
+			{roleName, domain, "/api/v1/categories", "POST"},
+			{roleName, domain, "/api/v1/categories", "PUT"},
+			{roleName, domain, "/api/v1/categories", "DELETE"},
+			{roleName, domain, "/api/v1/categories/*", "GET"},
+			{roleName, domain, "/api/v1/categories/*", "POST"},
+			{roleName, domain, "/api/v1/categories/*", "PUT"},
+			{roleName, domain, "/api/v1/categories/*", "DELETE"},
+
+			// Shops
+			{roleName, domain, "/api/v1/shops", "GET"},
+			{roleName, domain, "/api/v1/shops", "POST"},
+			{roleName, domain, "/api/v1/shops", "PUT"},
+			{roleName, domain, "/api/v1/shops", "DELETE"},
+			{roleName, domain, "/api/v1/shops/*", "GET"},
+			{roleName, domain, "/api/v1/shops/*", "POST"},
+			{roleName, domain, "/api/v1/shops/*", "PUT"},
+			{roleName, domain, "/api/v1/shops/*", "DELETE"},
+			// Shop license-specific endpoints
+			{roleName, domain, "/api/v1/shops/license/*", "GET"},
+			{roleName, domain, "/api/v1/shops/license/*", "POST"},
+			{roleName, domain, "/api/v1/shops/license/*", "PUT"},
+			{roleName, domain, "/api/v1/shops/license/*", "DELETE"},
+
+			// Transactions (both individual and shop-specific)
+			{roleName, domain, "/api/v1/transactions", "GET"},
+			{roleName, domain, "/api/v1/transactions", "POST"},
+			{roleName, domain, "/api/v1/transactions", "PUT"},
+			{roleName, domain, "/api/v1/transactions", "DELETE"},
+			{roleName, domain, "/api/v1/transactions/*", "GET"},
+			{roleName, domain, "/api/v1/transactions/*", "POST"},
+			{roleName, domain, "/api/v1/transactions/*", "PUT"},
+			{roleName, domain, "/api/v1/transactions/*", "DELETE"},
+			// Shop-specific transaction endpoints
+			{roleName, domain, "/api/v1/transactions/shop/*", "GET"},
+			{roleName, domain, "/api/v1/transactions/shop/*", "POST"},
+			{roleName, domain, "/api/v1/transactions/shop/*", "PUT"},
+			{roleName, domain, "/api/v1/transactions/shop/*", "DELETE"},
+
+			// Carts
+			{roleName, domain, "/api/v1/carts", "GET"},
+			{roleName, domain, "/api/v1/carts", "POST"},
+			{roleName, domain, "/api/v1/carts", "PUT"},
+			{roleName, domain, "/api/v1/carts", "DELETE"},
+			{roleName, domain, "/api/v1/carts/*", "GET"},
+			{roleName, domain, "/api/v1/carts/*", "POST"},
+			{roleName, domain, "/api/v1/carts/*", "PUT"},
+			{roleName, domain, "/api/v1/carts/*", "DELETE"},
+
+			// Expenses
+			{roleName, domain, "/api/v1/expenses", "GET"},
+			{roleName, domain, "/api/v1/expenses", "POST"},
+			{roleName, domain, "/api/v1/expenses", "PUT"},
+			{roleName, domain, "/api/v1/expenses", "DELETE"},
+			{roleName, domain, "/api/v1/expenses/*", "GET"},
+			{roleName, domain, "/api/v1/expenses/*", "POST"},
+			{roleName, domain, "/api/v1/expenses/*", "PUT"},
+			{roleName, domain, "/api/v1/expenses/*", "DELETE"},
+			// Shop-specific expense endpoints
+			{roleName, domain, "/api/v1/expenses/shop/*", "GET"},
+			{roleName, domain, "/api/v1/expenses/shop/*", "POST"},
+			{roleName, domain, "/api/v1/expenses/shop/*", "PUT"},
+			{roleName, domain, "/api/v1/expenses/shop/*", "DELETE"},
+
+			// Payments
+			{roleName, domain, "/api/v1/payments", "GET"},
+			{roleName, domain, "/api/v1/payments", "POST"},
+			{roleName, domain, "/api/v1/payments", "PUT"},
+			{roleName, domain, "/api/v1/payments", "DELETE"},
+			{roleName, domain, "/api/v1/payments/*", "GET"},
+			{roleName, domain, "/api/v1/payments/*", "POST"},
+			{roleName, domain, "/api/v1/payments/*", "PUT"},
+			{roleName, domain, "/api/v1/payments/*", "DELETE"},
+			// Shop-specific payment endpoints
+			{roleName, domain, "/api/v1/payments/shop/*", "GET"},
+			{roleName, domain, "/api/v1/payments/shop/*", "POST"},
+			{roleName, domain, "/api/v1/payments/shop/*", "PUT"},
+			{roleName, domain, "/api/v1/payments/shop/*", "DELETE"},
+
+			// Histories
+			{roleName, domain, "/api/v1/histories", "GET"},
+			{roleName, domain, "/api/v1/histories/*", "GET"},
+			// Shop-specific history endpoints
+			{roleName, domain, "/api/v1/histories/shop/*", "GET"},
+
+			// Receipts
+			{roleName, domain, "/api/v1/receipts", "GET"},
+			{roleName, domain, "/api/v1/receipts/*", "GET"},
+			// Shop-specific receipt endpoints
+			{roleName, domain, "/api/v1/receipts/shop/*", "GET"},
+			{roleName, domain, "/api/v1/receipts/shop/*", "POST"},
+
+			// Transaction Products
+			{roleName, domain, "/api/v1/transaction-products", "GET"},
+			{roleName, domain, "/api/v1/transaction-products/*", "GET"},
+			// Shop-specific transaction product endpoints
+			{roleName, domain, "/api/v1/transaction-products/shop/*", "GET"},
+
+			// Auth endpoints
+			{roleName, domain, "/api/v1/auth/*", "GET"},
+			{roleName, domain, "/api/v1/auth/*", "POST"},
+			{roleName, domain, "/api/v1/auth/*", "PUT"},
+			{roleName, domain, "/api/v1/auth/*", "DELETE"},
+
+			// Sync
+			{roleName, domain, "/api/v1/sync", "GET"},
+			{roleName, domain, "/api/v1/sync", "POST"},
+			{roleName, domain, "/api/v1/sync", "PUT"},
+			{roleName, domain, "/api/v1/sync", "DELETE"},
+			{roleName, domain, "/api/v1/sync/*", "GET"},
+			{roleName, domain, "/api/v1/sync/*", "POST"},
+			{roleName, domain, "/api/v1/sync/*", "PUT"},
+			{roleName, domain, "/api/v1/sync/*", "DELETE"},
+		}
+
+	case "cashier":
+		// Cashier gets POS operations access within their shop domain
+		policies = []struct {
+			roleName string
+			domain   string
+			object   string
+			action   string
+		}{
+			// Products
+			{roleName, domain, "/api/v1/products", "GET"},
+			{roleName, domain, "/api/v1/products", "POST"},
+			{roleName, domain, "/api/v1/products", "PUT"},
+			{roleName, domain, "/api/v1/products", "DELETE"},
+			{roleName, domain, "/api/v1/products/*", "GET"},
+			{roleName, domain, "/api/v1/products/*", "POST"},
+			{roleName, domain, "/api/v1/products/*", "PUT"},
+			{roleName, domain, "/api/v1/products/*", "DELETE"},
+
+			// Categories
+			{roleName, domain, "/api/v1/categories", "GET"},
+			{roleName, domain, "/api/v1/categories", "POST"},
+			{roleName, domain, "/api/v1/categories", "PUT"},
+			{roleName, domain, "/api/v1/categories", "DELETE"},
+			{roleName, domain, "/api/v1/categories/*", "GET"},
+			{roleName, domain, "/api/v1/categories/*", "POST"},
+			{roleName, domain, "/api/v1/categories/*", "PUT"},
+			{roleName, domain, "/api/v1/categories/*", "DELETE"},
+
+			// Shops
+			{roleName, domain, "/api/v1/shops", "GET"},
+			{roleName, domain, "/api/v1/shops", "POST"},
+			{roleName, domain, "/api/v1/shops", "PUT"},
+			{roleName, domain, "/api/v1/shops", "DELETE"},
+			{roleName, domain, "/api/v1/shops/*", "GET"},
+			{roleName, domain, "/api/v1/shops/*", "POST"},
+			{roleName, domain, "/api/v1/shops/*", "PUT"},
+			{roleName, domain, "/api/v1/shops/*", "DELETE"},
+			// Shop license-specific endpoints
+			{roleName, domain, "/api/v1/shops/license/*", "GET"},
+			{roleName, domain, "/api/v1/shops/license/*", "POST"},
+			{roleName, domain, "/api/v1/shops/license/*", "PUT"},
+			{roleName, domain, "/api/v1/shops/license/*", "DELETE"},
+
+			// Transactions (both individual and shop-specific)
+			{roleName, domain, "/api/v1/transactions", "GET"},
+			{roleName, domain, "/api/v1/transactions", "POST"},
+			{roleName, domain, "/api/v1/transactions", "PUT"},
+			{roleName, domain, "/api/v1/transactions", "DELETE"},
+			{roleName, domain, "/api/v1/transactions/*", "GET"},
+			{roleName, domain, "/api/v1/transactions/*", "POST"},
+			{roleName, domain, "/api/v1/transactions/*", "PUT"},
+			{roleName, domain, "/api/v1/transactions/*", "DELETE"},
+			// Shop-specific transaction endpoints
+			{roleName, domain, "/api/v1/transactions/shop/*", "GET"},
+			{roleName, domain, "/api/v1/transactions/shop/*", "POST"},
+			{roleName, domain, "/api/v1/transactions/shop/*", "PUT"},
+			{roleName, domain, "/api/v1/transactions/shop/*", "DELETE"},
+
+			// Carts
+			{roleName, domain, "/api/v1/carts", "GET"},
+			{roleName, domain, "/api/v1/carts", "POST"},
+			{roleName, domain, "/api/v1/carts", "PUT"},
+			{roleName, domain, "/api/v1/carts", "DELETE"},
+			{roleName, domain, "/api/v1/carts/*", "GET"},
+			{roleName, domain, "/api/v1/carts/*", "POST"},
+			{roleName, domain, "/api/v1/carts/*", "PUT"},
+			{roleName, domain, "/api/v1/carts/*", "DELETE"},
+
+			// Expenses
+			{roleName, domain, "/api/v1/expenses", "GET"},
+			{roleName, domain, "/api/v1/expenses", "POST"},
+			{roleName, domain, "/api/v1/expenses", "PUT"},
+			{roleName, domain, "/api/v1/expenses", "DELETE"},
+			{roleName, domain, "/api/v1/expenses/*", "GET"},
+			{roleName, domain, "/api/v1/expenses/*", "POST"},
+			{roleName, domain, "/api/v1/expenses/*", "PUT"},
+			{roleName, domain, "/api/v1/expenses/*", "DELETE"},
+			// Shop-specific expense endpoints
+			{roleName, domain, "/api/v1/expenses/shop/*", "GET"},
+			{roleName, domain, "/api/v1/expenses/shop/*", "POST"},
+			{roleName, domain, "/api/v1/expenses/shop/*", "PUT"},
+			{roleName, domain, "/api/v1/expenses/shop/*", "DELETE"},
+
+			// Payments
+			{roleName, domain, "/api/v1/payments", "GET"},
+			{roleName, domain, "/api/v1/payments", "POST"},
+			{roleName, domain, "/api/v1/payments", "PUT"},
+			{roleName, domain, "/api/v1/payments", "DELETE"},
+			{roleName, domain, "/api/v1/payments/*", "GET"},
+			{roleName, domain, "/api/v1/payments/*", "POST"},
+			{roleName, domain, "/api/v1/payments/*", "PUT"},
+			{roleName, domain, "/api/v1/payments/*", "DELETE"},
+			// Shop-specific payment endpoints
+			{roleName, domain, "/api/v1/payments/shop/*", "GET"},
+			{roleName, domain, "/api/v1/payments/shop/*", "POST"},
+			{roleName, domain, "/api/v1/payments/shop/*", "PUT"},
+			{roleName, domain, "/api/v1/payments/shop/*", "DELETE"},
+
+			// Histories
+			{roleName, domain, "/api/v1/histories", "GET"},
+			{roleName, domain, "/api/v1/histories/*", "GET"},
+			// Shop-specific history endpoints
+			{roleName, domain, "/api/v1/histories/shop/*", "GET"},
+
+			// Receipts
+			{roleName, domain, "/api/v1/receipts", "GET"},
+			{roleName, domain, "/api/v1/receipts/*", "GET"},
+			// Shop-specific receipt endpoints
+			{roleName, domain, "/api/v1/receipts/shop/*", "GET"},
+			{roleName, domain, "/api/v1/receipts/shop/*", "POST"},
+
+			// Transaction Products
+			{roleName, domain, "/api/v1/transaction-products", "GET"},
+			{roleName, domain, "/api/v1/transaction-products/*", "GET"},
+			// Shop-specific transaction product endpoints
+			{roleName, domain, "/api/v1/transaction-products/shop/*", "GET"},
+
+			// Auth endpoints for cashier
+			{roleName, domain, "/api/v1/auth/cashier", "GET"},
+			{roleName, domain, "/api/v1/auth/cashier", "POST"},
+			{roleName, domain, "/api/v1/auth/cashier/*", "GET"},
+			{roleName, domain, "/api/v1/auth/cashier/*", "POST"},
+			{roleName, domain, "/api/v1/auth/logout", "POST"},
+			{roleName, domain, "/api/v1/auth/refresh", "POST"},
+			{roleName, domain, "/api/v1/auth/profile", "GET"},
+			{roleName, domain, "/api/v1/auth/permissions", "GET"},
+			{roleName, domain, "/api/v1/auth/pin", "GET"},
+			{roleName, domain, "/api/v1/auth/pin", "POST"},
+			{roleName, domain, "/api/v1/auth/pin", "PUT"},
+			{roleName, domain, "/api/v1/auth/pin", "DELETE"},
+
+			// Sync
+			{roleName, domain, "/api/v1/sync", "GET"},
+			{roleName, domain, "/api/v1/sync", "POST"},
+			{roleName, domain, "/api/v1/sync", "PUT"},
+			{roleName, domain, "/api/v1/sync", "DELETE"},
+			{roleName, domain, "/api/v1/sync/*", "GET"},
+			{roleName, domain, "/api/v1/sync/*", "POST"},
+			{roleName, domain, "/api/v1/sync/*", "PUT"},
+			{roleName, domain, "/api/v1/sync/*", "DELETE"},
+		}
+
+	default:
+		return fmt.Errorf("unsupported role for dynamic policy assignment: %s", roleName)
+	}
+
+	// Get role entity
+	role, err := s.roleRepo.GetByName(ctx, roleName)
+	if err != nil {
+		return fmt.Errorf("failed to find role %s: %w", roleName, err)
+	}
+
+	// Check if policies already exist for this role and domain to avoid duplicates
+	existingPolicies, err := s.policyRepo.GetByRoleAndDomain(ctx, role.ID, domain)
+	if err != nil {
+		log.Printf("Warning: Failed to check existing policies for role %s, domain %s: %v", roleName, domain, err)
+	} else if len(existingPolicies) > 0 {
+		log.Printf("Policies already exist for role %s, domain %s (%d existing). Skipping creation.", roleName, domain, len(existingPolicies))
+		return nil
+	}
+
+	// Create and assign policies
+	var policyEntities []*entities.Policy
+	var casbinPolicies [][]string
+
+	// Prepare all policies for bulk operations
+	for _, p := range policies {
+		// Create policy entity for database
+		policy := &entities.Policy{
+			RoleID:   &role.ID,
+			Subject:  p.roleName,
+			Domain:   p.domain,
+			Object:   p.object,
+			Action:   p.action,
+			Effect:   "allow",
+			IsActive: true,
+		}
+		policyEntities = append(policyEntities, policy)
+
+		// Create Casbin policy format [role, domain, object, action]
+		casbinPolicy := []string{p.roleName, p.domain, p.object, p.action}
+		casbinPolicies = append(casbinPolicies, casbinPolicy)
+	}
+
+	// Bulk create policies in database
+	if err := s.policyRepo.CreateBatch(ctx, policyEntities); err != nil {
+		return fmt.Errorf("failed to create policies in batch for role %s, domain %s: %w", roleName, domain, err)
+	}
+
+	// Bulk add policies to Casbin
+	if _, err := s.enforcerService.AddPolicies(casbinPolicies); err != nil {
+		log.Printf("Failed to add Casbin policies in batch for role %s, domain %s: %v", roleName, domain, err)
+		// Note: We could implement rollback here, but for now just log the error
+	}
+
+	log.Printf("Created %d domain-specific policies in batch for role %s, domain %s", len(policies), roleName, domain)
 
 	return nil
 }

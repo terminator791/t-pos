@@ -58,6 +58,16 @@ func (m *MockCartRepository) List(ctx context.Context, limit, offset int) ([]*en
 	return args.Get(0).([]*entities.Cart), args.Error(1)
 }
 
+func (m *MockCartRepository) ListByShopIDs(ctx context.Context, shopIDs []uuid.UUID, limit, offset int) ([]*entities.Cart, error) {
+	args := m.Called(ctx, shopIDs, limit, offset)
+	return args.Get(0).([]*entities.Cart), args.Error(1)
+}
+
+func (m *MockCartRepository) GetByShopIDs(ctx context.Context, shopIDs []uuid.UUID) ([]*entities.Cart, error) {
+	args := m.Called(ctx, shopIDs)
+	return args.Get(0).([]*entities.Cart), args.Error(1)
+}
+
 func TestSyncService_ProcessSync_EmptyRequest(t *testing.T) {
 	// Setup
 	mockCartRepo := new(MockCartRepository)

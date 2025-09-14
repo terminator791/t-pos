@@ -24,6 +24,15 @@ type SyncRequest struct {
 	Users               []entities.User               `json:"users"`
 }
 
+// SyncContext provides role-based access control context for sync operations
+type SyncContext struct {
+	UserID            uuid.UUID     `json:"user_id"`
+	UserRole          string        `json:"user_role"`
+	LicenseID         uuid.UUID     `json:"license_id"`
+	AccessibleShopIDs []uuid.UUID   `json:"accessible_shop_ids"`
+	HasGlobalAccess   bool          `json:"has_global_access"`
+}
+
 // SyncResponse represents the sync response sent back to mobile client
 type SyncResponse struct {
 	SyncTimestamp       time.Time                  `json:"sync_timestamp"`
