@@ -74,6 +74,18 @@ type SyncConfig struct {
 	ValidationDepth             string        `yaml:"validation_depth" json:"validation_depth"` // "basic", "standard", "comprehensive"
 	EnableEntityLocking         bool          `yaml:"enable_entity_locking" json:"enable_entity_locking"`
 	MaxConcurrentSyncsPerUser   int           `yaml:"max_concurrent_syncs_per_user" json:"max_concurrent_syncs_per_user"`
+
+	// Performance optimizations (Session 3)
+	EnableBulkValidation       bool          `yaml:"enable_bulk_validation" json:"enable_bulk_validation"`
+	EnableQueryOptimization    bool          `yaml:"enable_query_optimization" json:"enable_query_optimization"`
+	EnableCaching              bool          `yaml:"enable_caching" json:"enable_caching"`
+	CacheTTL                   time.Duration `yaml:"cache_ttl" json:"cache_ttl"`
+	MaxCacheEntries            int           `yaml:"max_cache_entries" json:"max_cache_entries"`
+	CacheCleanupInterval       time.Duration `yaml:"cache_cleanup_interval" json:"cache_cleanup_interval"`
+	EnableBatchProcessing      bool          `yaml:"enable_batch_processing" json:"enable_batch_processing"`
+	OptimalBatchSize           int           `yaml:"optimal_batch_size" json:"optimal_batch_size"`
+	EnableAsyncProcessing      bool          `yaml:"enable_async_processing" json:"enable_async_processing"`
+	EnableIndexHints           bool          `yaml:"enable_index_hints" json:"enable_index_hints"`
 }
 
 // Load loads configuration from environment variables
@@ -125,6 +137,18 @@ func loadSyncConfig() SyncConfig {
 		ValidationDepth:               getEnv("SYNC_VALIDATION_DEPTH", "comprehensive"), // basic, standard, comprehensive
 		EnableEntityLocking:           getEnvAsBool("SYNC_ENABLE_ENTITY_LOCKING", false), // Disabled by default for performance
 		MaxConcurrentSyncsPerUser:     getEnvAsInt("SYNC_MAX_CONCURRENT_SYNCS_PER_USER", 1),
+
+		// Performance optimizations (Session 3)
+		EnableBulkValidation:    getEnvAsBool("SYNC_ENABLE_BULK_VALIDATION", true),
+		EnableQueryOptimization: getEnvAsBool("SYNC_ENABLE_QUERY_OPTIMIZATION", true),
+		EnableCaching:           getEnvAsBool("SYNC_ENABLE_CACHING", true),
+		CacheTTL:                getEnvAsDuration("SYNC_CACHE_TTL", 5*time.Minute),
+		MaxCacheEntries:         getEnvAsInt("SYNC_MAX_CACHE_ENTRIES", 10000),
+		CacheCleanupInterval:    getEnvAsDuration("SYNC_CACHE_CLEANUP_INTERVAL", 2*time.Minute),
+		EnableBatchProcessing:   getEnvAsBool("SYNC_ENABLE_BATCH_PROCESSING", true),
+		OptimalBatchSize:        getEnvAsInt("SYNC_OPTIMAL_BATCH_SIZE", 200),
+		EnableAsyncProcessing:   getEnvAsBool("SYNC_ENABLE_ASYNC_PROCESSING", false), // Disabled by default
+		EnableIndexHints:        getEnvAsBool("SYNC_ENABLE_INDEX_HINTS", true),
 	}
 }
 
