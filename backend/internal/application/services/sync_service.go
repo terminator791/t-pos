@@ -243,13 +243,21 @@ func (s *SyncService) validateSyncRequest(req dto.SyncRequest) error {
 		len(req.Receipts) + len(req.Histories) + len(req.Shops) +
 		len(req.StockHistories) + len(req.TransactionProducts) + len(req.Users)
 
+	// Check total entity count limit
 	if totalEntities > s.config.MaxEntitiesPerSync {
 		return fmt.Errorf("sync request too large: %d entities exceeds maximum of %d",
 			totalEntities, s.config.MaxEntitiesPerSync)
 	}
 
-	// Validate individual entity type limits
-	entityLimits := map[string]int{
+	// CRITICAL FIX: Enhanced memory validation with actual memory estimation
+	estimatedMemoryMB := s.calculateMemoryUsage(req)
+	if estimatedMemoryMB > float64(s.config.MaxMemoryUsageMB) {
+		return fmt.Errorf("sync request memory usage too large: estimated %.2f MB exceeds maximum of %d MB",
+			estimatedMemoryMB, s.config.MaxMemoryUsageMB)
+	}
+
+	// Validate individual entity type limits to prevent single type from dominating
+	entityCounts := map[string]int{
 		"carts":                len(req.Carts),
 		"categories":           len(req.Categories),
 		"products":             len(req.Products),
@@ -264,14 +272,60 @@ func (s *SyncService) validateSyncRequest(req dto.SyncRequest) error {
 		"users":                len(req.Users),
 	}
 
-	for entityType, count := range entityLimits {
-		if count > s.config.MaxEntitiesPerSync/2 { // No single entity type should exceed half the limit
+	maxEntitiesPerType := s.config.MaxEntitiesPerSync / 2 // No single entity type should exceed half the limit
+	for entityType, count := range entityCounts {
+		if count > maxEntitiesPerType {
 			return fmt.Errorf("%s count too large: %d exceeds maximum of %d",
-				entityType, count, s.config.MaxEntitiesPerSync/2)
+				entityType, count, maxEntitiesPerType)
 		}
 	}
 
+	// Log validation success for monitoring
+	if s.config.EnablePerformanceLog {
+		log.Printf("Sync request validation passed: %d entities, estimated %.2f MB memory",
+			totalEntities, estimatedMemoryMB)
+	}
+
 	return nil
+}
+
+// calculateMemoryUsage estimates memory usage for a sync request
+func (s *SyncService) calculateMemoryUsage(req dto.SyncRequest) float64 {
+	// Entity-specific size estimates in KB (based on typical JSON serialized size)
+	entitySizes := map[string]float64{
+		"carts":                0.5,  // Simple cart items
+		"categories":           0.3,  // Small category objects
+		"products":             2.0,  // Products can have images/descriptions
+		"transactions":         1.5,  // Transaction records
+		"payments":             0.8,  // Payment records
+		"expenses":             1.0,  // Expense records
+		"receipts":             3.0,  // Receipts can be large with text content
+		"histories":            1.2,  // History records
+		"shops":                1.0,  // Shop information
+		"stock_histories":      0.7,  // Stock movement records
+		"transaction_products": 0.6,  // Product-transaction relationships
+		"users":                1.0,  // User information
+	}
+
+	totalSizeKB := 0.0
+	totalSizeKB += float64(len(req.Carts)) * entitySizes["carts"]
+	totalSizeKB += float64(len(req.Categories)) * entitySizes["categories"]
+	totalSizeKB += float64(len(req.Products)) * entitySizes["products"]
+	totalSizeKB += float64(len(req.Transactions)) * entitySizes["transactions"]
+	totalSizeKB += float64(len(req.Payments)) * entitySizes["payments"]
+	totalSizeKB += float64(len(req.Expenses)) * entitySizes["expenses"]
+	totalSizeKB += float64(len(req.Receipts)) * entitySizes["receipts"]
+	totalSizeKB += float64(len(req.Histories)) * entitySizes["histories"]
+	totalSizeKB += float64(len(req.Shops)) * entitySizes["shops"]
+	totalSizeKB += float64(len(req.StockHistories)) * entitySizes["stock_histories"]
+	totalSizeKB += float64(len(req.TransactionProducts)) * entitySizes["transaction_products"]
+	totalSizeKB += float64(len(req.Users)) * entitySizes["users"]
+
+	// Convert to MB and add overhead for processing (JSON parsing, GORM operations, etc.)
+	totalSizeMB := totalSizeKB / 1024.0
+	processingOverheadMultiplier := 3.0 // Assume 3x overhead for processing
+	
+	return totalSizeMB * processingOverheadMultiplier
 }
 
 // getTotalProcessedEntities calculates total entities processed across all types
@@ -920,15 +974,18 @@ func (s *SyncService) pushCartsSafe(ctx context.Context, tx *gorm.DB, carts []en
 			if err := s.processSingleCartWithErrorIsolation(ctx, tx, cart, licenseID, response); err != nil {
 				log.Printf("Error processing cart %s (batch %d, index %d): %v", cart.ID, i/s.config.BatchSize+1, batchIndex, err)
 				errorCount++
-				// CRITICAL: Continue with next entity instead of failing entire batch
-				// Add error to response but don't abort transaction
-				s.addDetailedError(response, "carts", cart.ID, "processing_failed", err.Error(),
+				
+				// CRITICAL FIX: Use policy-based error handling instead of hardcoded continue
+				if handleErr := s.handleEntityError(err, "carts", cart.ID, response,
 					map[string]interface{}{
 						"cart_shop_id": cart.ShopID,
 						"license_id":   licenseID,
 						"batch_index":  i + batchIndex,
 						"batch_number": i/s.config.BatchSize + 1,
-					})
+					}); handleErr != nil {
+					// Error policy requires aborting
+					return fmt.Errorf("cart processing failed with abort policy: %w", handleErr)
+				}
 				continue
 			}
 			successCount++
@@ -957,41 +1014,41 @@ func (s *SyncService) processSingleCartWithErrorIsolation(ctx context.Context, t
 		return fmt.Errorf("cart does not belong to license %s", licenseID)
 	}
 
-	// CRITICAL FIX: Use the existing transaction instead of creating nested transactions
-	// Nested transactions in PostgreSQL can cause "current transaction is aborted" errors
-	
-	// Check if cart exists with error handling
-	existingCart, err := s.findCartByIDSafe(ctx, tx, cart.ID)
-	if err != nil {
-		return fmt.Errorf("failed to find cart: %w", err)
-	}
-
-	if existingCart == nil {
-		// Create new cart
-		if err := s.createCartSafe(ctx, tx, cart); err != nil {
-			return fmt.Errorf("failed to create cart: %w", err)
+	// CRITICAL FIX: Use savepoint-based processing for better error isolation
+	return s.processEntityWithSavepoint(ctx, tx, cart.ID, func() error {
+		// Check if cart exists with error handling
+		existingCart, err := s.findCartByIDSafe(ctx, tx, cart.ID)
+		if err != nil {
+			return fmt.Errorf("failed to find cart: %w", err)
 		}
-		s.incrementStat(response.Stats.CreatedEntities, "carts")
-	} else {
-		// Handle potential conflict
-		if conflict := s.resolveCartConflict(*existingCart, cart); conflict != nil {
-			response.Conflicts = append(response.Conflicts, *conflict)
-			// Use server version in case of conflict (for LastWriteWins strategy)
-			if existingCart.UpdatedAt.After(cart.UpdatedAt) {
-				s.incrementStat(response.Stats.ProcessedEntities, "carts")
-				return nil // Skip update, server version is newer
+
+		if existingCart == nil {
+			// Create new cart
+			if err := s.createCartSafe(ctx, tx, cart); err != nil {
+				return fmt.Errorf("failed to create cart: %w", err)
 			}
+			s.incrementStat(response.Stats.CreatedEntities, "carts")
+		} else {
+			// Handle potential conflict
+			if conflict := s.resolveCartConflict(*existingCart, cart); conflict != nil {
+				response.Conflicts = append(response.Conflicts, *conflict)
+				// Use server version in case of conflict (for LastWriteWins strategy)
+				if existingCart.UpdatedAt.After(cart.UpdatedAt) {
+					s.incrementStat(response.Stats.ProcessedEntities, "carts")
+					return nil // Skip update, server version is newer
+				}
+			}
+
+			// Update existing cart
+			if err := s.updateCartSafe(ctx, tx, cart); err != nil {
+				return fmt.Errorf("failed to update cart: %w", err)
+			}
+			s.incrementStat(response.Stats.UpdatedEntities, "carts")
 		}
 
-		// Update existing cart
-		if err := s.updateCartSafe(ctx, tx, cart); err != nil {
-			return fmt.Errorf("failed to update cart: %w", err)
-		}
-		s.incrementStat(response.Stats.UpdatedEntities, "carts")
-	}
-
-	s.incrementStat(response.Stats.ProcessedEntities, "carts")
-	return nil
+		s.incrementStat(response.Stats.ProcessedEntities, "carts")
+		return nil
+	})
 }
 
 // Safe database operations with enhanced error handling
@@ -3641,6 +3698,77 @@ func (s *SyncService) addDetailedError(response *dto.SyncResponse, entityType st
 	response.Errors = append(response.Errors, syncError)
 	log.Printf("Sync error - Type: %s, ID: %s, Code: %s, Message: %s, Details: %s",
 		entityType, entityID, errorCode, message, errorDetails)
+}
+
+// CRITICAL FIX: Enhanced error handling with configurable policies
+// handleEntityError processes errors according to the configured error policy
+func (s *SyncService) handleEntityError(err error, entityType string, entityID uuid.UUID, response *dto.SyncResponse, details map[string]interface{}) error {
+	// Parse the error policy from configuration
+	errorPolicy := dto.ParseSyncErrorPolicy(s.config.ErrorPolicy)
+	
+	// Add the error to the response for tracking
+	s.addDetailedError(response, entityType, entityID, "processing_error", err.Error(), details)
+	
+	// Check if we've exceeded the maximum allowed errors
+	if len(response.Errors) > s.config.MaxEntityErrorsPerSync {
+		log.Printf("Maximum entity errors exceeded (%d), aborting sync", s.config.MaxEntityErrorsPerSync)
+		return fmt.Errorf("too many entity errors during sync: %d errors", len(response.Errors))
+	}
+
+	// Handle based on policy
+	switch errorPolicy {
+	case dto.ContinueOnError:
+		// Log and continue - this is the current behavior
+		log.Printf("Continuing sync despite error in %s %s: %v", entityType, entityID, err)
+		return nil
+		
+	case dto.AbortOnError:
+		// Stop processing immediately
+		log.Printf("Aborting sync due to error in %s %s: %v", entityType, entityID, err)
+		return fmt.Errorf("sync aborted due to error policy: %w", err)
+		
+	case dto.RetryOnError:
+		// For now, just log and continue - retry logic would require more complex state management
+		// This could be enhanced in future versions with proper retry queues
+		log.Printf("Entity error (retry policy not yet implemented, continuing): %s %s: %v", entityType, entityID, err)
+		return nil
+		
+	default:
+		// Default to continue
+		log.Printf("Unknown error policy, continuing: %s %s: %v", entityType, entityID, err)
+		return nil
+	}
+}
+
+// CRITICAL FIX: Savepoint-based transaction processing for better error isolation
+// processEntityWithSavepoint processes an entity within a savepoint for isolated error handling
+func (s *SyncService) processEntityWithSavepoint(ctx context.Context, tx *gorm.DB, entityID uuid.UUID, processFunc func() error) error {
+	// Create savepoint name
+	savepointName := fmt.Sprintf("sp_%s", entityID.String()[:8])
+	
+	// Create savepoint
+	if err := tx.SavePoint(savepointName).Error; err != nil {
+		log.Printf("Warning: Failed to create savepoint %s, proceeding without isolation: %v", savepointName, err)
+		// If savepoint creation fails, proceed without it - this maintains backward compatibility
+		return processFunc()
+	}
+	
+	// Execute the processing function
+	if err := processFunc(); err != nil {
+		// Rollback to savepoint on error
+		if rollbackErr := tx.RollbackTo(savepointName).Error; rollbackErr != nil {
+			log.Printf("Warning: Failed to rollback to savepoint %s: %v", savepointName, rollbackErr)
+		}
+		return err
+	}
+	
+	// Release savepoint on success (optional, but good practice)
+	if err := tx.Exec(fmt.Sprintf("RELEASE SAVEPOINT %s", savepointName)).Error; err != nil {
+		log.Printf("Warning: Failed to release savepoint %s: %v", savepointName, err)
+		// This is not critical - the savepoint will be cleaned up when the transaction ends
+	}
+	
+	return nil
 }
 
 // logPerformanceMetrics logs performance metrics for monitoring

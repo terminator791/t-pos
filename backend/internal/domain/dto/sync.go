@@ -148,3 +148,24 @@ const (
 	SyncStatusCompleted  SyncStatus = "completed"
 	SyncStatusFailed     SyncStatus = "failed"
 )
+
+// SyncErrorPolicy defines how errors should be handled during sync
+type SyncErrorPolicy int
+
+const (
+	ContinueOnError SyncErrorPolicy = iota // Log error, continue processing
+	AbortOnError                           // Stop processing, return error
+	RetryOnError                           // Retry operation with backoff
+)
+
+// ParseSyncErrorPolicy converts string to SyncErrorPolicy
+func ParseSyncErrorPolicy(policy string) SyncErrorPolicy {
+	switch policy {
+	case "abort":
+		return AbortOnError
+	case "retry":
+		return RetryOnError
+	default:
+		return ContinueOnError
+	}
+}

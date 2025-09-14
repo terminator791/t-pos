@@ -42,9 +42,17 @@ type SyncConfig struct {
 	BatchSize          int `yaml:"batch_size" json:"batch_size"`
 	MaxEntitiesPerSync int `yaml:"max_entities_per_sync" json:"max_entities_per_sync"`
 
+	// Memory management configuration
+	MaxMemoryUsageMB  int64 `yaml:"max_memory_usage_mb" json:"max_memory_usage_mb"`
+	EntitySizeEstimateMB float64 `yaml:"entity_size_estimate_mb" json:"entity_size_estimate_mb"`
+
 	// Transaction configuration
 	TransactionTimeout time.Duration `yaml:"transaction_timeout" json:"transaction_timeout"`
 	MaxTransactionSize int           `yaml:"max_transaction_size" json:"max_transaction_size"`
+
+	// Error handling configuration
+	ErrorPolicy            string `yaml:"error_policy" json:"error_policy"` // "continue", "abort", "retry"
+	MaxEntityErrorsPerSync int    `yaml:"max_entity_errors_per_sync" json:"max_entity_errors_per_sync"`
 
 	// Retry configuration
 	MaxRetries     int           `yaml:"max_retries" json:"max_retries"`
@@ -85,16 +93,20 @@ func Load() *Config {
 // loadSyncConfig loads sync configuration from environment variables with defaults
 func loadSyncConfig() SyncConfig {
 	return SyncConfig{
-		BatchSize:            getEnvAsInt("SYNC_BATCH_SIZE", 100),
-		MaxEntitiesPerSync:   getEnvAsInt("SYNC_MAX_ENTITIES_PER_SYNC", 1000),
-		TransactionTimeout:   getEnvAsDuration("SYNC_TRANSACTION_TIMEOUT", 30*time.Second),
-		MaxTransactionSize:   getEnvAsInt("SYNC_MAX_TRANSACTION_SIZE", 500),
-		MaxRetries:           getEnvAsInt("SYNC_MAX_RETRIES", 3),
-		BaseRetryDelay:       getEnvAsDuration("SYNC_BASE_RETRY_DELAY", 100*time.Millisecond),
-		EnablePerformanceLog: getEnvAsBool("SYNC_ENABLE_PERFORMANCE_LOG", true),
-		PerformanceThreshold: getEnvAsFloat64("SYNC_PERFORMANCE_THRESHOLD", 10.0),
-		MaxResultsPerQuery:   getEnvAsInt("SYNC_MAX_RESULTS_PER_QUERY", 1000),
-		QueryTimeout:         getEnvAsDuration("SYNC_QUERY_TIMEOUT", 10*time.Second),
+		BatchSize:              getEnvAsInt("SYNC_BATCH_SIZE", 100),
+		MaxEntitiesPerSync:     getEnvAsInt("SYNC_MAX_ENTITIES_PER_SYNC", 1000),
+		MaxMemoryUsageMB:       getEnvAsInt64("SYNC_MAX_MEMORY_USAGE_MB", 100),
+		EntitySizeEstimateMB:   getEnvAsFloat64("SYNC_ENTITY_SIZE_ESTIMATE_MB", 0.001), // 1KB average
+		TransactionTimeout:     getEnvAsDuration("SYNC_TRANSACTION_TIMEOUT", 30*time.Second),
+		MaxTransactionSize:     getEnvAsInt("SYNC_MAX_TRANSACTION_SIZE", 500),
+		ErrorPolicy:            getEnv("SYNC_ERROR_POLICY", "continue"),
+		MaxEntityErrorsPerSync: getEnvAsInt("SYNC_MAX_ENTITY_ERRORS_PER_SYNC", 50),
+		MaxRetries:             getEnvAsInt("SYNC_MAX_RETRIES", 3),
+		BaseRetryDelay:         getEnvAsDuration("SYNC_BASE_RETRY_DELAY", 100*time.Millisecond),
+		EnablePerformanceLog:   getEnvAsBool("SYNC_ENABLE_PERFORMANCE_LOG", true),
+		PerformanceThreshold:   getEnvAsFloat64("SYNC_PERFORMANCE_THRESHOLD", 10.0),
+		MaxResultsPerQuery:     getEnvAsInt("SYNC_MAX_RESULTS_PER_QUERY", 1000),
+		QueryTimeout:           getEnvAsDuration("SYNC_QUERY_TIMEOUT", 10*time.Second),
 	}
 }
 
@@ -141,6 +153,16 @@ func getEnvAsDuration(key string, defaultValue time.Duration) time.Duration {
 	if value := os.Getenv(key); value != "" {
 		if duration, err := time.ParseDuration(value); err == nil {
 			return duration
+		}
+	}
+	return defaultValue
+}
+
+// getEnvAsInt64 gets environment variable as int64 with default value
+func getEnvAsInt64(key string, defaultValue int64) int64 {
+	if value := os.Getenv(key); value != "" {
+		if intValue, err := strconv.ParseInt(value, 10, 64); err == nil {
+			return intValue
 		}
 	}
 	return defaultValue
