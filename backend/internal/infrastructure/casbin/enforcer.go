@@ -81,7 +81,34 @@ func (e *EnforcerService) Enforce(user, domain, object, action string) (bool, er
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
-	return e.enforcer.Enforce(user, domain, object, action)
+	// Enhanced debug logging for policy enforcement
+	log.Printf("DEBUG: Casbin Enforce called with params: user=%s, domain=%s, object=%s, action=%s", user, domain, object, action)
+	
+	// Check user role assignments
+	roles := e.enforcer.GetRolesForUserInDomain(user, domain)
+	log.Printf("DEBUG: User %s roles in domain %s: %v", user, domain, roles)
+	
+	// Get all policies for this user's roles
+	for _, role := range roles {
+		rolePolicies, err := e.enforcer.GetFilteredPolicy(0, role, domain)
+		if err != nil {
+			log.Printf("DEBUG: Error getting policies for role %s in domain %s: %v", role, domain, err)
+		} else {
+			log.Printf("DEBUG: Policies for role %s in domain %s: %v", role, domain, rolePolicies)
+		}
+	}
+	
+	// Perform the actual enforcement
+	result, err := e.enforcer.Enforce(user, domain, object, action)
+	log.Printf("DEBUG: Casbin Enforce result: %v, error: %v", result, err)
+	
+	// Additional debugging: check for wildcard policies
+	if !result && domain != "*" {
+		wildcardResult, wildcardErr := e.enforcer.Enforce(user, "*", object, action)
+		log.Printf("DEBUG: Wildcard domain check result: %v, error: %v", wildcardResult, wildcardErr)
+	}
+	
+	return result, err
 }
 
 // AddPolicy adds a new policy rule

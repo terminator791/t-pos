@@ -88,7 +88,7 @@ func (h *SyncHandler) ProcessSync(c *gin.Context) {
 		for _, shop := range shops {
 			accessibleShopIDs = append(accessibleShopIDs, shop.ID)
 		}
-		log.Printf("Owner business user %s syncing %d shops under license %s", userID.String(), len(accessibleShopIDs), licenseID.String())
+		log.Printf("DEBUG: Owner business user %s syncing %d shops under license %s: %v", userID.String(), len(accessibleShopIDs), licenseID.String(), accessibleShopIDs)
 		
 	case "cashier":
 		// Cashier can only sync their assigned shop
@@ -97,7 +97,7 @@ func (h *SyncHandler) ProcessSync(c *gin.Context) {
 			return
 		}
 		accessibleShopIDs = append(accessibleShopIDs, *user.ShopID)
-		log.Printf("Cashier user %s syncing single shop %s", userID.String(), user.ShopID.String())
+		log.Printf("DEBUG: Cashier user %s syncing single shop %s: [%s]", userID.String(), user.ShopID.String(), *user.ShopID)
 		
 	default:
 		response.ErrorUnauthorized(c, fmt.Sprintf("Role '%s' is not authorized for sync operations", userRole), nil)

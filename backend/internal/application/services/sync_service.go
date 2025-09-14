@@ -377,6 +377,10 @@ func (s *SyncService) filterAndValidateSyncRequest(req dto.SyncRequest, syncCont
 	for _, shopID := range syncContext.AccessibleShopIDs {
 		accessibleShops[shopID] = true
 	}
+	
+	// Debug logging for accessibility mapping
+	log.Printf("DEBUG: filterAndValidateSyncRequest - User %s (role: %s) accessible shops map: %v", 
+		syncContext.UserID, syncContext.UserRole, accessibleShops)
 
 	filteredReq := dto.SyncRequest{
 		LastSyncTimestamp: req.LastSyncTimestamp,
@@ -2533,7 +2537,15 @@ func (s *SyncService) filterStockHistoriesByShopAccess(stockHistories []entities
 	var missingProducts []uuid.UUID
 	var inaccessibleShops []uuid.UUID
 	
-	for _, stockHistory := range stockHistories {
+	// Enhanced debug logging
+	log.Printf("DEBUG: filterStockHistoriesByShopAccess - User %s (role: %s), accessible shops: %v, processing %d stock histories", 
+		syncContext.UserID, syncContext.UserRole, syncContext.AccessibleShopIDs, len(stockHistories))
+	
+	for i, stockHistory := range stockHistories {
+		// Enhanced debug logging for each stock history
+		log.Printf("DEBUG: Processing stock history %d/%d: ID=%s, ProductID=%s", 
+			i+1, len(stockHistories), stockHistory.ID, stockHistory.ProductID)
+		
 		// Query to check if the product exists and belongs to an accessible shop
 		var productShopID uuid.UUID
 		err := s.db.Model(&entities.Product{}).
@@ -2542,20 +2554,29 @@ func (s *SyncService) filterStockHistoriesByShopAccess(stockHistories []entities
 			First(&productShopID).Error
 		
 		if err != nil {
-			// Product doesn't exist
+			// Product doesn't exist - enhanced logging
 			missingProducts = append(missingProducts, stockHistory.ProductID)
-			log.Printf("Stock history %s references non-existent product %s", stockHistory.ID, stockHistory.ProductID)
+			log.Printf("ERROR: Stock history %s references non-existent product %s (error: %v)", stockHistory.ID, stockHistory.ProductID, err)
 			continue
 		}
 		
-		if !accessibleShops[productShopID] {
+		log.Printf("DEBUG: Product %s found in shop %s, checking if shop is accessible", stockHistory.ProductID, productShopID)
+		
+		// Enhanced debug logging for shop access check
+		isAccessible := accessibleShops[productShopID]
+		log.Printf("DEBUG: Shop %s accessible check: %v (accessible shops map: %v)", productShopID, isAccessible, accessibleShops)
+		
+		if !isAccessible {
 			// Product exists but shop is not accessible
 			inaccessibleShops = append(inaccessibleShops, productShopID)
-			log.Printf("Stock history %s references product in inaccessible shop %s", stockHistory.ID, productShopID)
+			log.Printf("WARNING: Stock history %s references product %s in inaccessible shop %s (user has access to: %v)", 
+				stockHistory.ID, stockHistory.ProductID, productShopID, syncContext.AccessibleShopIDs)
 			continue
 		}
 		
 		// Product exists and shop is accessible
+		log.Printf("DEBUG: Stock history %s PASSED filtering (product %s in accessible shop %s)", 
+			stockHistory.ID, stockHistory.ProductID, productShopID)
 		filtered = append(filtered, stockHistory)
 	}
 	
@@ -2569,7 +2590,7 @@ func (s *SyncService) filterStockHistoriesByShopAccess(stockHistories []entities
 			syncContext.UserID, syncContext.UserRole, inaccessibleShops)
 	}
 	
-	log.Printf("Filtered stock histories for user %s (role: %s): %d → %d (missing products: %d, inaccessible shops: %d)", 
+	log.Printf("SUMMARY: Filtered stock histories for user %s (role: %s): %d → %d (missing products: %d, inaccessible shops: %d)", 
 		syncContext.UserID, syncContext.UserRole, len(stockHistories), len(filtered), len(missingProducts), len(inaccessibleShops))
 	return filtered
 }
@@ -2584,7 +2605,15 @@ func (s *SyncService) filterTransactionProductsByShopAccess(transactionProducts 
 	var missingTransactions []uuid.UUID
 	var inaccessibleShops []uuid.UUID
 	
-	for _, transactionProduct := range transactionProducts {
+	// Enhanced debug logging
+	log.Printf("DEBUG: filterTransactionProductsByShopAccess - User %s (role: %s), accessible shops: %v, processing %d transaction products", 
+		syncContext.UserID, syncContext.UserRole, syncContext.AccessibleShopIDs, len(transactionProducts))
+	
+	for i, transactionProduct := range transactionProducts {
+		// Enhanced debug logging for each transaction product
+		log.Printf("DEBUG: Processing transaction product %d/%d: ID=%s, TransactionID=%s", 
+			i+1, len(transactionProducts), transactionProduct.ID, transactionProduct.TransactionID)
+		
 		// Query to check if the transaction exists and belongs to an accessible shop
 		var transactionShopID uuid.UUID
 		err := s.db.Model(&entities.Transaction{}).
@@ -2593,20 +2622,29 @@ func (s *SyncService) filterTransactionProductsByShopAccess(transactionProducts 
 			First(&transactionShopID).Error
 		
 		if err != nil {
-			// Transaction doesn't exist
+			// Transaction doesn't exist - enhanced logging
 			missingTransactions = append(missingTransactions, transactionProduct.TransactionID)
-			log.Printf("Transaction product %s references non-existent transaction %s", transactionProduct.ID, transactionProduct.TransactionID)
+			log.Printf("ERROR: Transaction product %s references non-existent transaction %s (error: %v)", transactionProduct.ID, transactionProduct.TransactionID, err)
 			continue
 		}
 		
-		if !accessibleShops[transactionShopID] {
+		log.Printf("DEBUG: Transaction %s found in shop %s, checking if shop is accessible", transactionProduct.TransactionID, transactionShopID)
+		
+		// Enhanced debug logging for shop access check
+		isAccessible := accessibleShops[transactionShopID]
+		log.Printf("DEBUG: Shop %s accessible check: %v (accessible shops map: %v)", transactionShopID, isAccessible, accessibleShops)
+		
+		if !isAccessible {
 			// Transaction exists but shop is not accessible
 			inaccessibleShops = append(inaccessibleShops, transactionShopID)
-			log.Printf("Transaction product %s references transaction in inaccessible shop %s", transactionProduct.ID, transactionShopID)
+			log.Printf("WARNING: Transaction product %s references transaction %s in inaccessible shop %s (user has access to: %v)", 
+				transactionProduct.ID, transactionProduct.TransactionID, transactionShopID, syncContext.AccessibleShopIDs)
 			continue
 		}
 		
 		// Transaction exists and shop is accessible
+		log.Printf("DEBUG: Transaction product %s PASSED filtering (transaction %s in accessible shop %s)", 
+			transactionProduct.ID, transactionProduct.TransactionID, transactionShopID)
 		filtered = append(filtered, transactionProduct)
 	}
 	
@@ -2620,7 +2658,7 @@ func (s *SyncService) filterTransactionProductsByShopAccess(transactionProducts 
 			syncContext.UserID, syncContext.UserRole, inaccessibleShops)
 	}
 	
-	log.Printf("Filtered transaction products for user %s (role: %s): %d → %d (missing transactions: %d, inaccessible shops: %d)", 
+	log.Printf("SUMMARY: Filtered transaction products for user %s (role: %s): %d → %d (missing transactions: %d, inaccessible shops: %d)", 
 		syncContext.UserID, syncContext.UserRole, len(transactionProducts), len(filtered), len(missingTransactions), len(inaccessibleShops))
 	return filtered
 }
