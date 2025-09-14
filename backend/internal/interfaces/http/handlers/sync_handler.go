@@ -190,22 +190,27 @@ func (h *SyncHandler) validateSyncRequestWithRoleAccess(req *dto.SyncRequest, us
 		return err
 	}
 
-	// Role-based validation
+	// CRITICAL FIX: Remove hard validation for role-based access
+	// The sync service will now filter entities instead of failing validation
+	// This allows partial sync success when some entities are filtered out
+	
 	switch userRole {
 	case "cashier":
-		// Cashiers can only sync data for their assigned shop
+		// Log cashier sync attempt for monitoring
 		if len(accessibleShopIDs) == 0 {
 			return fmt.Errorf("cashier has no accessible shops")
 		}
+		log.Printf("Cashier sync validation: user has access to %d shops, request contains %d entities total", 
+			len(accessibleShopIDs), 
+			len(req.Carts)+len(req.Categories)+len(req.Products)+len(req.Transactions)+
+			len(req.Expenses)+len(req.Payments)+len(req.Receipts)+len(req.Histories)+
+			len(req.StockHistories)+len(req.TransactionProducts))
 		
-		// Validate all entities in request belong to accessible shops
-		if err := h.validateEntitiesShopAccess(req, accessibleShopIDs); err != nil {
-			return fmt.Errorf("cashier sync validation failed: %w", err)
-		}
+		// Note: Entity access validation is now handled by filtering in sync service
+		// This prevents hard errors and allows partial sync success
 		
 	case "owner_business":
-		// Owner business can sync all entities under their license
-		// Additional validation could be added here if needed
+		// Owner business validation passed - filtering handled in sync service
 		log.Printf("Owner business sync validation passed for %d shops", len(accessibleShopIDs))
 		
 	case "super_admin", "admin":
