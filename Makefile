@@ -86,6 +86,10 @@ migrate-fresh:
 	@echo "Refreshing database (drop + migrate)..."
 	@cd backend && go run cmd/migrate/main.go fresh
 
+migrate-fresh-seed:
+	@echo "Refreshing database (drop + migrate + seed)..."
+	@cd backend && go run cmd/migrate/main.go fresh && go run cmd/migrate/main.go seed
+
 migrate-status:
 	@echo "Checking migration status..."
 	@cd backend && go run cmd/migrate/main.go status
