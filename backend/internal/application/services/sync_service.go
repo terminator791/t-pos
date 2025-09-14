@@ -488,12 +488,13 @@ func (s *SyncService) filterAndValidateSyncRequest(req dto.SyncRequest, syncCont
 	}
 
 	// CRITICAL FIX: Filter stock histories and transaction products based on shop access
-	filteredReq.StockHistories = s.filterStockHistoriesByShopAccess(req.StockHistories, accessibleShops, syncContext)
+	// For entities with references, check both sync request data AND database data
+	filteredReq.StockHistories = s.filterStockHistoriesByShopAccessWithSyncData(req.StockHistories, req.Products, accessibleShops, syncContext)
 	if len(req.StockHistories) > 0 {
 		stats["stock_histories"] = fmt.Sprintf("%d→%d", len(req.StockHistories), len(filteredReq.StockHistories))
 	}
 
-	filteredReq.TransactionProducts = s.filterTransactionProductsByShopAccess(req.TransactionProducts, accessibleShops, syncContext)
+	filteredReq.TransactionProducts = s.filterTransactionProductsByShopAccessWithSyncData(req.TransactionProducts, req.Transactions, accessibleShops, syncContext)
 	if len(req.TransactionProducts) > 0 {
 		stats["transaction_products"] = fmt.Sprintf("%d→%d", len(req.TransactionProducts), len(filteredReq.TransactionProducts))
 	}
@@ -555,18 +556,50 @@ func (s *SyncService) generateFilterWarnings(original, filtered dto.SyncRequest,
 	if len(original.StockHistories) > len(filtered.StockHistories) {
 		filteredCount := len(original.StockHistories) - len(filtered.StockHistories)
 		
+		// Create a map of products in the sync request for quick lookup
+		syncProductMap := make(map[uuid.UUID]uuid.UUID) // product_id -> shop_id
+		for _, product := range original.Products {
+			syncProductMap[product.ID] = product.ShopID
+		}
+		
 		// Count missing vs inaccessible entities for better error messaging
 		var missingCount, inaccessibleCount int
 		for _, stockHistory := range original.StockHistories {
-			var productShopID uuid.UUID
-			err := s.db.Model(&entities.Product{}).
-				Select("shop_id").
-				Where("id = ?", stockHistory.ProductID).
-				First(&productShopID).Error
+			// Check if this stock history was filtered (not in filtered list)
+			wasFiltered := true
+			for _, filteredSH := range filtered.StockHistories {
+				if filteredSH.ID == stockHistory.ID {
+					wasFiltered = false
+					break
+				}
+			}
 			
-			if err != nil {
-				missingCount++
+			if !wasFiltered {
+				continue // This wasn't filtered, skip it
+			}
+			
+			var productShopID uuid.UUID
+			var productFound bool
+			
+			// First check if product is in the sync request data
+			if shopID, exists := syncProductMap[stockHistory.ProductID]; exists {
+				productShopID = shopID
+				productFound = true
 			} else {
+				// If not in sync data, check the database
+				err := s.db.Model(&entities.Product{}).
+					Select("shop_id").
+					Where("id = ?", stockHistory.ProductID).
+					First(&productShopID).Error
+				
+				if err != nil {
+					missingCount++
+					continue
+				}
+				productFound = true
+			}
+			
+			if productFound {
 				// Check if shop is accessible
 				accessible := false
 				for _, shopID := range syncContext.AccessibleShopIDs {
@@ -605,18 +638,50 @@ func (s *SyncService) generateFilterWarnings(original, filtered dto.SyncRequest,
 	if len(original.TransactionProducts) > len(filtered.TransactionProducts) {
 		filteredCount := len(original.TransactionProducts) - len(filtered.TransactionProducts)
 		
+		// Create a map of transactions in the sync request for quick lookup
+		syncTransactionMap := make(map[uuid.UUID]uuid.UUID) // transaction_id -> shop_id
+		for _, transaction := range original.Transactions {
+			syncTransactionMap[transaction.ID] = transaction.ShopID
+		}
+		
 		// Count missing vs inaccessible entities for better error messaging
 		var missingCount, inaccessibleCount int
 		for _, transactionProduct := range original.TransactionProducts {
-			var transactionShopID uuid.UUID
-			err := s.db.Model(&entities.Transaction{}).
-				Select("shop_id").
-				Where("id = ?", transactionProduct.TransactionID).
-				First(&transactionShopID).Error
+			// Check if this transaction product was filtered (not in filtered list)
+			wasFiltered := true
+			for _, filteredTP := range filtered.TransactionProducts {
+				if filteredTP.ID == transactionProduct.ID {
+					wasFiltered = false
+					break
+				}
+			}
 			
-			if err != nil {
-				missingCount++
+			if !wasFiltered {
+				continue // This wasn't filtered, skip it
+			}
+			
+			var transactionShopID uuid.UUID
+			var transactionFound bool
+			
+			// First check if transaction is in the sync request data
+			if shopID, exists := syncTransactionMap[transactionProduct.TransactionID]; exists {
+				transactionShopID = shopID
+				transactionFound = true
 			} else {
+				// If not in sync data, check the database
+				err := s.db.Model(&entities.Transaction{}).
+					Select("shop_id").
+					Where("id = ?", transactionProduct.TransactionID).
+					First(&transactionShopID).Error
+				
+				if err != nil {
+					missingCount++
+					continue
+				}
+				transactionFound = true
+			}
+			
+			if transactionFound {
 				// Check if shop is accessible
 				accessible := false
 				for _, shopID := range syncContext.AccessibleShopIDs {
@@ -2527,6 +2592,149 @@ func (s *SyncService) validateStockHistoryLicense(ctx context.Context, stockHist
 	return err == nil && count > 0
 }
 
+// filterStockHistoriesByShopAccessWithSyncData filters stock histories checking both sync request data and database
+func (s *SyncService) filterStockHistoriesByShopAccessWithSyncData(stockHistories []entities.StockHistory, syncProducts []entities.Product, accessibleShops map[uuid.UUID]bool, syncContext dto.SyncContext) []entities.StockHistory {
+	if syncContext.HasGlobalAccess {
+		return stockHistories
+	}
+
+	var filtered []entities.StockHistory
+	
+	// Create a map of products in the sync request for quick lookup
+	syncProductMap := make(map[uuid.UUID]uuid.UUID) // product_id -> shop_id
+	for _, product := range syncProducts {
+		syncProductMap[product.ID] = product.ShopID
+	}
+	
+	log.Printf("DEBUG: filterStockHistoriesByShopAccessWithSyncData - User %s (role: %s), accessible shops: %v, processing %d stock histories, %d products in sync", 
+		syncContext.UserID, syncContext.UserRole, syncContext.AccessibleShopIDs, len(stockHistories), len(syncProducts))
+	
+	for i, stockHistory := range stockHistories {
+		log.Printf("DEBUG: Processing stock history %d/%d: ID=%s, ProductID=%s", 
+			i+1, len(stockHistories), stockHistory.ID, stockHistory.ProductID)
+		
+		var productShopID uuid.UUID
+		var productFound bool
+		
+		// First check if product is in the sync request data
+		if shopID, exists := syncProductMap[stockHistory.ProductID]; exists {
+			productShopID = shopID
+			productFound = true
+			log.Printf("DEBUG: Product %s found in sync request data, belongs to shop %s", stockHistory.ProductID, productShopID)
+		} else {
+			// If not in sync data, check the database
+			err := s.db.Model(&entities.Product{}).
+				Select("shop_id").
+				Where("id = ?", stockHistory.ProductID).
+				First(&productShopID).Error
+			
+			if err != nil {
+				log.Printf("ERROR: Stock history %s references non-existent product %s (not in sync data or database)", stockHistory.ID, stockHistory.ProductID)
+				continue
+			}
+			productFound = true
+			log.Printf("DEBUG: Product %s found in database, belongs to shop %s", stockHistory.ProductID, productShopID)
+		}
+		
+		if !productFound {
+			continue
+		}
+		
+		// Check if shop is accessible
+		isAccessible := accessibleShops[productShopID]
+		log.Printf("DEBUG: Shop %s accessible check: %v", productShopID, isAccessible)
+		
+		if !isAccessible {
+			log.Printf("WARNING: Stock history %s references product %s in inaccessible shop %s", 
+				stockHistory.ID, stockHistory.ProductID, productShopID)
+			continue
+		}
+		
+		log.Printf("DEBUG: Stock history %s PASSED filtering (product %s in accessible shop %s)", 
+			stockHistory.ID, stockHistory.ProductID, productShopID)
+		filtered = append(filtered, stockHistory)
+	}
+	
+	log.Printf("SUMMARY: Filtered stock histories for user %s (role: %s): %d → %d", 
+		syncContext.UserID, syncContext.UserRole, len(stockHistories), len(filtered))
+	return filtered
+}
+
+// filterTransactionProductsByShopAccessWithSyncData filters transaction products checking both sync request data and database
+func (s *SyncService) filterTransactionProductsByShopAccessWithSyncData(transactionProducts []entities.TransactionProduct, syncTransactions []entities.Transaction, accessibleShops map[uuid.UUID]bool, syncContext dto.SyncContext) []entities.TransactionProduct {
+	if syncContext.HasGlobalAccess {
+		return transactionProducts
+	}
+
+	var filtered []entities.TransactionProduct
+	
+	// Create a map of transactions in the sync request for quick lookup
+	syncTransactionMap := make(map[uuid.UUID]uuid.UUID) // transaction_id -> shop_id
+	for _, transaction := range syncTransactions {
+		syncTransactionMap[transaction.ID] = transaction.ShopID
+	}
+	
+	log.Printf("DEBUG: filterTransactionProductsByShopAccessWithSyncData - User %s (role: %s), accessible shops: %v, processing %d transaction products, %d transactions in sync", 
+		syncContext.UserID, syncContext.UserRole, syncContext.AccessibleShopIDs, len(transactionProducts), len(syncTransactions))
+	
+	for i, transactionProduct := range transactionProducts {
+		log.Printf("DEBUG: Processing transaction product %d/%d: ID=%s, TransactionID=%s", 
+			i+1, len(transactionProducts), transactionProduct.ID, transactionProduct.TransactionID)
+		
+		var transactionShopID uuid.UUID
+		var transactionFound bool
+		
+		// First check if transaction is in the sync request data
+		if shopID, exists := syncTransactionMap[transactionProduct.TransactionID]; exists {
+			transactionShopID = shopID
+			transactionFound = true
+			log.Printf("DEBUG: Transaction %s found in sync request data, belongs to shop %s", transactionProduct.TransactionID, transactionShopID)
+		} else {
+			// If not in sync data, check the database
+			err := s.db.Model(&entities.Transaction{}).
+				Select("shop_id").
+				Where("id = ?", transactionProduct.TransactionID).
+				First(&transactionShopID).Error
+			
+			if err != nil {
+				log.Printf("ERROR: Transaction product %s references non-existent transaction %s (not in sync data or database)", transactionProduct.ID, transactionProduct.TransactionID)
+				continue
+			}
+			transactionFound = true
+			log.Printf("DEBUG: Transaction %s found in database, belongs to shop %s", transactionProduct.TransactionID, transactionShopID)
+		}
+		
+		if !transactionFound {
+			continue
+		}
+		
+		// Check if shop is accessible
+		isAccessible := accessibleShops[transactionShopID]
+		log.Printf("DEBUG: Shop %s accessible check: %v", transactionShopID, isAccessible)
+		
+		if !isAccessible {
+			log.Printf("WARNING: Transaction product %s references transaction %s in inaccessible shop %s", 
+				transactionProduct.ID, transactionProduct.TransactionID, transactionShopID)
+			continue
+		}
+		
+		log.Printf("DEBUG: Transaction product %s PASSED filtering (transaction %s in accessible shop %s)", 
+			transactionProduct.ID, transactionProduct.TransactionID, transactionShopID)
+		filtered = append(filtered, transactionProduct)
+	}
+	
+	log.Printf("SUMMARY: Filtered transaction products for user %s (role: %s): %d → %d", 
+		syncContext.UserID, syncContext.UserRole, len(transactionProducts), len(filtered))
+	return filtered
+}
+
+// FilterResult holds filtering statistics for generating accurate warnings
+type FilterResult struct {
+	Filtered         []entities.StockHistory
+	MissingProducts  []uuid.UUID
+	InaccessibleShops []uuid.UUID
+}
+
 // filterStockHistoriesByShopAccess filters stock histories based on accessible shops
 func (s *SyncService) filterStockHistoriesByShopAccess(stockHistories []entities.StockHistory, accessibleShops map[uuid.UUID]bool, syncContext dto.SyncContext) []entities.StockHistory {
 	if syncContext.HasGlobalAccess {
@@ -2534,8 +2742,6 @@ func (s *SyncService) filterStockHistoriesByShopAccess(stockHistories []entities
 	}
 
 	var filtered []entities.StockHistory
-	var missingProducts []uuid.UUID
-	var inaccessibleShops []uuid.UUID
 	
 	// Enhanced debug logging
 	log.Printf("DEBUG: filterStockHistoriesByShopAccess - User %s (role: %s), accessible shops: %v, processing %d stock histories", 
@@ -2555,7 +2761,6 @@ func (s *SyncService) filterStockHistoriesByShopAccess(stockHistories []entities
 		
 		if err != nil {
 			// Product doesn't exist - enhanced logging
-			missingProducts = append(missingProducts, stockHistory.ProductID)
 			log.Printf("ERROR: Stock history %s references non-existent product %s (error: %v)", stockHistory.ID, stockHistory.ProductID, err)
 			continue
 		}
@@ -2568,7 +2773,6 @@ func (s *SyncService) filterStockHistoriesByShopAccess(stockHistories []entities
 		
 		if !isAccessible {
 			// Product exists but shop is not accessible
-			inaccessibleShops = append(inaccessibleShops, productShopID)
 			log.Printf("WARNING: Stock history %s references product %s in inaccessible shop %s (user has access to: %v)", 
 				stockHistory.ID, stockHistory.ProductID, productShopID, syncContext.AccessibleShopIDs)
 			continue
@@ -2580,18 +2784,8 @@ func (s *SyncService) filterStockHistoriesByShopAccess(stockHistories []entities
 		filtered = append(filtered, stockHistory)
 	}
 	
-	// Enhanced logging with detailed information
-	if len(missingProducts) > 0 {
-		log.Printf("Stock histories filtered due to missing products for user %s (role: %s): missing products %v", 
-			syncContext.UserID, syncContext.UserRole, missingProducts)
-	}
-	if len(inaccessibleShops) > 0 {
-		log.Printf("Stock histories filtered due to inaccessible shops for user %s (role: %s): inaccessible shops %v", 
-			syncContext.UserID, syncContext.UserRole, inaccessibleShops)
-	}
-	
-	log.Printf("SUMMARY: Filtered stock histories for user %s (role: %s): %d → %d (missing products: %d, inaccessible shops: %d)", 
-		syncContext.UserID, syncContext.UserRole, len(stockHistories), len(filtered), len(missingProducts), len(inaccessibleShops))
+	log.Printf("SUMMARY: Filtered stock histories for user %s (role: %s): %d → %d", 
+		syncContext.UserID, syncContext.UserRole, len(stockHistories), len(filtered))
 	return filtered
 }
 
@@ -2602,8 +2796,6 @@ func (s *SyncService) filterTransactionProductsByShopAccess(transactionProducts 
 	}
 
 	var filtered []entities.TransactionProduct
-	var missingTransactions []uuid.UUID
-	var inaccessibleShops []uuid.UUID
 	
 	// Enhanced debug logging
 	log.Printf("DEBUG: filterTransactionProductsByShopAccess - User %s (role: %s), accessible shops: %v, processing %d transaction products", 
@@ -2623,7 +2815,6 @@ func (s *SyncService) filterTransactionProductsByShopAccess(transactionProducts 
 		
 		if err != nil {
 			// Transaction doesn't exist - enhanced logging
-			missingTransactions = append(missingTransactions, transactionProduct.TransactionID)
 			log.Printf("ERROR: Transaction product %s references non-existent transaction %s (error: %v)", transactionProduct.ID, transactionProduct.TransactionID, err)
 			continue
 		}
@@ -2636,7 +2827,6 @@ func (s *SyncService) filterTransactionProductsByShopAccess(transactionProducts 
 		
 		if !isAccessible {
 			// Transaction exists but shop is not accessible
-			inaccessibleShops = append(inaccessibleShops, transactionShopID)
 			log.Printf("WARNING: Transaction product %s references transaction %s in inaccessible shop %s (user has access to: %v)", 
 				transactionProduct.ID, transactionProduct.TransactionID, transactionShopID, syncContext.AccessibleShopIDs)
 			continue
@@ -2648,18 +2838,8 @@ func (s *SyncService) filterTransactionProductsByShopAccess(transactionProducts 
 		filtered = append(filtered, transactionProduct)
 	}
 	
-	// Enhanced logging with detailed information
-	if len(missingTransactions) > 0 {
-		log.Printf("Transaction products filtered due to missing transactions for user %s (role: %s): missing transactions %v", 
-			syncContext.UserID, syncContext.UserRole, missingTransactions)
-	}
-	if len(inaccessibleShops) > 0 {
-		log.Printf("Transaction products filtered due to inaccessible shops for user %s (role: %s): inaccessible shops %v", 
-			syncContext.UserID, syncContext.UserRole, inaccessibleShops)
-	}
-	
-	log.Printf("SUMMARY: Filtered transaction products for user %s (role: %s): %d → %d (missing transactions: %d, inaccessible shops: %d)", 
-		syncContext.UserID, syncContext.UserRole, len(transactionProducts), len(filtered), len(missingTransactions), len(inaccessibleShops))
+	log.Printf("SUMMARY: Filtered transaction products for user %s (role: %s): %d → %d", 
+		syncContext.UserID, syncContext.UserRole, len(transactionProducts), len(filtered))
 	return filtered
 }
 
