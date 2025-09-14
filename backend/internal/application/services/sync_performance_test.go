@@ -22,16 +22,16 @@ func TestSyncPerformanceOptimizations(t *testing.T) {
 	require.NoError(t, err)
 
 	// Manually create simple tables for testing (avoiding UUID generation issues in SQLite)
-	err = db.Exec("CREATE TABLE shops (id TEXT PRIMARY KEY, license_id TEXT, name TEXT)").Error
+	err = db.Exec("CREATE TABLE shops (id TEXT PRIMARY KEY, license_id TEXT, user_id TEXT, name TEXT, domain TEXT, photo TEXT, address TEXT, slogan TEXT, profit_calculate INTEGER, created_at TEXT, updated_at TEXT, deleted_at TEXT)").Error
 	require.NoError(t, err)
 	
-	err = db.Exec("CREATE TABLE products (id TEXT PRIMARY KEY, shop_id TEXT, name TEXT, updated_at DATETIME)").Error
+	err = db.Exec("CREATE TABLE products (id TEXT PRIMARY KEY, shop_id TEXT, cat_id TEXT, photo TEXT, name TEXT, barcode TEXT, unit TEXT, ppn TEXT, sale REAL, buy REAL, profit REAL, stock INTEGER, is_schedule BOOLEAN, schedule TEXT, qty TEXT, is_have_stock BOOLEAN, created_at TEXT, updated_at TEXT, deleted_at TEXT)").Error
 	require.NoError(t, err)
 	
-	err = db.Exec("CREATE TABLE transactions (id TEXT PRIMARY KEY, shop_id TEXT, total_price REAL, updated_at DATETIME)").Error
+	err = db.Exec("CREATE TABLE transactions (id TEXT PRIMARY KEY, shop_id TEXT, total_price REAL, updated_at DATETIME, deleted_at TEXT)").Error
 	require.NoError(t, err)
 	
-	err = db.Exec("CREATE TABLE stock_histories (id TEXT PRIMARY KEY, product_id TEXT, stock INTEGER, updated_at DATETIME)").Error
+	err = db.Exec("CREATE TABLE stock_histories (id TEXT PRIMARY KEY, product_id TEXT, stock INTEGER, updated_at DATETIME, deleted_at TEXT)").Error
 	require.NoError(t, err)
 
 	// Create test configuration with optimizations enabled
@@ -413,6 +413,13 @@ func TestPerformanceOptimizationFallbacks(t *testing.T) {
 	// when errors occur or optimizations are disabled
 	
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	// Create necessary tables for testing
+	err = db.Exec("CREATE TABLE shops (id TEXT PRIMARY KEY, license_id TEXT, user_id TEXT, name TEXT, domain TEXT, photo TEXT, address TEXT, slogan TEXT, profit_calculate INTEGER, created_at TEXT, updated_at TEXT, deleted_at TEXT)").Error
+	require.NoError(t, err)
+	
+	err = db.Exec("CREATE TABLE products (id TEXT PRIMARY KEY, shop_id TEXT, cat_id TEXT, photo TEXT, name TEXT, barcode TEXT, unit TEXT, ppn TEXT, sale REAL, buy REAL, profit REAL, stock INTEGER, is_schedule BOOLEAN, schedule TEXT, qty TEXT, is_have_stock BOOLEAN, created_at TEXT, updated_at TEXT, deleted_at TEXT)").Error
 	require.NoError(t, err)
 
 	t.Run("DisabledOptimizations", func(t *testing.T) {

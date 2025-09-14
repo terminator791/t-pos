@@ -113,12 +113,22 @@ func TestSyncEntityValidator(t *testing.T) {
 			id TEXT PRIMARY KEY,
 			shop_id TEXT NOT NULL,
 			cat_id TEXT,
+			photo TEXT,
 			name TEXT NOT NULL,
+			barcode TEXT,
+			unit TEXT,
+			ppn TEXT,
 			sale REAL NOT NULL,
 			buy REAL NOT NULL,
+			profit REAL,
 			stock INTEGER DEFAULT 0,
+			is_schedule BOOLEAN DEFAULT false,
+			schedule TEXT,
+			qty TEXT,
+			is_have_stock BOOLEAN DEFAULT true,
 			created_at TEXT,
-			updated_at TEXT
+			updated_at TEXT,
+			deleted_at TEXT
 		);
 		CREATE TABLE IF NOT EXISTS carts (
 			id TEXT PRIMARY KEY,
@@ -127,26 +137,48 @@ func TestSyncEntityValidator(t *testing.T) {
 			user_id TEXT NOT NULL,
 			quantity INTEGER NOT NULL,
 			created_at TEXT,
-			updated_at TEXT
+			updated_at TEXT,
+			deleted_at TEXT
 		);
 		CREATE TABLE IF NOT EXISTS shops (
 			id TEXT PRIMARY KEY,
+			license_id TEXT,
+			user_id TEXT,
 			name TEXT NOT NULL,
+			domain TEXT,
+			photo TEXT,
+			address TEXT,
+			slogan TEXT,
+			profit_calculate INTEGER DEFAULT 0,
 			created_at TEXT,
-			updated_at TEXT
+			updated_at TEXT,
+			deleted_at TEXT
 		);
 		CREATE TABLE IF NOT EXISTS users (
 			id TEXT PRIMARY KEY,
+			license_id TEXT,
+			role_id TEXT,
+			shop_id TEXT,
+			email TEXT UNIQUE,
+			email_verified_at TEXT,
+			username TEXT UNIQUE,
 			name TEXT NOT NULL,
+			password TEXT NOT NULL DEFAULT '',
+			pin TEXT,
+			info_device TEXT,
+			fcm_token TEXT,
+			remember_token TEXT,
 			created_at TEXT,
-			updated_at TEXT
+			updated_at TEXT,
+			deleted_at TEXT
 		);
 		CREATE TABLE IF NOT EXISTS categories (
 			id TEXT PRIMARY KEY,
 			shop_id TEXT NOT NULL,
 			name TEXT NOT NULL,
 			created_at TEXT,
-			updated_at TEXT
+			updated_at TEXT,
+			deleted_at TEXT
 		);
 	`).Error
 	require.NoError(t, err)
