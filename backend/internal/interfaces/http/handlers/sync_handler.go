@@ -12,6 +12,7 @@ import (
 	"github.com/terminator791/t-pos/internal/domain/dto"
 	"github.com/terminator791/t-pos/internal/domain/entities"
 	"github.com/terminator791/t-pos/internal/domain/repositories"
+	"github.com/terminator791/t-pos/internal/domain/validators"
 	"github.com/terminator791/t-pos/internal/infrastructure/auth"
 	"github.com/terminator791/t-pos/pkg/response"
 )
@@ -118,6 +119,12 @@ func (h *SyncHandler) ProcessSync(c *gin.Context) {
 	// CRITICAL FIX: Handle shop_id requirements based on role
 	if err := h.handleShopIDRequirements(&syncRequest, userRole, user); err != nil {
 		response.ErrorBadRequest(c, "Shop ID validation failed", err.Error())
+		return
+	}
+
+	// CRITICAL FIX: Validate enum fields and cashier IDs in sync request
+	if err := h.validateSyncRequestEnumsAndCashiers(&syncRequest); err != nil {
+		response.ErrorBadRequest(c, "Sync request validation failed", err.Error())
 		return
 	}
 
@@ -664,4 +671,92 @@ func (h *SyncHandler) Health(c *gin.Context) {
 		"service": "sync",
 		"version": "1.0.0",
 	})
+}
+
+// validateSyncRequestEnumsAndCashiers validates enum fields and cashier IDs in the sync request
+func (h *SyncHandler) validateSyncRequestEnumsAndCashiers(req *dto.SyncRequest) error {
+	// Validate enum fields in expenses
+	for i, expense := range req.Expenses {
+		if err := validators.ValidateExpenseStatus(expense.Status); err != nil {
+			return fmt.Errorf("expense[%d]: %w", i, err)
+		}
+	}
+
+	// Validate enum fields in payments
+	for i, payment := range req.Payments {
+		if err := validators.ValidatePaymentStatus(payment.Status); err != nil {
+			return fmt.Errorf("payment[%d]: %w", i, err)
+		}
+	}
+
+	// Validate enum fields and cashier IDs in transactions
+	for i, transaction := range req.Transactions {
+		// Validate transaction status enum
+		if err := validators.ValidateTransactionStatus(transaction.Status); err != nil {
+			return fmt.Errorf("transaction[%d]: %w", i, err)
+		}
+
+		// Validate cashier_id exists and is a valid cashier user
+		if err := h.validateCashierID(transaction.CashierID); err != nil {
+			return fmt.Errorf("transaction[%d] cashier validation failed: %w", i, err)
+		}
+	}
+
+	// Validate and auto-initialize shop domains
+	for i := range req.Shops {
+		if err := h.validateAndInitializeShopDomain(&req.Shops[i]); err != nil {
+			return fmt.Errorf("shop[%d] domain validation failed: %w", i, err)
+		}
+	}
+
+	return nil
+}
+
+// validateCashierID validates that the cashier_id exists and refers to a user with cashier role
+func (h *SyncHandler) validateCashierID(cashierID uuid.UUID) error {
+	// Get the user by ID
+	user, err := h.userRepo.GetByID(context.Background(), cashierID)
+	if err != nil {
+		return fmt.Errorf("cashier_id %s not found", cashierID)
+	}
+
+	// Check if user has a role assigned
+	if user.RoleID == nil {
+		return fmt.Errorf("cashier_id %s has no role assigned", cashierID)
+	}
+
+	// Get the role to verify it's a cashier
+	role, err := h.roleRepo.GetByID(context.Background(), *user.RoleID)
+	if err != nil {
+		return fmt.Errorf("failed to get role for cashier_id %s", cashierID)
+	}
+
+	// Verify the role is "cashier"
+	if role.Name != "cashier" {
+		return fmt.Errorf("cashier_id %s has role '%s', expected 'cashier'", cashierID, role.Name)
+	}
+
+	return nil
+}
+
+// validateAndInitializeShopDomain ensures shop domain is properly initialized
+func (h *SyncHandler) validateAndInitializeShopDomain(shop *entities.Shop) error {
+	// If shop ID is nil, generate one
+	if shop.ID == uuid.Nil {
+		shop.ID = uuid.New()
+	}
+
+	// Auto-initialize domain if it's empty (following the entity's BeforeCreate logic)
+	if shop.Domain == "" {
+		shop.Domain = "shop-" + shop.ID.String()
+		log.Printf("Auto-initialized shop domain: %s for shop ID: %s", shop.Domain, shop.ID.String())
+	}
+
+	// Validate domain format for existing domains
+	expectedDomain := "shop-" + shop.ID.String()
+	if shop.Domain != expectedDomain {
+		return fmt.Errorf("shop domain '%s' does not match expected format 'shop-%s'", shop.Domain, shop.ID.String())
+	}
+
+	return nil
 }
