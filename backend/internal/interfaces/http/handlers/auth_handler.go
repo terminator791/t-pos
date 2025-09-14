@@ -147,34 +147,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		}
 		domain = license.SerialNumber
 	} else {
-		// For users without license (superadmin, admin), set domain based on role and user domains
-		switch role.Name {
-		case "super_admin":
-			// Super admin gets access to all domains
-			domain = "*"
-		case "admin":
-			// Admin can access all shops, but prefer specific domain if available
-			userDomains, err := h.userDomainRepo.GetByUserID(context.Background(), user.ID)
-			if err == nil && len(userDomains) > 0 {
-				// Use first domain if available, otherwise use wildcard
-				domain = userDomains[0].Domain
-			} else {
-				domain = "*"
-			}
-		default:
-			// For other roles, get domain from user domains
-			userDomains, err := h.userDomainRepo.GetByUserID(context.Background(), user.ID)
-			if err != nil {
-				response.ErrorInternalServer(c, "Failed to get user domains", err.Error())
-				return
-			}
-			if len(userDomains) > 0 {
-				domain = userDomains[0].Domain
-			} else {
-				response.ErrorUnauthorized(c, "User has no assigned domain", nil)
-				return
-			}
-		}
+		// For users without license cant login
+		response.ErrorForbidden(c, "User has no license assigned", nil)
+		return
 	}
 
 	// Generate JWT token
@@ -188,11 +163,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		email = *user.Email
 	}
 
-	// Get shop_id if user is a cashier
-	var shopID *uuid.UUID
-	if role.Name == "cashier" && user.ShopID != nil {
-		shopID = user.ShopID
-	}
+	// not set shopID (its always owner_business login)
+	var shopID *uuid.UUID = nil
 
 	token, err := h.jwtService.GenerateToken(user.ID, email, username, user.Name, domain, shopID)
 	if err != nil {
@@ -301,14 +273,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	// Assign domain access based on role (use license.SerialNumber as domain)
 	var domains []string
 
-	switch defaultRole.Name {
-	case "super_admin":
-		// Super admin gets access to all domains
-		domains = []string{"*"}
-	case "admin":
-		// Admin gets access to all shops (shop*)
-		domains = []string{"shop*"}
-	case "owner_business":
+	if defaultRole.Name == "owner_business" {
 		// Owner business gets access to their license domain (can access all shops under it)
 		domains = []string{license.SerialNumber}
 		
@@ -317,10 +282,10 @@ func (h *AuthHandler) Register(c *gin.Context) {
 			log.Printf("Failed to assign policies for owner_business %s: %v", user.ID, err)
 			// Don't fail registration, but log the error
 		}
-	case "cashier":
-		// Cashier needs to be assigned to specific shop - this would be done by owner_business later
-		// For now, give no domain access (will be assigned by owner)
-		domains = []string{}
+	} else {
+		// response with error since default role must be owner_business
+		response.ErrorForbidden(c, "Role must be owner_business", nil)
+		return
 	}
 
 	// Create user domain records
