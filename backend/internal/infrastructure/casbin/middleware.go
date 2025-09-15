@@ -16,20 +16,20 @@ import (
 
 // AuthzMiddleware handles authorization using Casbin
 type AuthzMiddleware struct {
-	enforcerService    *EnforcerService
-	shopRepo           repositories.ShopRepository
-	userRepo           repositories.UserRepository
-	roleRepo           repositories.RoleRepository
-	transactionRepo    repositories.TransactionRepository
-	productRepo        repositories.ProductRepository
-	categoryRepo       repositories.CategoryRepository
+	enforcerService *EnforcerService
+	shopRepo        repositories.ShopRepository
+	userRepo        repositories.UserRepository
+	roleRepo        repositories.RoleRepository
+	transactionRepo repositories.TransactionRepository
+	productRepo     repositories.ProductRepository
+	categoryRepo    repositories.CategoryRepository
 }
 
 // NewAuthzMiddleware creates a new authorization middleware
 func NewAuthzMiddleware(
-	enforcerService *EnforcerService, 
-	shopRepo repositories.ShopRepository, 
-	userRepo repositories.UserRepository, 
+	enforcerService *EnforcerService,
+	shopRepo repositories.ShopRepository,
+	userRepo repositories.UserRepository,
 	roleRepo repositories.RoleRepository,
 	transactionRepo repositories.TransactionRepository,
 	productRepo repositories.ProductRepository,
@@ -64,7 +64,7 @@ func (m *AuthzMiddleware) RequirePermission() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		
+
 		user, ok := userInterface.(*entities.User)
 		if !ok {
 			response.ErrorInternalServer(c, "Invalid user context", nil)
@@ -80,7 +80,7 @@ func (m *AuthzMiddleware) RequirePermission() gin.HandlerFunc {
 				domain = claims.Domain
 			}
 		}
-		
+
 		// Enhanced domain validation with detailed error handling
 		if domain == "" {
 			// For tenant-specific users (owner_business, cashier), domain is required
@@ -93,7 +93,7 @@ func (m *AuthzMiddleware) RequirePermission() gin.HandlerFunc {
 					c.Abort()
 					return
 				}
-				
+
 				// Only super_admin and admin can have wildcard access
 				if role.Name == "super_admin" || role.Name == "admin" {
 					domain = "*"
@@ -136,9 +136,9 @@ func (m *AuthzMiddleware) RequirePermission() gin.HandlerFunc {
 		allowed, err := m.enforcerService.Enforce(userID.String(), domain, object, action)
 		if err != nil {
 			// Log detailed error information for debugging
-			log.Printf("Authorization check failed for user %s: domain=%s, object=%s, action=%s, error=%v", 
+			log.Printf("Authorization check failed for user %s: domain=%s, object=%s, action=%s, error=%v",
 				userID.String(), domain, object, action, err)
-			
+
 			response.ErrorInternalServer(c, "Authorization system error", map[string]interface{}{
 				"error_type": "casbin_enforcement_failure",
 				"user":       userID.String(),
@@ -153,9 +153,9 @@ func (m *AuthzMiddleware) RequirePermission() gin.HandlerFunc {
 
 		if !allowed {
 			// Log detailed access denial for security audit
-			log.Printf("Access denied for user %s: domain=%s, object=%s, action=%s", 
+			log.Printf("Access denied for user %s: domain=%s, object=%s, action=%s",
 				userID.String(), domain, object, action)
-			
+
 			response.ErrorForbidden(c, "Insufficient permissions for this operation", map[string]interface{}{
 				"user":             userID.String(),
 				"domain":           domain,
@@ -171,7 +171,7 @@ func (m *AuthzMiddleware) RequirePermission() gin.HandlerFunc {
 
 		// Log successful authorization for audit trail (only in debug mode)
 		if log.Writer() != nil {
-			log.Printf("Access granted for user %s: domain=%s, object=%s, action=%s", 
+			log.Printf("Access granted for user %s: domain=%s, object=%s, action=%s",
 				userID.String(), domain, object, action)
 		}
 
@@ -289,7 +289,7 @@ func (m *AuthzMiddleware) ValidateShopAccess(c *gin.Context, shopID uuid.UUID) e
 	if !userExists {
 		return fmt.Errorf("user context not found")
 	}
-	
+
 	user, ok := userInterface.(*entities.User)
 	if !ok {
 		return fmt.Errorf("invalid user context")
@@ -303,7 +303,7 @@ func (m *AuthzMiddleware) ValidateShopAccess(c *gin.Context, shopID uuid.UUID) e
 			domain = claims.Domain
 		}
 	}
-	
+
 	// Get shop details
 	shop, err := m.shopRepo.GetByID(c.Request.Context(), shopID)
 	if err != nil {
@@ -322,7 +322,7 @@ func (m *AuthzMiddleware) ValidateShopAccess(c *gin.Context, shopID uuid.UUID) e
 		// Cashier accessing their assigned shop
 		return nil
 	default:
-		return fmt.Errorf("user cannot access shop %s (user domain: %s, user license: %v, user shop: %v, shop license: %s)", 
+		return fmt.Errorf("user cannot access shop %s (user domain: %s, user license: %v, user shop: %v, shop license: %s)",
 			shopID, domain, user.LicenseID, user.ShopID, shop.LicenseID)
 	}
 }
@@ -366,7 +366,7 @@ func (m *AuthzMiddleware) ValidateLicenseAccess(c *gin.Context, licenseID uuid.U
 	if !userExists {
 		return fmt.Errorf("user context not found")
 	}
-	
+
 	user, ok := userInterface.(*entities.User)
 	if !ok {
 		return fmt.Errorf("invalid user context")
@@ -380,7 +380,7 @@ func (m *AuthzMiddleware) ValidateLicenseAccess(c *gin.Context, licenseID uuid.U
 			domain = claims.Domain
 		}
 	}
-	
+
 	// Check access based on domain and user context
 	switch {
 	case domain == "*":
@@ -390,12 +390,12 @@ func (m *AuthzMiddleware) ValidateLicenseAccess(c *gin.Context, licenseID uuid.U
 		// User accessing their own license
 		return nil
 	default:
-		return fmt.Errorf("user cannot access license %s (user domain: %s, user license: %v)", 
+		return fmt.Errorf("user cannot access license %s (user domain: %s, user license: %v)",
 			licenseID, domain, user.LicenseID)
 	}
 }
 
-// RequireLicenseAccess middleware validates license access for endpoints with :licenseId parameter  
+// RequireLicenseAccess middleware validates license access for endpoints with :licenseId parameter
 func (m *AuthzMiddleware) RequireLicenseAccess() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Extract license ID from URL parameter
@@ -468,7 +468,7 @@ func (m *AuthzMiddleware) ValidateResourceAccess(c *gin.Context, resourceID uuid
 	if !userExists {
 		return fmt.Errorf("user context not found")
 	}
-	
+
 	user, ok := userInterface.(*entities.User)
 	if !ok {
 		return fmt.Errorf("invalid user context")
@@ -482,7 +482,7 @@ func (m *AuthzMiddleware) ValidateResourceAccess(c *gin.Context, resourceID uuid
 			domain = claims.Domain
 		}
 	}
-	
+
 	switch {
 	case domain == "*":
 		// Global access (super_admin, admin)
@@ -516,7 +516,7 @@ func (m *AuthzMiddleware) validateTransactionAccess(ctx context.Context, user *e
 	if err != nil {
 		return fmt.Errorf("transaction not found: %w", err)
 	}
-	
+
 	// Use direct shop access validation logic
 	return m.validateShopAccessDirect(user, domain, transaction.ShopID)
 }
@@ -528,7 +528,7 @@ func (m *AuthzMiddleware) validateProductAccess(ctx context.Context, user *entit
 	if err != nil {
 		return fmt.Errorf("product not found: %w", err)
 	}
-	
+
 	// Use direct shop access validation logic
 	return m.validateShopAccessDirect(user, domain, product.ShopID)
 }
@@ -540,7 +540,7 @@ func (m *AuthzMiddleware) validateCategoryAccess(ctx context.Context, user *enti
 	if err != nil {
 		return fmt.Errorf("category not found: %w", err)
 	}
-	
+
 	// Use direct shop access validation logic
 	return m.validateShopAccessDirect(user, domain, category.ShopID)
 }
@@ -565,7 +565,7 @@ func (m *AuthzMiddleware) validateShopAccessDirect(user *entities.User, domain s
 		// Cashier accessing their assigned shop
 		return nil
 	default:
-		return fmt.Errorf("user cannot access shop %s (user domain: %s, user license: %v, user shop: %v, shop license: %s)", 
+		return fmt.Errorf("user cannot access shop %s (user domain: %s, user license: %v, user shop: %v, shop license: %s)",
 			shopID, domain, user.LicenseID, user.ShopID, shop.LicenseID)
 	}
 }
@@ -577,12 +577,12 @@ func (m *AuthzMiddleware) validateGenericResourceAccess(c *gin.Context, user *en
 	if err != nil {
 		return fmt.Errorf("failed to get domain access info: %w", err)
 	}
-	
+
 	// For now, log the access attempt and allow access
 	// This can be extended for specific resource types as needed
-	log.Printf("Generic resource access validation for %s:%s by user %s (role: %s, domain: %s) - allowing access", 
+	log.Printf("Generic resource access validation for %s:%s by user %s (role: %s, domain: %s) - allowing access",
 		resourceType, resourceID, user.ID, domainAccess.Role, domain)
-	
+
 	return nil
 }
 

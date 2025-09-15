@@ -73,13 +73,13 @@ func (r *HistoryRepositoryImpl) ListByShopIDs(ctx context.Context, shopIDs []uui
 	if len(shopIDs) == 0 {
 		return histories, nil // Return empty slice if no accessible shops
 	}
-	
+
 	err := r.db.WithContext(ctx).
 		Where("shop_id IN (?)", shopIDs).
 		Limit(limit).
 		Offset(offset).
 		Find(&histories).Error
-		
+
 	return histories, err
 }
 
@@ -89,10 +89,10 @@ func (r *HistoryRepositoryImpl) GetByShopIDs(ctx context.Context, shopIDs []uuid
 	if len(shopIDs) == 0 {
 		return histories, nil // Return empty slice if no accessible shops
 	}
-	
+
 	err := r.db.WithContext(ctx).
 		Where("shop_id IN (?)", shopIDs).
 		Find(&histories).Error
-		
+
 	return histories, err
 }

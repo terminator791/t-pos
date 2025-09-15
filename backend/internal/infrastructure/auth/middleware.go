@@ -74,7 +74,7 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 		c.Set("user_email", claims.Email)
 		c.Set("user_username", claims.Username)
 		c.Set("user_name", claims.Name)
-		c.Set("user_domain", domain)  // Use validated domain from database
+		c.Set("user_domain", domain) // Use validated domain from database
 		c.Set("user_shop_id", claims.ShopID)
 		c.Set("user", user)
 		c.Set("claims", claims)
@@ -124,7 +124,7 @@ func (m *AuthMiddleware) OptionalAuth() gin.HandlerFunc {
 		c.Set("user_email", claims.Email)
 		c.Set("user_username", claims.Username)
 		c.Set("user_name", claims.Name)
-		c.Set("user_domain", domain)  // Use validated domain from database
+		c.Set("user_domain", domain) // Use validated domain from database
 		c.Set("user_shop_id", claims.ShopID)
 		c.Set("user", user)
 		c.Set("claims", claims)
@@ -176,54 +176,54 @@ func GetUserFromContext(c *gin.Context) (*entities.User, bool) {
 // validateUserDomain validates and determines the appropriate domain for a user from database
 func (m *AuthMiddleware) validateUserDomain(user *entities.User) (string, error) {
 	ctx := context.Background()
-	
+
 	// Get user role information
 	if user.RoleID == nil {
 		return "", fmt.Errorf("user has no role assigned")
 	}
-	
+
 	role, err := m.roleRepo.GetByID(ctx, *user.RoleID)
 	if err != nil {
 		return "", fmt.Errorf("failed to get user role: %w", err)
 	}
-	
+
 	// Determine domain based on role and user assignments
 	switch role.Name {
 	case "super_admin", "admin":
 		// Global access users
 		return "*", nil
-		
+
 	case "owner_business":
 		// Owner business users must have a license
 		if user.LicenseID == nil {
 			return "", fmt.Errorf("owner_business user missing license assignment")
 		}
-		
+
 		// Validate license exists and create domain from license serial
 		// For consistency with existing implementation, use license serial format
 		return user.LicenseID.String(), nil
-		
+
 	case "cashier":
 		// Cashier users must have a shop assignment
 		if user.ShopID == nil {
 			return "", fmt.Errorf("cashier user missing shop assignment")
 		}
-		
+
 		// Validate shop exists and user has access
 		shop, err := m.shopRepo.GetByID(ctx, *user.ShopID)
 		if err != nil {
 			return "", fmt.Errorf("assigned shop not found: %w", err)
 		}
-		
+
 		// Ensure shop is accessible (cross-validation with license if needed)
 		if user.LicenseID != nil && shop.LicenseID != *user.LicenseID {
-			return "", fmt.Errorf("shop license mismatch: user license %s, shop license %s", 
+			return "", fmt.Errorf("shop license mismatch: user license %s, shop license %s",
 				user.LicenseID.String(), shop.LicenseID.String())
 		}
-		
+
 		// Create shop-specific domain
 		return fmt.Sprintf("shop-%s", user.ShopID.String()), nil
-		
+
 	default:
 		return "", fmt.Errorf("unknown role: %s", role.Name)
 	}

@@ -56,7 +56,7 @@ func NewEnforcerService(db *gorm.DB, modelPath string) (*EnforcerService, error)
 
 		// Enable auto-save for real-time policy updates
 		enforcer.EnableAutoSave(true)
-		
+
 		// Enable logging for policy operations
 		enforcer.EnableLog(true)
 
@@ -66,7 +66,7 @@ func NewEnforcerService(db *gorm.DB, modelPath string) (*EnforcerService, error)
 		}
 
 		log.Println("Casbin enforcer initialized successfully with policy auto-loading")
-		
+
 		// Log policy statistics for monitoring
 		policies := enforcerInstance.GetAllPolicies()
 		groupings := enforcerInstance.GetAllRoles()
@@ -83,11 +83,11 @@ func (e *EnforcerService) Enforce(user, domain, object, action string) (bool, er
 
 	// Enhanced debug logging for policy enforcement
 	log.Printf("DEBUG: Casbin Enforce called with params: user=%s, domain=%s, object=%s, action=%s", user, domain, object, action)
-	
+
 	// Check user role assignments
 	roles := e.enforcer.GetRolesForUserInDomain(user, domain)
 	log.Printf("DEBUG: User %s roles in domain %s: %v", user, domain, roles)
-	
+
 	// Get all policies for this user's roles
 	for _, role := range roles {
 		rolePolicies, err := e.enforcer.GetFilteredPolicy(0, role, domain)
@@ -97,17 +97,17 @@ func (e *EnforcerService) Enforce(user, domain, object, action string) (bool, er
 			log.Printf("DEBUG: Policies for role %s in domain %s: %v", role, domain, rolePolicies)
 		}
 	}
-	
+
 	// Perform the actual enforcement
 	result, err := e.enforcer.Enforce(user, domain, object, action)
 	log.Printf("DEBUG: Casbin Enforce result: %v, error: %v", result, err)
-	
+
 	// Additional debugging: check for wildcard policies
 	if !result && domain != "*" {
 		wildcardResult, wildcardErr := e.enforcer.Enforce(user, "*", object, action)
 		log.Printf("DEBUG: Wildcard domain check result: %v, error: %v", wildcardResult, wildcardErr)
 	}
-	
+
 	return result, err
 }
 
@@ -275,7 +275,7 @@ func (e *EnforcerService) ReloadPolicyWithValidation() error {
 	afterCount := len(e.GetAllPolicies())
 	afterGroupingCount := len(e.GetAllRoles())
 
-	log.Printf("Policy reload completed: policies %d->%d, groupings %d->%d", 
+	log.Printf("Policy reload completed: policies %d->%d, groupings %d->%d",
 		beforeCount, afterCount, beforeGroupingCount, afterGroupingCount)
 
 	return nil

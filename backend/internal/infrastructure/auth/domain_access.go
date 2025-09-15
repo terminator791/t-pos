@@ -11,12 +11,12 @@ import (
 
 // DomainAccessInfo contains information about what domains/shops a user can access
 type DomainAccessInfo struct {
-	UserID      uuid.UUID
-	Role        string
-	Domain      string
-	HasGlobalAccess bool
-	LicenseID   *uuid.UUID
-	ShopID      *uuid.UUID
+	UserID            uuid.UUID
+	Role              string
+	Domain            string
+	HasGlobalAccess   bool
+	LicenseID         *uuid.UUID
+	ShopID            *uuid.UUID
 	AccessibleShopIDs []uuid.UUID
 }
 
@@ -42,11 +42,11 @@ func GetUserDomainAccess(c *gin.Context, roleRepo repositories.RoleRepository, s
 	}
 
 	access := &DomainAccessInfo{
-		UserID:      user.ID,
-		Role:        roleName,
-		Domain:      domain,
-		LicenseID:   user.LicenseID,
-		ShopID:      user.ShopID,
+		UserID:    user.ID,
+		Role:      roleName,
+		Domain:    domain,
+		LicenseID: user.LicenseID,
+		ShopID:    user.ShopID,
 	}
 
 	// Determine access level based on role and domain
@@ -54,22 +54,22 @@ func GetUserDomainAccess(c *gin.Context, roleRepo repositories.RoleRepository, s
 	case domain == "*" || roleName == "super_admin" || roleName == "admin":
 		// Global access
 		access.HasGlobalAccess = true
-		
+
 	case roleName == "owner_business" && user.LicenseID != nil:
 		// Owner business - can access all shops under their license
 		shops, err := shopRepo.GetByLicenseID(context.Background(), *user.LicenseID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get shops for license: %w", err)
 		}
-		
+
 		for _, shop := range shops {
 			access.AccessibleShopIDs = append(access.AccessibleShopIDs, shop.ID)
 		}
-		
+
 	case roleName == "cashier" && user.ShopID != nil:
 		// Cashier - can only access their assigned shop
 		access.AccessibleShopIDs = append(access.AccessibleShopIDs, *user.ShopID)
-		
+
 	default:
 		return nil, fmt.Errorf("invalid user access configuration - role: %s, domain: %s", roleName, domain)
 	}
@@ -82,13 +82,13 @@ func (access *DomainAccessInfo) CanAccessShop(shopID uuid.UUID) bool {
 	if access.HasGlobalAccess {
 		return true
 	}
-	
+
 	for _, accessibleShopID := range access.AccessibleShopIDs {
 		if accessibleShopID == shopID {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -97,12 +97,12 @@ func (access *DomainAccessInfo) CanAccessLicense(licenseID uuid.UUID) bool {
 	if access.HasGlobalAccess {
 		return true
 	}
-	
+
 	// Owner business can access their own license
 	if access.LicenseID != nil && *access.LicenseID == licenseID {
 		return true
 	}
-	
+
 	return false
 }
 
@@ -112,20 +112,20 @@ func (access *DomainAccessInfo) GetShopFilter() []uuid.UUID {
 	if access.HasGlobalAccess {
 		return nil // No filtering needed
 	}
-	
+
 	return access.AccessibleShopIDs
 }
 
-// GetLicenseFilter returns license IDs that should be used to filter queries  
+// GetLicenseFilter returns license IDs that should be used to filter queries
 // Returns nil if user has global access (no filtering needed)
 func (access *DomainAccessInfo) GetLicenseFilter() []uuid.UUID {
 	if access.HasGlobalAccess {
 		return nil // No filtering needed
 	}
-	
+
 	if access.LicenseID != nil {
 		return []uuid.UUID{*access.LicenseID}
 	}
-	
+
 	return []uuid.UUID{} // No license access
 }

@@ -106,13 +106,13 @@ func (r *TransactionRepositoryImpl) ListByShopIDs(ctx context.Context, shopIDs [
 	if len(shopIDs) == 0 {
 		return transactions, nil // Return empty slice if no accessible shops
 	}
-	
+
 	err := r.db.WithContext(ctx).
 		Where("shop_id IN (?)", shopIDs).
 		Limit(limit).
 		Offset(offset).
 		Find(&transactions).Error
-		
+
 	return transactions, err
 }
 
@@ -122,10 +122,10 @@ func (r *TransactionRepositoryImpl) GetByShopIDs(ctx context.Context, shopIDs []
 	if len(shopIDs) == 0 {
 		return transactions, nil // Return empty slice if no accessible shops
 	}
-	
+
 	err := r.db.WithContext(ctx).
 		Where("shop_id IN (?)", shopIDs).
 		Find(&transactions).Error
-		
+
 	return transactions, err
 }

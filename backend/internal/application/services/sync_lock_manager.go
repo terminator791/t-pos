@@ -14,11 +14,11 @@ type SyncLockManager struct {
 	// In-memory lock storage (in production, this would be Redis or similar)
 	locks   map[string]*SyncLock
 	locksMu sync.RWMutex
-	
+
 	// Configuration
 	defaultLockTimeout time.Duration
 	cleanupInterval    time.Duration
-	
+
 	// Cleanup goroutine control
 	stopCleanup chan struct{}
 	cleanupWg   sync.WaitGroup
@@ -71,7 +71,7 @@ func NewSyncLockManager(config SyncLockConfig) *SyncLockManager {
 func (m *SyncLockManager) AcquireSyncLock(ctx context.Context, userID, licenseID uuid.UUID) (*SyncLock, error) {
 	lockKey := fmt.Sprintf("sync:%s:%s", userID.String(), licenseID.String())
 	ownerID := uuid.New().String()
-	
+
 	return m.AcquireLockWithKey(ctx, lockKey, ownerID, m.defaultLockTimeout)
 }
 
@@ -79,7 +79,7 @@ func (m *SyncLockManager) AcquireSyncLock(ctx context.Context, userID, licenseID
 func (m *SyncLockManager) AcquireEntityLock(ctx context.Context, entityType string, entityID uuid.UUID) (*SyncLock, error) {
 	lockKey := fmt.Sprintf("entity:%s:%s", entityType, entityID.String())
 	ownerID := uuid.New().String()
-	
+
 	// Shorter timeout for entity-level locks
 	timeout := 10 * time.Second
 	return m.AcquireLockWithKey(ctx, lockKey, ownerID, timeout)
@@ -88,7 +88,7 @@ func (m *SyncLockManager) AcquireEntityLock(ctx context.Context, entityType stri
 // AcquireLockWithKey attempts to acquire a lock with a specific key
 func (m *SyncLockManager) AcquireLockWithKey(ctx context.Context, key, ownerID string, timeout time.Duration) (*SyncLock, error) {
 	deadline := time.Now().Add(timeout)
-	
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -278,7 +278,7 @@ func (m *SyncLockManager) Shutdown() {
 	// Release all remaining locks
 	m.locksMu.Lock()
 	defer m.locksMu.Unlock()
-	
+
 	for key := range m.locks {
 		delete(m.locks, key)
 	}

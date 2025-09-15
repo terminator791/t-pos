@@ -13,16 +13,16 @@ import (
 type SyncServiceConfig struct {
 	// Core Processing Configuration
 	Processing ProcessingConfig `json:"processing"`
-	
+
 	// Security Configuration
 	Security SecurityConfig `json:"security"`
-	
+
 	// Performance Configuration
 	Performance PerformanceConfig `json:"performance"`
-	
+
 	// Error Handling Configuration
 	ErrorHandling ErrorHandlingConfig `json:"error_handling"`
-	
+
 	// Memory Management Configuration
 	Memory MemoryConfig `json:"memory"`
 }
@@ -41,10 +41,10 @@ type ProcessingConfig struct {
 
 // SecurityConfig contains security-related settings
 type SecurityConfig struct {
-	EnableDistributedLocking       bool          `json:"enable_distributed_locking" default:"true"`
-	EnableComprehensiveValidation  bool          `json:"enable_comprehensive_validation" default:"true"`
-	ValidationDepth                string        `json:"validation_depth" default:"comprehensive"`
-	LockTimeout                    time.Duration `json:"lock_timeout" default:"30s"`
+	EnableDistributedLocking      bool          `json:"enable_distributed_locking" default:"true"`
+	EnableComprehensiveValidation bool          `json:"enable_comprehensive_validation" default:"true"`
+	ValidationDepth               string        `json:"validation_depth" default:"comprehensive"`
+	LockTimeout                   time.Duration `json:"lock_timeout" default:"30s"`
 	LockCleanupInterval           time.Duration `json:"lock_cleanup_interval" default:"10s"`
 	MaxConcurrentSyncsPerUser     int           `json:"max_concurrent_syncs_per_user" default:"1"`
 	EnableEntityLocking           bool          `json:"enable_entity_locking" default:"false"`
@@ -53,16 +53,16 @@ type SecurityConfig struct {
 
 // PerformanceConfig contains performance optimization settings
 type PerformanceConfig struct {
-	EnableCaching             bool          `json:"enable_caching" default:"true"`
-	EnableBulkValidation      bool          `json:"enable_bulk_validation" default:"true"`
-	EnableQueryOptimization   bool          `json:"enable_query_optimization" default:"true"`
-	EnableIndexHints          bool          `json:"enable_index_hints" default:"true"`
-	CacheTTL                  time.Duration `json:"cache_ttl" default:"5m"`
-	MaxCacheEntries           int           `json:"max_cache_entries" default:"10000"`
-	CacheCleanupInterval      time.Duration `json:"cache_cleanup_interval" default:"2m"`
-	MaxResultsPerQuery        int           `json:"max_results_per_query" default:"1000"`
-	EnablePerformanceLog      bool          `json:"enable_performance_log" default:"false"`
-	PerformanceThreshold      float64       `json:"performance_threshold" default:"100.0"`
+	EnableCaching           bool          `json:"enable_caching" default:"true"`
+	EnableBulkValidation    bool          `json:"enable_bulk_validation" default:"true"`
+	EnableQueryOptimization bool          `json:"enable_query_optimization" default:"true"`
+	EnableIndexHints        bool          `json:"enable_index_hints" default:"true"`
+	CacheTTL                time.Duration `json:"cache_ttl" default:"5m"`
+	MaxCacheEntries         int           `json:"max_cache_entries" default:"10000"`
+	CacheCleanupInterval    time.Duration `json:"cache_cleanup_interval" default:"2m"`
+	MaxResultsPerQuery      int           `json:"max_results_per_query" default:"1000"`
+	EnablePerformanceLog    bool          `json:"enable_performance_log" default:"false"`
+	PerformanceThreshold    float64       `json:"performance_threshold" default:"100.0"`
 }
 
 // ErrorHandlingConfig contains error handling settings
@@ -78,9 +78,9 @@ type ErrorHandlingConfig struct {
 
 // MemoryConfig contains memory management settings
 type MemoryConfig struct {
-	MaxMemoryUsageMB     int64   `json:"max_memory_usage_mb" default:"100"`
-	EntitySizeEstimateMB float64 `json:"entity_size_estimate_mb" default:"0.001"`
-	EnableMemoryMonitoring bool   `json:"enable_memory_monitoring" default:"true"`
+	MaxMemoryUsageMB       int64   `json:"max_memory_usage_mb" default:"100"`
+	EntitySizeEstimateMB   float64 `json:"entity_size_estimate_mb" default:"0.001"`
+	EnableMemoryMonitoring bool    `json:"enable_memory_monitoring" default:"true"`
 	MemoryWarningThreshold float64 `json:"memory_warning_threshold" default:"0.8"`
 	EnableGCOptimization   bool    `json:"enable_gc_optimization" default:"false"`
 }
@@ -99,26 +99,26 @@ func NewSyncServiceConfig() SyncServiceConfig {
 			EnableParallelProcessing: false,
 		},
 		Security: SecurityConfig{
-			EnableDistributedLocking:       true,
-			EnableComprehensiveValidation:  true,
-			ValidationDepth:                "comprehensive",
-			LockTimeout:                    30 * time.Second,
+			EnableDistributedLocking:      true,
+			EnableComprehensiveValidation: true,
+			ValidationDepth:               "comprehensive",
+			LockTimeout:                   30 * time.Second,
 			LockCleanupInterval:           10 * time.Second,
 			MaxConcurrentSyncsPerUser:     1,
 			EnableEntityLocking:           false,
 			EnableAccessAuditLogging:      false,
 		},
 		Performance: PerformanceConfig{
-			EnableCaching:             true,
-			EnableBulkValidation:      true,
-			EnableQueryOptimization:   true,
-			EnableIndexHints:          true,
-			CacheTTL:                  5 * time.Minute,
-			MaxCacheEntries:           10000,
-			CacheCleanupInterval:      2 * time.Minute,
-			MaxResultsPerQuery:        1000,
-			EnablePerformanceLog:      false,
-			PerformanceThreshold:      100.0,
+			EnableCaching:           true,
+			EnableBulkValidation:    true,
+			EnableQueryOptimization: true,
+			EnableIndexHints:        true,
+			CacheTTL:                5 * time.Minute,
+			MaxCacheEntries:         10000,
+			CacheCleanupInterval:    2 * time.Minute,
+			MaxResultsPerQuery:      1000,
+			EnablePerformanceLog:    false,
+			PerformanceThreshold:    100.0,
 		},
 		ErrorHandling: ErrorHandlingConfig{
 			Policy:                     "continue",
@@ -147,7 +147,7 @@ func (c *SyncServiceConfig) LoadFromConfig(syncConfig config.SyncConfig) {
 	c.Processing.TransactionTimeout = time.Duration(syncConfig.TransactionTimeout) * time.Second
 	c.Processing.OptimalBatchSize = syncConfig.OptimalBatchSize
 	c.Processing.EnableBatchProcessing = syncConfig.EnableBatchProcessing
-	
+
 	// Security configuration
 	c.Security.EnableDistributedLocking = syncConfig.EnableDistributedLocking
 	c.Security.EnableComprehensiveValidation = syncConfig.EnableComprehensiveValidation
@@ -155,7 +155,7 @@ func (c *SyncServiceConfig) LoadFromConfig(syncConfig config.SyncConfig) {
 	c.Security.LockTimeout = time.Duration(syncConfig.LockTimeout) * time.Second
 	c.Security.LockCleanupInterval = time.Duration(syncConfig.LockCleanupInterval) * time.Second
 	c.Security.MaxConcurrentSyncsPerUser = syncConfig.MaxConcurrentSyncsPerUser
-	
+
 	// Performance configuration
 	c.Performance.EnableCaching = syncConfig.EnableCaching
 	c.Performance.EnableBulkValidation = syncConfig.EnableBulkValidation
@@ -167,11 +167,11 @@ func (c *SyncServiceConfig) LoadFromConfig(syncConfig config.SyncConfig) {
 	c.Performance.MaxResultsPerQuery = syncConfig.MaxResultsPerQuery
 	c.Performance.EnablePerformanceLog = syncConfig.EnablePerformanceLog
 	c.Performance.PerformanceThreshold = syncConfig.PerformanceThreshold
-	
+
 	// Error handling configuration
 	c.ErrorHandling.Policy = syncConfig.ErrorPolicy
 	c.ErrorHandling.MaxEntityErrorsPerSync = syncConfig.MaxEntityErrorsPerSync
-	
+
 	// Memory configuration
 	c.Memory.MaxMemoryUsageMB = syncConfig.MaxMemoryUsageMB
 	c.Memory.EntitySizeEstimateMB = syncConfig.EntitySizeEstimateMB
@@ -201,7 +201,7 @@ func (c *SyncServiceConfig) Validate() error {
 	if c.Processing.TransactionTimeout <= 0 {
 		return fmt.Errorf("processing.transaction_timeout must be positive")
 	}
-	
+
 	// Validate security configuration
 	if c.Security.LockTimeout <= 0 {
 		return fmt.Errorf("security.lock_timeout must be positive")
@@ -209,7 +209,7 @@ func (c *SyncServiceConfig) Validate() error {
 	if c.Security.MaxConcurrentSyncsPerUser <= 0 {
 		return fmt.Errorf("security.max_concurrent_syncs_per_user must be positive")
 	}
-	
+
 	// Validate performance configuration
 	if c.Performance.CacheTTL <= 0 {
 		return fmt.Errorf("performance.cache_ttl must be positive")
@@ -217,7 +217,7 @@ func (c *SyncServiceConfig) Validate() error {
 	if c.Performance.MaxCacheEntries <= 0 {
 		return fmt.Errorf("performance.max_cache_entries must be positive")
 	}
-	
+
 	// Validate error handling configuration
 	validPolicies := []string{"continue", "abort", "retry"}
 	valid := false
@@ -230,7 +230,7 @@ func (c *SyncServiceConfig) Validate() error {
 	if !valid {
 		return fmt.Errorf("error_handling.policy must be one of: %v", validPolicies)
 	}
-	
+
 	// Validate memory configuration
 	if c.Memory.MaxMemoryUsageMB <= 0 {
 		return fmt.Errorf("memory.max_memory_usage_mb must be positive")
@@ -238,7 +238,7 @@ func (c *SyncServiceConfig) Validate() error {
 	if c.Memory.EntitySizeEstimateMB <= 0 {
 		return fmt.Errorf("memory.entity_size_estimate_mb must be positive")
 	}
-	
+
 	return nil
 }
 
@@ -246,10 +246,10 @@ func (c *SyncServiceConfig) Validate() error {
 func (c *SyncServiceConfig) GetConfigSummary() map[string]interface{} {
 	return map[string]interface{}{
 		"processing": map[string]interface{}{
-			"batch_size":             c.Processing.BatchSize,
-			"max_entities_per_sync":  c.Processing.MaxEntitiesPerSync,
-			"transaction_timeout":    c.Processing.TransactionTimeout.String(),
-			"enable_savepoints":      c.Processing.EnableSavepoints,
+			"batch_size":              c.Processing.BatchSize,
+			"max_entities_per_sync":   c.Processing.MaxEntitiesPerSync,
+			"transaction_timeout":     c.Processing.TransactionTimeout.String(),
+			"enable_savepoints":       c.Processing.EnableSavepoints,
 			"enable_batch_processing": c.Processing.EnableBatchProcessing,
 		},
 		"security": map[string]interface{}{
@@ -272,8 +272,8 @@ func (c *SyncServiceConfig) GetConfigSummary() map[string]interface{} {
 			"enable_error_retry":         c.ErrorHandling.EnableErrorRetry,
 		},
 		"memory": map[string]interface{}{
-			"max_memory_usage_mb":     c.Memory.MaxMemoryUsageMB,
-			"entity_size_estimate_mb": c.Memory.EntitySizeEstimateMB,
+			"max_memory_usage_mb":      c.Memory.MaxMemoryUsageMB,
+			"entity_size_estimate_mb":  c.Memory.EntitySizeEstimateMB,
 			"enable_memory_monitoring": c.Memory.EnableMemoryMonitoring,
 		},
 	}
@@ -287,20 +287,20 @@ func (c *SyncServiceConfig) OptimizeForEnvironment(env string) {
 		c.ErrorHandling.EnableDetailedErrorLogging = true
 		c.Memory.EnableMemoryMonitoring = true
 		c.Security.EnableAccessAuditLogging = true
-		
+
 	case "testing":
 		c.Processing.BatchSize = 10
 		c.Performance.EnableCaching = false
 		c.Security.EnableDistributedLocking = false
 		c.Memory.MaxMemoryUsageMB = 50
-		
+
 	case "production":
 		c.Performance.EnablePerformanceLog = false
 		c.ErrorHandling.EnableDetailedErrorLogging = false
 		c.Processing.EnableParallelProcessing = true
 		c.Performance.EnableIndexHints = true
 		c.Memory.EnableGCOptimization = true
-		
+
 	case "staging":
 		c.Performance.EnablePerformanceLog = true
 		c.ErrorHandling.EnableDetailedErrorLogging = true

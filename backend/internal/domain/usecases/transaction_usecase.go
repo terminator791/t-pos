@@ -445,7 +445,7 @@ func (uc *TransactionUseCase) GetTransactionsByShop(ctx context.Context, shopID 
 func (uc *TransactionUseCase) GetTransactionsByShopAndStatus(ctx context.Context, shopID uuid.UUID, status string, limit, offset int) ([]*entities.Transaction, error) {
 	// Convert string status to TransactionStatus enum
 	transactionStatus := entities.TransactionStatus(status)
-	
+
 	// Get transactions by shop ID and status
 	transactions, err := uc.transactionRepo.GetByShopIDAndStatus(ctx, shopID, transactionStatus)
 	if err != nil {
@@ -515,7 +515,7 @@ func (uc *TransactionUseCase) calculateTotalAndValidateProducts(ctx context.Cont
 
 		// Check stock availability if product has stock tracking enabled
 		if product.IsHaveStock && product.Stock < item.Quantity {
-			return 0, nil, errors.New("insufficient stock for product " + product.Name + ". Available: " + 
+			return 0, nil, errors.New("insufficient stock for product " + product.Name + ". Available: " +
 				strconv.Itoa(product.Stock) + ", Requested: " + strconv.Itoa(item.Quantity))
 		}
 

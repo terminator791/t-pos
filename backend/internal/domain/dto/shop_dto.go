@@ -53,16 +53,16 @@ type ShopsListResponse struct {
 	Status  string `json:"status"`
 	Message string `json:"message"`
 	Data    struct {
-		Count int        `json:"count"`
-		Shops []ShopDTO  `json:"shops"`
+		Count int       `json:"count"`
+		Shops []ShopDTO `json:"shops"`
 	} `json:"data"`
 }
 
 // ShopResponse represents the response for a single shop
 type ShopResponse struct {
-	Status  string   `json:"status"`
-	Message string   `json:"message"`
-	Data    ShopDTO  `json:"data"`
+	Status  string  `json:"status"`
+	Message string  `json:"message"`
+	Data    ShopDTO `json:"data"`
 }
 
 // ToLicenseDTO converts License entity to LicenseDTO

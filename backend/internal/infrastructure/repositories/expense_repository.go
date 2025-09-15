@@ -81,14 +81,14 @@ func (r *ExpenseRepositoryImpl) ListByShopIDs(ctx context.Context, shopIDs []uui
 	if len(shopIDs) == 0 {
 		return expenses, nil // Return empty slice if no accessible shops
 	}
-	
+
 	err := r.db.WithContext(ctx).
 		Preload("Shop").
 		Where("shop_id IN (?)", shopIDs).
 		Limit(limit).
 		Offset(offset).
 		Find(&expenses).Error
-		
+
 	return expenses, err
 }
 
@@ -98,11 +98,11 @@ func (r *ExpenseRepositoryImpl) GetByShopIDs(ctx context.Context, shopIDs []uuid
 	if len(shopIDs) == 0 {
 		return expenses, nil // Return empty slice if no accessible shops
 	}
-	
+
 	err := r.db.WithContext(ctx).
 		Preload("Shop").
 		Where("shop_id IN (?)", shopIDs).
 		Find(&expenses).Error
-		
+
 	return expenses, err
 }

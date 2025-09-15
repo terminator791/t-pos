@@ -282,7 +282,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	if defaultRole.Name == "owner_business" {
 		// Owner business gets access to their license domain (can access all shops under it)
 		domains = []string{license.SerialNumber}
-		
+
 		// Assign domain-specific policies for owner_business
 		if err := h.authSeeder.AssignPoliciesForRole("owner_business", license.SerialNumber); err != nil {
 			log.Printf("Failed to assign policies for owner_business %s: %v", user.ID, err)
@@ -889,22 +889,22 @@ func (h *AuthHandler) GetPermissions(c *gin.Context) {
 	}
 
 	// Retrieve claims directly from context to get the domain
-    claimsInterface, exists := c.Get("claims")
-    if !exists {
-        response.ErrorUnauthorized(c, "No valid token found", nil)
-        return
-    }
+	claimsInterface, exists := c.Get("claims")
+	if !exists {
+		response.ErrorUnauthorized(c, "No valid token found", nil)
+		return
+	}
 
-    claims, ok := claimsInterface.(*auth.Claims)
-    if !ok {
-        response.ErrorUnauthorized(c, "Invalid token claims", nil)
-        return
-    }
+	claims, ok := claimsInterface.(*auth.Claims)
+	if !ok {
+		response.ErrorUnauthorized(c, "Invalid token claims", nil)
+		return
+	}
 
-    domain := claims.Domain
-    if domain == "" {
-        domain = "*"
-    }
+	domain := claims.Domain
+	if domain == "" {
+		domain = "*"
+	}
 
 	// Get user
 	user, err := h.userRepo.GetByID(context.Background(), userID)

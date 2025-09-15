@@ -676,12 +676,12 @@ func (v *SyncEntityValidator) validateBarcode(barcode string) error {
 	if len(barcode) == 0 {
 		return fmt.Errorf("barcode cannot be empty")
 	}
-	
+
 	// Check for valid barcode format (EAN-13, UPC-A, etc.)
 	validBarcode := regexp.MustCompile(`^[0-9]{8,13}$|^[A-Za-z0-9]{8,20}$`)
 	if !validBarcode.MatchString(barcode) {
 		return fmt.Errorf("invalid barcode format")
 	}
-	
+
 	return nil
 }

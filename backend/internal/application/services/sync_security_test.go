@@ -37,7 +37,7 @@ func TestSyncLockManager(t *testing.T) {
 		// Verify lock properties
 		assert.Equal(t, "sync:"+userID.String()+":"+licenseID.String(), lock.Key)
 		assert.False(t, lock.IsExpired())
-		
+
 		// Release the lock
 		err = lock.Release()
 		assert.NoError(t, err)
@@ -57,7 +57,7 @@ func TestSyncLockManager(t *testing.T) {
 		assert.Error(t, err)
 		assert.Nil(t, lock2)
 		// Check for either timeout or lock acquisition failure
-		assert.True(t, err.Error() == "context deadline exceeded" || 
+		assert.True(t, err.Error() == "context deadline exceeded" ||
 			err.Error() == "context canceled" ||
 			err.Error() != "", "Expected an error but got: "+err.Error())
 	})
@@ -68,7 +68,7 @@ func TestSyncLockManager(t *testing.T) {
 		defer lock.Release()
 
 		originalExpiry := lock.ExpiresAt
-		
+
 		// Extend the lock
 		err = manager.ExtendLock(lock, 2*time.Second)
 		assert.NoError(t, err)
@@ -79,16 +79,16 @@ func TestSyncLockManager(t *testing.T) {
 		entityID := uuid.New()
 		lock, err := manager.AcquireEntityLock(ctx, "products", entityID)
 		require.NoError(t, err)
-		
+
 		assert.Equal(t, "entity:products:"+entityID.String(), lock.Key)
-		
+
 		err = lock.Release()
 		assert.NoError(t, err)
 	})
 
 	t.Run("LockContextExecution", func(t *testing.T) {
 		executed := false
-		
+
 		lockCtx, err := manager.NewSyncLockContext(ctx, userID, licenseID)
 		require.NoError(t, err)
 
@@ -237,17 +237,17 @@ func TestSyncEntityValidator(t *testing.T) {
 			ID:     uuid.New(),
 			ShopID: testShop.ID,
 			Name:   "Invalid Product",
-			Sale:   50.0,  // Sale price less than buy price
+			Sale:   50.0, // Sale price less than buy price
 			Buy:    100.0,
 			Stock:  5,
 		}
 
 		err := validator.ValidateEntity(ctx, product, "create", nil)
 		assert.Error(t, err)
-		
+
 		validationErrors, ok := err.(validators.ValidationErrors)
 		require.True(t, ok)
-		
+
 		// Should have validation error for invalid profit margin
 		found := false
 		for _, ve := range validationErrors {
@@ -271,10 +271,10 @@ func TestSyncEntityValidator(t *testing.T) {
 
 		err := validator.ValidateEntity(ctx, product, "create", nil)
 		assert.Error(t, err)
-		
+
 		validationErrors, ok := err.(validators.ValidationErrors)
 		require.True(t, ok)
-		
+
 		// Should have validation error for invalid stock
 		found := false
 		for _, ve := range validationErrors {
@@ -298,10 +298,10 @@ func TestSyncEntityValidator(t *testing.T) {
 
 		err := validator.ValidateEntity(ctx, product, "create", nil)
 		assert.Error(t, err)
-		
+
 		validationErrors, ok := err.(validators.ValidationErrors)
 		require.True(t, ok)
-		
+
 		// Should have foreign key validation error
 		found := false
 		for _, ve := range validationErrors {
@@ -337,10 +337,10 @@ func TestSyncEntityValidator(t *testing.T) {
 
 		err := validator.ValidateEntity(ctx, cart, "create", nil)
 		assert.Error(t, err)
-		
+
 		validationErrors, ok := err.(validators.ValidationErrors)
 		require.True(t, ok)
-		
+
 		// Should have validation error for invalid quantity
 		found := false
 		for _, ve := range validationErrors {
@@ -371,10 +371,10 @@ func TestSyncEntityValidator(t *testing.T) {
 
 		err := validator.ValidateEntity(ctx, updatedProduct, "update", existingProduct)
 		assert.Error(t, err)
-		
+
 		validationErrors, ok := err.(validators.ValidationErrors)
 		require.True(t, ok)
-		
+
 		// Should have validation error for immutable field change
 		found := false
 		for _, ve := range validationErrors {
@@ -413,7 +413,7 @@ func TestSyncEntityValidator(t *testing.T) {
 func TestSecureSyncIntegration(t *testing.T) {
 	// This would be a more comprehensive integration test
 	// For now, we'll test the basic security integration
-	
+
 	config := services.SyncLockConfig{
 		DefaultLockTimeout: 5 * time.Second,
 		CleanupInterval:    1 * time.Second,
@@ -444,7 +444,7 @@ func TestSecureSyncIntegration(t *testing.T) {
 				time.Sleep(500 * time.Millisecond)
 				return nil
 			})
-			
+
 			if err != nil {
 				errors <- err
 			} else {
@@ -455,10 +455,10 @@ func TestSecureSyncIntegration(t *testing.T) {
 		// Second sync (should fail due to lock)
 		go func() {
 			time.Sleep(100 * time.Millisecond) // Start slightly after first sync
-			
+
 			ctx_timeout, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
 			defer cancel()
-			
+
 			lockCtx, err := manager.NewSyncLockContext(ctx_timeout, userID, licenseID)
 			if err != nil {
 				errors <- err
@@ -468,7 +468,7 @@ func TestSecureSyncIntegration(t *testing.T) {
 			err = lockCtx.Execute(func(ctx context.Context) error {
 				return nil
 			})
-			
+
 			if err != nil {
 				errors <- err
 			} else {
@@ -479,7 +479,7 @@ func TestSecureSyncIntegration(t *testing.T) {
 		// Wait for results
 		completedCount := 0
 		errorCount := 0
-		
+
 		for i := 0; i < 2; i++ {
 			select {
 			case <-completed:

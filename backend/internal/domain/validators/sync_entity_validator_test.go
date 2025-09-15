@@ -34,17 +34,17 @@ func TestSyncEntityValidatorBasicValidation(t *testing.T) {
 			ID:     uuid.New(),
 			ShopID: uuid.New(),
 			Name:   "Invalid Product",
-			Sale:   50.0,  // Sale price less than buy price
+			Sale:   50.0, // Sale price less than buy price
 			Buy:    100.0,
 			Stock:  5,
 		}
 
 		err := validator.ValidateBusinessRules(ctx, product)
 		assert.Error(t, err)
-		
+
 		validationErrors, ok := err.(validators.ValidationErrors)
 		assert.True(t, ok)
-		
+
 		// Should have validation error for invalid profit margin
 		found := false
 		for _, ve := range validationErrors {
@@ -68,10 +68,10 @@ func TestSyncEntityValidatorBasicValidation(t *testing.T) {
 
 		err := validator.ValidateBusinessRules(ctx, product)
 		assert.Error(t, err)
-		
+
 		validationErrors, ok := err.(validators.ValidationErrors)
 		assert.True(t, ok)
-		
+
 		// Should have validation error for invalid stock
 		found := false
 		for _, ve := range validationErrors {
@@ -107,10 +107,10 @@ func TestSyncEntityValidatorBasicValidation(t *testing.T) {
 
 		err := validator.ValidateBusinessRules(ctx, cart)
 		assert.Error(t, err)
-		
+
 		validationErrors, ok := err.(validators.ValidationErrors)
 		assert.True(t, ok)
-		
+
 		// Should have validation error for invalid quantity
 		found := false
 		for _, ve := range validationErrors {
@@ -150,10 +150,10 @@ func TestSyncEntityValidatorBasicValidation(t *testing.T) {
 
 		err := validator.ValidateBusinessRules(ctx, transaction)
 		assert.Error(t, err)
-		
+
 		validationErrors, ok := err.(validators.ValidationErrors)
 		assert.True(t, ok)
-		
+
 		// Should have validation errors for discount
 		assert.True(t, len(validationErrors) >= 2, "Expected at least 2 validation errors")
 	})
@@ -182,10 +182,10 @@ func TestSyncEntityValidatorBasicValidation(t *testing.T) {
 
 		err := validator.ValidateBusinessRules(ctx, payment)
 		assert.Error(t, err)
-		
+
 		validationErrors, ok := err.(validators.ValidationErrors)
 		assert.True(t, ok)
-		
+
 		// Should have validation error for invalid amount
 		found := false
 		for _, ve := range validationErrors {
@@ -221,10 +221,10 @@ func TestSyncEntityValidatorBasicValidation(t *testing.T) {
 
 		err = validator.ValidateBusinessRules(ctx, product)
 		assert.Error(t, err)
-		
+
 		validationErrors, ok := err.(validators.ValidationErrors)
 		assert.True(t, ok)
-		
+
 		// Should have validation error for invalid barcode
 		found := false
 		for _, ve := range validationErrors {

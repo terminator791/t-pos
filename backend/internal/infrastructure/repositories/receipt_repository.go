@@ -73,13 +73,13 @@ func (r *ReceiptRepositoryImpl) ListByShopIDs(ctx context.Context, shopIDs []uui
 	if len(shopIDs) == 0 {
 		return receipts, nil // Return empty slice if no accessible shops
 	}
-	
+
 	err := r.db.WithContext(ctx).
 		Where("shop_id IN (?)", shopIDs).
 		Limit(limit).
 		Offset(offset).
 		Find(&receipts).Error
-		
+
 	return receipts, err
 }
 
@@ -89,10 +89,10 @@ func (r *ReceiptRepositoryImpl) GetByShopIDs(ctx context.Context, shopIDs []uuid
 	if len(shopIDs) == 0 {
 		return receipts, nil // Return empty slice if no accessible shops
 	}
-	
+
 	err := r.db.WithContext(ctx).
 		Where("shop_id IN (?)", shopIDs).
 		Find(&receipts).Error
-		
+
 	return receipts, err
 }

@@ -252,7 +252,7 @@ func createTestSyncService() *SyncService {
 	testConfig := config.SyncConfig{
 		BatchSize:              50,
 		MaxEntitiesPerSync:     500,
-		MaxMemoryUsageMB:       100,  // 100MB limit for tests
+		MaxMemoryUsageMB:       100,   // 100MB limit for tests
 		EntitySizeEstimateMB:   0.001, // 1KB per entity estimate
 		TransactionTimeout:     30 * time.Second,
 		MaxTransactionSize:     100,

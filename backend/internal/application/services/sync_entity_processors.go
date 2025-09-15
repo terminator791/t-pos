@@ -24,7 +24,7 @@ func NewProductProcessor(validator *validators.SyncEntityValidator, config Entit
 	genericProcessor := NewGenericEntityProcessor(config, func(ctx context.Context, entity entities.Product, operation string) error {
 		return validator.ValidateEntity(ctx, entity, operation, nil)
 	})
-	
+
 	return &ProductProcessor{
 		GenericEntityProcessor: genericProcessor,
 		validator:              validator,
@@ -88,7 +88,7 @@ func NewCartProcessor(validator *validators.SyncEntityValidator, config EntityPr
 	genericProcessor := NewGenericEntityProcessor(config, func(ctx context.Context, entity entities.Cart, operation string) error {
 		return validator.ValidateEntity(ctx, entity, operation, nil)
 	})
-	
+
 	return &CartProcessor{
 		GenericEntityProcessor: genericProcessor,
 		validator:              validator,
@@ -152,7 +152,7 @@ func NewCategoryProcessor(validator *validators.SyncEntityValidator, config Enti
 	genericProcessor := NewGenericEntityProcessor(config, func(ctx context.Context, entity entities.Category, operation string) error {
 		return validator.ValidateEntity(ctx, entity, operation, nil)
 	})
-	
+
 	return &CategoryProcessor{
 		GenericEntityProcessor: genericProcessor,
 		validator:              validator,
@@ -216,7 +216,7 @@ func NewTransactionProcessor(validator *validators.SyncEntityValidator, config E
 	genericProcessor := NewGenericEntityProcessor(config, func(ctx context.Context, entity entities.Transaction, operation string) error {
 		return validator.ValidateEntity(ctx, entity, operation, nil)
 	})
-	
+
 	return &TransactionProcessor{
 		GenericEntityProcessor: genericProcessor,
 		validator:              validator,
@@ -316,7 +316,7 @@ func processEntitiesGeneric[T any](
 	if len(entities) == 0 {
 		return nil
 	}
-	
+
 	processingContext := EntityProcessingContext{
 		UserID:        syncContext.UserID,
 		LicenseID:     syncContext.LicenseID,
@@ -324,7 +324,7 @@ func processEntitiesGeneric[T any](
 		SyncTimestamp: time.Now(),
 		UserRole:      syncContext.UserRole,
 	}
-	
+
 	// Use configuration from the sync service
 	config := EntityProcessingConfig{
 		BatchSize:        syncConfig.BatchSize,
@@ -334,6 +334,6 @@ func processEntitiesGeneric[T any](
 		MaxRetries:       3,
 		RetryDelay:       100 * time.Millisecond,
 	}
-	
+
 	return ProcessEntities(ctx, tx, processor, entities, processingContext, response, config)
 }

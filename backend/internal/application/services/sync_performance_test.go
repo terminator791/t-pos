@@ -24,13 +24,13 @@ func TestSyncPerformanceOptimizations(t *testing.T) {
 	// Manually create simple tables for testing (avoiding UUID generation issues in SQLite)
 	err = db.Exec("CREATE TABLE shops (id TEXT PRIMARY KEY, license_id TEXT, user_id TEXT, name TEXT, domain TEXT, photo TEXT, address TEXT, slogan TEXT, profit_calculate INTEGER, created_at TEXT, updated_at TEXT, deleted_at TEXT)").Error
 	require.NoError(t, err)
-	
+
 	err = db.Exec("CREATE TABLE products (id TEXT PRIMARY KEY, shop_id TEXT, cat_id TEXT, photo TEXT, name TEXT, barcode TEXT, unit TEXT, ppn TEXT, sale REAL, buy REAL, profit REAL, stock INTEGER, is_schedule BOOLEAN, schedule TEXT, qty TEXT, is_have_stock BOOLEAN, created_at TEXT, updated_at TEXT, deleted_at TEXT)").Error
 	require.NoError(t, err)
-	
+
 	err = db.Exec("CREATE TABLE transactions (id TEXT PRIMARY KEY, shop_id TEXT, total_price REAL, updated_at DATETIME, deleted_at TEXT)").Error
 	require.NoError(t, err)
-	
+
 	err = db.Exec("CREATE TABLE stock_histories (id TEXT PRIMARY KEY, product_id TEXT, stock INTEGER, updated_at DATETIME, deleted_at TEXT)").Error
 	require.NoError(t, err)
 
@@ -75,7 +75,7 @@ func TestSyncPerformanceOptimizations(t *testing.T) {
 
 func testBulkValidateProductLicenses(t *testing.T, db *gorm.DB, config config.SyncConfig) {
 	ctx := context.Background()
-	
+
 	// Create test data
 	licenseID := uuid.New()
 	shopID1 := uuid.New()
@@ -115,7 +115,7 @@ func testBulkValidateProductLicenses(t *testing.T, db *gorm.DB, config config.Sy
 
 func testBulkValidateTransactionLicenses(t *testing.T, db *gorm.DB, config config.SyncConfig) {
 	ctx := context.Background()
-	
+
 	// Create test data
 	licenseID := uuid.New()
 	shopID1 := uuid.New()
@@ -155,7 +155,7 @@ func testBulkValidateTransactionLicenses(t *testing.T, db *gorm.DB, config confi
 
 func testBulkValidateStockHistoryAccess(t *testing.T, db *gorm.DB, config config.SyncConfig) {
 	ctx := context.Background()
-	
+
 	// Create test data
 	licenseID := uuid.New()
 	shopID1 := uuid.New()
@@ -204,7 +204,7 @@ func testBulkValidateStockHistoryAccess(t *testing.T, db *gorm.DB, config config
 
 func testCacheManagerFunctionality(t *testing.T, db *gorm.DB, config config.SyncConfig) {
 	ctx := context.Background()
-	
+
 	// Create test data
 	licenseID := uuid.New()
 	shopID1 := uuid.New()
@@ -218,15 +218,15 @@ func testCacheManagerFunctionality(t *testing.T, db *gorm.DB, config config.Sync
 
 	// Create cache manager
 	cacheConfig := SyncCacheConfig{
-		EnableCaching:           true,
-		ShopLicenseCacheTTL:     5 * time.Minute,
-		ProductShopCacheTTL:     5 * time.Minute,
-		UserShopsCacheTTL:       5 * time.Minute,
-		MaxCacheEntries:         100,
-		CacheCleanupInterval:    1 * time.Minute,
-		EnableCacheStatistics:   true,
+		EnableCaching:         true,
+		ShopLicenseCacheTTL:   5 * time.Minute,
+		ProductShopCacheTTL:   5 * time.Minute,
+		UserShopsCacheTTL:     5 * time.Minute,
+		MaxCacheEntries:       100,
+		CacheCleanupInterval:  1 * time.Minute,
+		EnableCacheStatistics: true,
 	}
-	
+
 	cacheManager := NewSyncCacheManager(db, cacheConfig)
 
 	// Test shop license mapping cache
@@ -259,7 +259,7 @@ func testCacheManagerFunctionality(t *testing.T, db *gorm.DB, config config.Sync
 
 func testOptimizedQueryPerformance(t *testing.T, db *gorm.DB, config config.SyncConfig) {
 	ctx := context.Background()
-	
+
 	// Create test data
 	licenseID := uuid.New()
 	shopID := uuid.New()
@@ -298,7 +298,7 @@ func testOptimizedQueryPerformance(t *testing.T, db *gorm.DB, config config.Sync
 
 	require.NoError(t, err)
 	assert.Len(t, existence, len(products))
-	
+
 	// All products should exist
 	for _, productID := range productIDs {
 		assert.True(t, existence[productID], "Product should exist")
@@ -309,7 +309,7 @@ func testOptimizedQueryPerformance(t *testing.T, db *gorm.DB, config config.Sync
 
 func testBatchProcessingEfficiency(t *testing.T, db *gorm.DB, config config.SyncConfig) {
 	ctx := context.Background()
-	
+
 	optimizer := NewSyncPerformanceOptimizer(db, SyncPerformanceConfig{
 		BatchSize:          10,
 		EnableQueryLogging: true,
@@ -317,11 +317,11 @@ func testBatchProcessingEfficiency(t *testing.T, db *gorm.DB, config config.Sync
 
 	// Test batch processing with different batch sizes
 	totalItems := 47 // Prime number to test edge cases
-	
+
 	t.Run("StandardBatchSize", func(t *testing.T) {
 		processedItems := 0
 		batches := 0
-		
+
 		startTime := time.Now()
 		err := optimizer.BatchProcessEntities(ctx, totalItems, 10, func(startIdx, endIdx int) error {
 			batches++
@@ -330,24 +330,24 @@ func testBatchProcessingEfficiency(t *testing.T, db *gorm.DB, config config.Sync
 			return nil
 		})
 		duration := time.Since(startTime)
-		
+
 		require.NoError(t, err)
 		assert.Equal(t, totalItems, processedItems)
 		assert.Equal(t, 5, batches) // 47 items in batches of 10: 10+10+10+10+7 = 5 batches
-		
+
 		t.Logf("Batch processing: %d items in %d batches, completed in %v", totalItems, batches, duration)
 	})
 
 	t.Run("SingleBatch", func(t *testing.T) {
 		processedItems := 0
 		batches := 0
-		
+
 		err := optimizer.BatchProcessEntities(ctx, totalItems, totalItems+10, func(startIdx, endIdx int) error {
 			batches++
 			processedItems += (endIdx - startIdx)
 			return nil
 		})
-		
+
 		require.NoError(t, err)
 		assert.Equal(t, totalItems, processedItems)
 		assert.Equal(t, 1, batches) // Should be processed as single batch
@@ -388,7 +388,7 @@ func BenchmarkSyncPerformanceOptimizations(b *testing.B) {
 	b.Run("BulkValidation", func(b *testing.B) {
 		ctx := context.Background()
 		b.ResetTimer()
-		
+
 		for i := 0; i < b.N; i++ {
 			_, err := optimizer.BulkValidateProductLicenses(ctx, products[:100], licenseID)
 			require.NoError(b, err)
@@ -397,7 +397,7 @@ func BenchmarkSyncPerformanceOptimizations(b *testing.B) {
 
 	b.Run("IndividualValidation", func(b *testing.B) {
 		b.ResetTimer()
-		
+
 		for i := 0; i < b.N; i++ {
 			// Simulate individual validation queries
 			for j := 0; j < 100; j++ {
@@ -411,14 +411,14 @@ func BenchmarkSyncPerformanceOptimizations(b *testing.B) {
 func TestPerformanceOptimizationFallbacks(t *testing.T) {
 	// Test that performance optimizations gracefully fall back to original implementation
 	// when errors occur or optimizations are disabled
-	
+
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
 	// Create necessary tables for testing
 	err = db.Exec("CREATE TABLE shops (id TEXT PRIMARY KEY, license_id TEXT, user_id TEXT, name TEXT, domain TEXT, photo TEXT, address TEXT, slogan TEXT, profit_calculate INTEGER, created_at TEXT, updated_at TEXT, deleted_at TEXT)").Error
 	require.NoError(t, err)
-	
+
 	err = db.Exec("CREATE TABLE products (id TEXT PRIMARY KEY, shop_id TEXT, cat_id TEXT, photo TEXT, name TEXT, barcode TEXT, unit TEXT, ppn TEXT, sale REAL, buy REAL, profit REAL, stock INTEGER, is_schedule BOOLEAN, schedule TEXT, qty TEXT, is_have_stock BOOLEAN, created_at TEXT, updated_at TEXT, deleted_at TEXT)").Error
 	require.NoError(t, err)
 
