@@ -10,7 +10,7 @@ import (
 // StockHistory represents append-only changes to product stock
 type StockHistory struct {
 	ID        uuid.UUID      `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
-	ProductID uuid.UUID      `gorm:"type:uuid;not null" json:"product_id"`
+	ProductID uuid.UUID      `gorm:"type:uuid;not null;index:idx_stock_histories_product_id" json:"product_id"`
 	Stock     int            `gorm:"not null" json:"stock"`
 	LastStock int            `gorm:"not null" json:"last_stock"`
 	StockedAt time.Time      `gorm:"not null" json:"stocked_at"`
