@@ -250,16 +250,20 @@ func (e *testError) Error() string {
 
 func createTestSyncService() *SyncService {
 	testConfig := config.SyncConfig{
-		BatchSize:            50,
-		MaxEntitiesPerSync:   500,
-		TransactionTimeout:   30 * time.Second,
-		MaxTransactionSize:   100,
-		MaxRetries:           3,
-		BaseRetryDelay:       50 * time.Millisecond,
-		EnablePerformanceLog: true,
-		PerformanceThreshold: 10.0,
-		MaxResultsPerQuery:   100,
-		QueryTimeout:         5 * time.Second,
+		BatchSize:              50,
+		MaxEntitiesPerSync:     500,
+		MaxMemoryUsageMB:       100,  // 100MB limit for tests
+		EntitySizeEstimateMB:   0.001, // 1KB per entity estimate
+		TransactionTimeout:     30 * time.Second,
+		MaxTransactionSize:     100,
+		ErrorPolicy:            "continue", // Default error policy
+		MaxEntityErrorsPerSync: 50,
+		MaxRetries:             3,
+		BaseRetryDelay:         50 * time.Millisecond,
+		EnablePerformanceLog:   true,
+		PerformanceThreshold:   10.0,
+		MaxResultsPerQuery:     100,
+		QueryTimeout:           5 * time.Second,
 	}
 
 	return &SyncService{
