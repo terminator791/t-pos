@@ -85,6 +85,7 @@ const BoardsPage = lazy(() => import("./pages/app/boards"));
 
 // True layout not refference
 const MainDashboard = lazy(() => import("./pages/main"));
+const POSPage = lazy(() => import("./pages/main/pos"));
 const ProductsPage = lazy(() => import("./pages/main/products"));
 const LicensesPage = lazy(() => import("./pages/main/licenses"));
 const CustomersPage = lazy(() => import("./pages/main/customers"));
@@ -174,6 +175,7 @@ function App() {
         {/* Main Dashboard Routes with Custom Sidebar */}
         <Route path="/main/*" element={<MainLayout />}>
           <Route path="dashboard" element={<MainDashboard />} />
+          <Route path="pos" element={<POSPage />} />
           <Route path="products" element={<ProductsPage />} />
           <Route path="categories" element={<CategoriesPage />} />
           <Route path="shops" element={<ShopsPage />} />

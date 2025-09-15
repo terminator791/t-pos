@@ -5,6 +5,11 @@ export const mainMenuItems = [
     link: "main/dashboard",
   },
   {
+    title: "Point of Sale",
+    icon: "ph:shopping-cart",
+    link: "main/pos",
+  },
+  {
     title: "Products",
     icon: "ph:package",
     link: "main/products",

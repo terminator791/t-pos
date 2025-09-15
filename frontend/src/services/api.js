@@ -1148,3 +1148,154 @@ export const usePaymentsByStatus = (shopId, status) => {
     enabled: !!shopId && !!status,
   });
 };
+
+// Cart Management API
+export const useCarts = () => {
+  return useQuery({
+    queryKey: ["carts"],
+    queryFn: async () => {
+      const response = await api.get("/carts/all");
+      return response.data;
+    },
+  });
+};
+
+export const useCart = (id) => {
+  return useQuery({
+    queryKey: ["carts", id],
+    queryFn: async () => {
+      const response = await api.get(`/carts/${id}`);
+      return response.data;
+    },
+    enabled: !!id,
+  });
+};
+
+export const useAddToCart = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (cartData) => {
+      const response = await api.post("/carts", cartData);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["carts"] });
+      toast.success("Product added to cart");
+    },
+    onError: (error) => {
+      const message = error.response?.data?.message || "Failed to add product to cart";
+      toast.error(message);
+    },
+  });
+};
+
+export const useUpdateCartItem = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...cartData }) => {
+      const response = await api.put(`/carts/${id}`, cartData);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["carts"] });
+      toast.success("Cart updated");
+    },
+    onError: (error) => {
+      const message = error.response?.data?.message || "Failed to update cart item";
+      toast.error(message);
+    },
+  });
+};
+
+export const useRemoveFromCart = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id) => {
+      const response = await api.delete(`/carts/${id}`);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["carts"] });
+      toast.success("Item removed from cart");
+    },
+    onError: (error) => {
+      const message = error.response?.data?.message || "Failed to remove item from cart";
+      toast.error(message);
+    },
+  });
+};
+
+export const useClearCart = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const response = await api.delete("/carts");
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["carts"] });
+      toast.success("Cart cleared");
+    },
+    onError: (error) => {
+      const message = error.response?.data?.message || "Failed to clear cart";
+      toast.error(message);
+    },
+  });
+};
+
+// Transaction Creation and Management API
+export const useCreateTransaction = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (transactionData) => {
+      const response = await api.post("/transactions", transactionData);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["carts"] });
+      toast.success("Transaction created successfully");
+    },
+    onError: (error) => {
+      const message = error.response?.data?.message || "Failed to create transaction";
+      toast.error(message);
+    },
+  });
+};
+
+export const usePayTransaction = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ transactionId, amount }) => {
+      const response = await api.post(`/transactions/${transactionId}/pay`, { amount });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
+      toast.success("Payment processed successfully");
+    },
+    onError: (error) => {
+      const message = error.response?.data?.message || "Failed to process payment";
+      toast.error(message);
+    },
+  });
+};
+
+export const useCancelTransaction = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (transactionId) => {
+      const response = await api.post(`/transactions/${transactionId}/cancel`);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      toast.success("Transaction cancelled");
+    },
+    onError: (error) => {
+      const message = error.response?.data?.message || "Failed to cancel transaction";
+      toast.error(message);
+    },
+  });
+};
