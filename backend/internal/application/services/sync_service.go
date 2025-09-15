@@ -13,6 +13,7 @@ import (
 	"github.com/terminator791/t-pos/internal/domain/dto"
 	"github.com/terminator791/t-pos/internal/domain/entities"
 	"github.com/terminator791/t-pos/internal/domain/repositories"
+	"github.com/terminator791/t-pos/internal/domain/validators"
 	"gorm.io/gorm"
 )
 
@@ -48,6 +49,14 @@ type SyncService struct {
 	userRepo               repositories.UserRepository
 	conflictStrategy       dto.ConflictResolutionStrategy
 	config                 config.SyncConfig
+	
+	// Security enhancements
+	validator   *validators.SyncEntityValidator
+	lockManager *SyncLockManager
+	
+	// Performance optimizations (Session 3)
+	optimizer    *SyncPerformanceOptimizer
+	cacheManager *SyncCacheManager
 }
 
 // NewSyncService creates a new sync service instance
@@ -67,6 +76,33 @@ func NewSyncService(
 	userRepo repositories.UserRepository,
 	syncConfig config.SyncConfig,
 ) *SyncService {
+	// Initialize security components
+	validator := validators.NewSyncEntityValidator(db)
+	lockManager := NewSyncLockManager(SyncLockConfig{
+		DefaultLockTimeout: time.Duration(syncConfig.TransactionTimeout) * time.Second,
+		CleanupInterval:    10 * time.Second,
+		MaxLockHoldTime:    5 * time.Minute,
+	})
+
+	// Initialize performance optimization components
+	optimizer := NewSyncPerformanceOptimizer(db, SyncPerformanceConfig{
+		EnableBulkValidation: syncConfig.EnableBulkValidation,
+		CacheShopLicenseMap:  syncConfig.EnableCaching,
+		CacheTTL:             syncConfig.CacheTTL,
+		BatchSize:            syncConfig.OptimalBatchSize,
+		EnableQueryLogging:   syncConfig.EnablePerformanceLog,
+	})
+
+	cacheManager := NewSyncCacheManager(db, SyncCacheConfig{
+		EnableCaching:           syncConfig.EnableCaching,
+		ShopLicenseCacheTTL:     syncConfig.CacheTTL,
+		ProductShopCacheTTL:     syncConfig.CacheTTL,
+		UserShopsCacheTTL:       syncConfig.CacheTTL,
+		MaxCacheEntries:         syncConfig.MaxCacheEntries,
+		CacheCleanupInterval:    syncConfig.CacheCleanupInterval,
+		EnableCacheStatistics:   syncConfig.EnablePerformanceLog,
+	})
+
 	return &SyncService{
 		db:                     db,
 		cartRepo:               cartRepo,
@@ -83,6 +119,40 @@ func NewSyncService(
 		userRepo:               userRepo,
 		conflictStrategy:       dto.LastWriteWins,
 		config:                 syncConfig,
+		validator:              validator,
+		lockManager:            lockManager,
+		optimizer:              optimizer,
+		cacheManager:           cacheManager,
+	}
+}
+
+// ProcessSyncWithSecurityEnhancements handles secure synchronization with distributed locking and comprehensive validation
+func (s *SyncService) ProcessSyncWithSecurityEnhancements(ctx context.Context, req dto.SyncRequest, syncContext dto.SyncContext) (*dto.SyncResponse, error) {
+	// Acquire distributed lock to prevent concurrent sync operations for the same user/license
+	lockCtx, err := s.lockManager.NewSyncLockContext(ctx, syncContext.UserID, syncContext.LicenseID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to acquire sync lock: %w", err)
+	}
+
+	// Execute sync within the locked context
+	var response *dto.SyncResponse
+	err = lockCtx.Execute(func(lockedCtx context.Context) error {
+		var syncErr error
+		response, syncErr = s.ProcessSyncWithRoleAccess(lockedCtx, req, syncContext)
+		return syncErr
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("secure sync processing failed: %w", err)
+	}
+
+	return response, nil
+}
+
+// Shutdown gracefully shuts down the sync service
+func (s *SyncService) Shutdown() {
+	if s.lockManager != nil {
+		s.lockManager.Shutdown()
 	}
 }
 
@@ -243,13 +313,21 @@ func (s *SyncService) validateSyncRequest(req dto.SyncRequest) error {
 		len(req.Receipts) + len(req.Histories) + len(req.Shops) +
 		len(req.StockHistories) + len(req.TransactionProducts) + len(req.Users)
 
+	// Check total entity count limit
 	if totalEntities > s.config.MaxEntitiesPerSync {
 		return fmt.Errorf("sync request too large: %d entities exceeds maximum of %d",
 			totalEntities, s.config.MaxEntitiesPerSync)
 	}
 
-	// Validate individual entity type limits
-	entityLimits := map[string]int{
+	// CRITICAL FIX: Enhanced memory validation with actual memory estimation
+	estimatedMemoryMB := s.calculateMemoryUsage(req)
+	if estimatedMemoryMB > float64(s.config.MaxMemoryUsageMB) {
+		return fmt.Errorf("sync request memory usage too large: estimated %.2f MB exceeds maximum of %d MB",
+			estimatedMemoryMB, s.config.MaxMemoryUsageMB)
+	}
+
+	// Validate individual entity type limits to prevent single type from dominating
+	entityCounts := map[string]int{
 		"carts":                len(req.Carts),
 		"categories":           len(req.Categories),
 		"products":             len(req.Products),
@@ -264,14 +342,60 @@ func (s *SyncService) validateSyncRequest(req dto.SyncRequest) error {
 		"users":                len(req.Users),
 	}
 
-	for entityType, count := range entityLimits {
-		if count > s.config.MaxEntitiesPerSync/2 { // No single entity type should exceed half the limit
+	maxEntitiesPerType := s.config.MaxEntitiesPerSync / 2 // No single entity type should exceed half the limit
+	for entityType, count := range entityCounts {
+		if count > maxEntitiesPerType {
 			return fmt.Errorf("%s count too large: %d exceeds maximum of %d",
-				entityType, count, s.config.MaxEntitiesPerSync/2)
+				entityType, count, maxEntitiesPerType)
 		}
 	}
 
+	// Log validation success for monitoring
+	if s.config.EnablePerformanceLog {
+		log.Printf("Sync request validation passed: %d entities, estimated %.2f MB memory",
+			totalEntities, estimatedMemoryMB)
+	}
+
 	return nil
+}
+
+// calculateMemoryUsage estimates memory usage for a sync request
+func (s *SyncService) calculateMemoryUsage(req dto.SyncRequest) float64 {
+	// Entity-specific size estimates in KB (based on typical JSON serialized size)
+	entitySizes := map[string]float64{
+		"carts":                0.5,  // Simple cart items
+		"categories":           0.3,  // Small category objects
+		"products":             2.0,  // Products can have images/descriptions
+		"transactions":         1.5,  // Transaction records
+		"payments":             0.8,  // Payment records
+		"expenses":             1.0,  // Expense records
+		"receipts":             3.0,  // Receipts can be large with text content
+		"histories":            1.2,  // History records
+		"shops":                1.0,  // Shop information
+		"stock_histories":      0.7,  // Stock movement records
+		"transaction_products": 0.6,  // Product-transaction relationships
+		"users":                1.0,  // User information
+	}
+
+	totalSizeKB := 0.0
+	totalSizeKB += float64(len(req.Carts)) * entitySizes["carts"]
+	totalSizeKB += float64(len(req.Categories)) * entitySizes["categories"]
+	totalSizeKB += float64(len(req.Products)) * entitySizes["products"]
+	totalSizeKB += float64(len(req.Transactions)) * entitySizes["transactions"]
+	totalSizeKB += float64(len(req.Payments)) * entitySizes["payments"]
+	totalSizeKB += float64(len(req.Expenses)) * entitySizes["expenses"]
+	totalSizeKB += float64(len(req.Receipts)) * entitySizes["receipts"]
+	totalSizeKB += float64(len(req.Histories)) * entitySizes["histories"]
+	totalSizeKB += float64(len(req.Shops)) * entitySizes["shops"]
+	totalSizeKB += float64(len(req.StockHistories)) * entitySizes["stock_histories"]
+	totalSizeKB += float64(len(req.TransactionProducts)) * entitySizes["transaction_products"]
+	totalSizeKB += float64(len(req.Users)) * entitySizes["users"]
+
+	// Convert to MB and add overhead for processing (JSON parsing, GORM operations, etc.)
+	totalSizeMB := totalSizeKB / 1024.0
+	processingOverheadMultiplier := 3.0 // Assume 3x overhead for processing
+	
+	return totalSizeMB * processingOverheadMultiplier
 }
 
 // getTotalProcessedEntities calculates total entities processed across all types
@@ -920,15 +1044,18 @@ func (s *SyncService) pushCartsSafe(ctx context.Context, tx *gorm.DB, carts []en
 			if err := s.processSingleCartWithErrorIsolation(ctx, tx, cart, licenseID, response); err != nil {
 				log.Printf("Error processing cart %s (batch %d, index %d): %v", cart.ID, i/s.config.BatchSize+1, batchIndex, err)
 				errorCount++
-				// CRITICAL: Continue with next entity instead of failing entire batch
-				// Add error to response but don't abort transaction
-				s.addDetailedError(response, "carts", cart.ID, "processing_failed", err.Error(),
+				
+				// CRITICAL FIX: Use policy-based error handling instead of hardcoded continue
+				if handleErr := s.handleEntityError(err, "carts", cart.ID, response,
 					map[string]interface{}{
 						"cart_shop_id": cart.ShopID,
 						"license_id":   licenseID,
 						"batch_index":  i + batchIndex,
 						"batch_number": i/s.config.BatchSize + 1,
-					})
+					}); handleErr != nil {
+					// Error policy requires aborting
+					return fmt.Errorf("cart processing failed with abort policy: %w", handleErr)
+				}
 				continue
 			}
 			successCount++
@@ -957,41 +1084,41 @@ func (s *SyncService) processSingleCartWithErrorIsolation(ctx context.Context, t
 		return fmt.Errorf("cart does not belong to license %s", licenseID)
 	}
 
-	// CRITICAL FIX: Use the existing transaction instead of creating nested transactions
-	// Nested transactions in PostgreSQL can cause "current transaction is aborted" errors
-	
-	// Check if cart exists with error handling
-	existingCart, err := s.findCartByIDSafe(ctx, tx, cart.ID)
-	if err != nil {
-		return fmt.Errorf("failed to find cart: %w", err)
-	}
-
-	if existingCart == nil {
-		// Create new cart
-		if err := s.createCartSafe(ctx, tx, cart); err != nil {
-			return fmt.Errorf("failed to create cart: %w", err)
+	// CRITICAL FIX: Use savepoint-based processing for better error isolation
+	return s.processEntityWithSavepoint(ctx, tx, cart.ID, func() error {
+		// Check if cart exists with error handling
+		existingCart, err := s.findCartByIDSafe(ctx, tx, cart.ID)
+		if err != nil {
+			return fmt.Errorf("failed to find cart: %w", err)
 		}
-		s.incrementStat(response.Stats.CreatedEntities, "carts")
-	} else {
-		// Handle potential conflict
-		if conflict := s.resolveCartConflict(*existingCart, cart); conflict != nil {
-			response.Conflicts = append(response.Conflicts, *conflict)
-			// Use server version in case of conflict (for LastWriteWins strategy)
-			if existingCart.UpdatedAt.After(cart.UpdatedAt) {
-				s.incrementStat(response.Stats.ProcessedEntities, "carts")
-				return nil // Skip update, server version is newer
+
+		if existingCart == nil {
+			// Create new cart
+			if err := s.createCartSafe(ctx, tx, cart); err != nil {
+				return fmt.Errorf("failed to create cart: %w", err)
 			}
+			s.incrementStat(response.Stats.CreatedEntities, "carts")
+		} else {
+			// Handle potential conflict
+			if conflict := s.resolveCartConflict(*existingCart, cart); conflict != nil {
+				response.Conflicts = append(response.Conflicts, *conflict)
+				// Use server version in case of conflict (for LastWriteWins strategy)
+				if existingCart.UpdatedAt.After(cart.UpdatedAt) {
+					s.incrementStat(response.Stats.ProcessedEntities, "carts")
+					return nil // Skip update, server version is newer
+				}
+			}
+
+			// Update existing cart
+			if err := s.updateCartSafe(ctx, tx, cart); err != nil {
+				return fmt.Errorf("failed to update cart: %w", err)
+			}
+			s.incrementStat(response.Stats.UpdatedEntities, "carts")
 		}
 
-		// Update existing cart
-		if err := s.updateCartSafe(ctx, tx, cart); err != nil {
-			return fmt.Errorf("failed to update cart: %w", err)
-		}
-		s.incrementStat(response.Stats.UpdatedEntities, "carts")
-	}
-
-	s.incrementStat(response.Stats.ProcessedEntities, "carts")
-	return nil
+		s.incrementStat(response.Stats.ProcessedEntities, "carts")
+		return nil
+	})
 }
 
 // Safe database operations with enhanced error handling
@@ -1036,25 +1163,42 @@ func (s *SyncService) updateCartSafe(ctx context.Context, tx *gorm.DB, cart enti
 	return err
 }
 
-// processSingleCart processes a single cart entity with enhanced error handling
+// processSingleCart processes a single cart entity with enhanced error handling and comprehensive validation
 func (s *SyncService) processSingleCart(ctx context.Context, tx *gorm.DB, cart entities.Cart, licenseID uuid.UUID, response *dto.SyncResponse) error {
-	// Validate cart belongs to license
+	// SECURITY ENHANCEMENT: Comprehensive entity validation
+	var existingCart *entities.Cart
+	var err error
+	
+	// First, try to find existing cart for update validation
+	existingCart, _ = s.findCartByID(ctx, tx, cart.ID)
+	
+	// Determine operation type
+	operation := "create"
+	if existingCart != nil {
+		operation = "update"
+	}
+	
+	// Validate entity with comprehensive security checks
+	if err := s.validator.ValidateEntity(ctx, cart, operation, existingCart); err != nil {
+		s.addDetailedValidationError(response, "carts", cart.ID, "validation_failed", err,
+			map[string]interface{}{"operation": operation, "validation_type": "comprehensive"})
+		return nil // Continue processing other entities based on error policy
+	}
+
+	// Validate cart belongs to license (existing validation)
 	if !s.validateCartLicense(ctx, cart, licenseID) {
 		s.addDetailedError(response, "carts", cart.ID, "unauthorized", "Cart does not belong to license",
 			map[string]interface{}{"cart_shop_id": cart.ShopID, "license_id": licenseID})
 		return nil // Continue processing other entities
 	}
 
-	// Check if cart exists with retry
-	var existingCart *entities.Cart
-	var err error
-
-	operation := func() error {
+	// Re-find cart with retry for actual processing
+	operation_find := func() error {
 		existingCart, err = s.findCartByID(ctx, tx, cart.ID)
 		return err
 	}
 
-	if retryErr := s.retryOperation(ctx, operation, s.config.MaxRetries, s.config.BaseRetryDelay, fmt.Sprintf("find_cart_%s", cart.ID)); retryErr != nil {
+	if retryErr := s.retryOperation(ctx, operation_find, s.config.MaxRetries, s.config.BaseRetryDelay, fmt.Sprintf("find_cart_%s", cart.ID)); retryErr != nil {
 		s.addDetailedError(response, "carts", cart.ID, "database_error", retryErr.Error(),
 			map[string]interface{}{"operation": "find", "retry_attempts": s.config.MaxRetries})
 		return nil // Continue processing other entities
@@ -1648,6 +1792,12 @@ func (s *SyncService) pullCategories(ctx context.Context, tx *gorm.DB, lastSync 
 }
 
 func (s *SyncService) pushProducts(ctx context.Context, tx *gorm.DB, products []entities.Product, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	// Performance optimization: Use bulk validation instead of individual queries
+	if s.config.EnableBulkValidation && len(products) > 1 {
+		return s.pushProductsOptimized(ctx, tx, products, licenseID, response)
+	}
+
+	// Fallback to original implementation for single products or when optimization is disabled
 	for _, product := range products {
 		// Validate product belongs to license
 		if !s.validateProductLicense(ctx, product, licenseID) {
@@ -1693,9 +1843,94 @@ func (s *SyncService) pushProducts(ctx context.Context, tx *gorm.DB, products []
 	return nil
 }
 
+// pushProductsOptimized uses bulk validation and optimized processing for better performance
+func (s *SyncService) pushProductsOptimized(ctx context.Context, tx *gorm.DB, products []entities.Product, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	startTime := time.Now()
+	
+	// Step 1: Bulk validate all products belong to the license
+	productValidation, err := s.optimizer.BulkValidateProductLicenses(ctx, products, licenseID)
+	if err != nil {
+		log.Printf("Bulk validation failed, falling back to individual validation: %v", err)
+		return s.pushProducts(ctx, tx, products, licenseID, response) // Fallback
+	}
+
+	// Step 2: Bulk check which products already exist
+	productIDs := make([]uuid.UUID, len(products))
+	for i, product := range products {
+		productIDs[i] = product.ID
+	}
+	
+	existingProducts, err := s.optimizer.BulkFindExistingEntities(ctx, tx, "products", productIDs)
+	if err != nil {
+		log.Printf("Bulk existence check failed, falling back to individual processing: %v", err)
+		return s.pushProducts(ctx, tx, products, licenseID, response) // Fallback
+	}
+
+	// Step 3: Process products in optimized batches
+	return s.optimizer.BatchProcessEntities(ctx, len(products), s.config.OptimalBatchSize, func(startIdx, endIdx int) error {
+		batch := products[startIdx:endIdx]
+		
+		for _, product := range batch {
+			// Check bulk validation result
+			if !productValidation[product.ID] {
+				s.addError(response, "products", product.ID, "unauthorized", "Product does not belong to license")
+				continue
+			}
+
+			productExists := existingProducts[product.ID]
+			
+			if !productExists {
+				// Create new product
+				if err := s.createProduct(ctx, tx, product); err != nil {
+					s.addError(response, "products", product.ID, "create_failed", err.Error())
+					continue
+				}
+				s.incrementStat(response.Stats.CreatedEntities, "products")
+			} else {
+				// Get existing product for conflict resolution
+				existingProduct, err := s.findProductByID(ctx, tx, product.ID)
+				if err != nil {
+					s.addError(response, "products", product.ID, "database_error", err.Error())
+					continue
+				}
+
+				// Handle potential conflict
+				if conflict := s.resolveProductConflict(*existingProduct, product); conflict != nil {
+					response.Conflicts = append(response.Conflicts, *conflict)
+					// Use server version in case of conflict (for LastWriteWins strategy)
+					if existingProduct.UpdatedAt.After(product.UpdatedAt) {
+						continue // Skip update, server version is newer
+					}
+				}
+
+				// Update existing product
+				if err := s.updateProduct(ctx, tx, product); err != nil {
+					s.addError(response, "products", product.ID, "update_failed", err.Error())
+					continue
+				}
+				s.incrementStat(response.Stats.UpdatedEntities, "products")
+			}
+
+			s.incrementStat(response.Stats.ProcessedEntities, "products")
+		}
+		
+		return nil
+	})
+	
+	if s.config.EnablePerformanceLog {
+		log.Printf("Optimized product processing: %d products processed in %v", len(products), time.Since(startTime))
+	}
+	
+	return nil
+}
+
 func (s *SyncService) pullProducts(ctx context.Context, tx *gorm.DB, lastSync time.Time, licenseID uuid.UUID, response *dto.SyncResponse) error {
-	// Get all products for the license that were updated after lastSync
-	// Select only the product fields without relations to avoid unnecessary data
+	// Performance optimization: Use optimized query with proper indexing
+	if s.config.EnableQueryOptimization {
+		return s.pullProductsOptimized(ctx, tx, lastSync, licenseID, response)
+	}
+
+	// Fallback to original implementation
 	var products []entities.Product
 	err := tx.WithContext(ctx).
 		Select("products.*").
@@ -1710,6 +1945,60 @@ func (s *SyncService) pullProducts(ctx context.Context, tx *gorm.DB, lastSync ti
 
 	// Map entities to DTOs to exclude relationship fields
 	response.Products = dto.MapProductsToSyncDTOs(products)
+	return nil
+}
+
+// pullProductsOptimized uses index-optimized queries for better performance
+func (s *SyncService) pullProductsOptimized(ctx context.Context, tx *gorm.DB, lastSync time.Time, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	startTime := time.Now()
+
+	// First get all shop IDs for this license (uses idx_shops_license_id index)
+	var shopIDs []uuid.UUID
+	err := tx.WithContext(ctx).
+		Model(&entities.Shop{}).
+		Select("id").
+		Where("license_id = ?", licenseID).
+		Pluck("id", &shopIDs).Error
+
+	if err != nil {
+		return fmt.Errorf("failed to query shops for license: %w", err)
+	}
+
+	if len(shopIDs) == 0 {
+		response.Products = []dto.SyncProductDTO{}
+		return nil
+	}
+
+	// Query products using shop_id + updated_at index (idx_products_shop_updated)
+	var products []entities.Product
+	query := tx.WithContext(ctx).
+		Select("products.*").
+		Where("products.shop_id IN (?) AND products.updated_at > ?", shopIDs, lastSync).
+		Order("products.updated_at ASC")
+
+	// Add index hint if enabled
+	if s.config.EnableIndexHints {
+		query = s.optimizer.OptimizeQueryWithIndexHints(query, "products", "sync_pull")
+	}
+
+	// Limit result set to prevent memory issues
+	if s.config.MaxResultsPerQuery > 0 {
+		query = query.Limit(s.config.MaxResultsPerQuery)
+	}
+
+	err = query.Find(&products).Error
+	if err != nil {
+		return fmt.Errorf("failed to query products: %w", err)
+	}
+
+	// Map entities to DTOs to exclude relationship fields
+	response.Products = dto.MapProductsToSyncDTOs(products)
+
+	if s.config.EnablePerformanceLog {
+		log.Printf("Optimized product pull: %d products from %d shops in %v", 
+			len(products), len(shopIDs), time.Since(startTime))
+	}
+
 	return nil
 }
 
@@ -1776,6 +2065,12 @@ func (s *SyncService) resolveProductConflict(existing, incoming entities.Product
 }
 
 func (s *SyncService) pushTransactions(ctx context.Context, tx *gorm.DB, transactions []entities.Transaction, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	// Performance optimization: Use bulk validation instead of individual queries
+	if s.config.EnableBulkValidation && len(transactions) > 1 {
+		return s.pushTransactionsOptimized(ctx, tx, transactions, licenseID, response)
+	}
+
+	// Fallback to original implementation for single transactions or when optimization is disabled
 	for _, transaction := range transactions {
 		// Validate transaction belongs to license
 		if !s.validateTransactionLicense(ctx, transaction, licenseID) {
@@ -1821,9 +2116,94 @@ func (s *SyncService) pushTransactions(ctx context.Context, tx *gorm.DB, transac
 	return nil
 }
 
+// pushTransactionsOptimized uses bulk validation and optimized processing for better performance
+func (s *SyncService) pushTransactionsOptimized(ctx context.Context, tx *gorm.DB, transactions []entities.Transaction, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	startTime := time.Now()
+	
+	// Step 1: Bulk validate all transactions belong to the license
+	transactionValidation, err := s.optimizer.BulkValidateTransactionLicenses(ctx, transactions, licenseID)
+	if err != nil {
+		log.Printf("Bulk validation failed, falling back to individual validation: %v", err)
+		return s.pushTransactions(ctx, tx, transactions, licenseID, response) // Fallback
+	}
+
+	// Step 2: Bulk check which transactions already exist
+	transactionIDs := make([]uuid.UUID, len(transactions))
+	for i, transaction := range transactions {
+		transactionIDs[i] = transaction.ID
+	}
+	
+	existingTransactions, err := s.optimizer.BulkFindExistingEntities(ctx, tx, "transactions", transactionIDs)
+	if err != nil {
+		log.Printf("Bulk existence check failed, falling back to individual processing: %v", err)
+		return s.pushTransactions(ctx, tx, transactions, licenseID, response) // Fallback
+	}
+
+	// Step 3: Process transactions in optimized batches
+	return s.optimizer.BatchProcessEntities(ctx, len(transactions), s.config.OptimalBatchSize, func(startIdx, endIdx int) error {
+		batch := transactions[startIdx:endIdx]
+		
+		for _, transaction := range batch {
+			// Check bulk validation result
+			if !transactionValidation[transaction.ID] {
+				s.addError(response, "transactions", transaction.ID, "unauthorized", "Transaction does not belong to license")
+				continue
+			}
+
+			transactionExists := existingTransactions[transaction.ID]
+			
+			if !transactionExists {
+				// Create new transaction
+				if err := s.createTransaction(ctx, tx, transaction); err != nil {
+					s.addError(response, "transactions", transaction.ID, "create_failed", err.Error())
+					continue
+				}
+				s.incrementStat(response.Stats.CreatedEntities, "transactions")
+			} else {
+				// Get existing transaction for conflict resolution
+				existingTransaction, err := s.findTransactionByID(ctx, tx, transaction.ID)
+				if err != nil {
+					s.addError(response, "transactions", transaction.ID, "database_error", err.Error())
+					continue
+				}
+
+				// Handle potential conflict
+				if conflict := s.resolveTransactionConflict(*existingTransaction, transaction); conflict != nil {
+					response.Conflicts = append(response.Conflicts, *conflict)
+					// Use server version in case of conflict (for LastWriteWins strategy)
+					if existingTransaction.UpdatedAt.After(transaction.UpdatedAt) {
+						continue // Skip update, server version is newer
+					}
+				}
+
+				// Update existing transaction
+				if err := s.updateTransaction(ctx, tx, transaction); err != nil {
+					s.addError(response, "transactions", transaction.ID, "update_failed", err.Error())
+					continue
+				}
+				s.incrementStat(response.Stats.UpdatedEntities, "transactions")
+			}
+
+			s.incrementStat(response.Stats.ProcessedEntities, "transactions")
+		}
+		
+		return nil
+	})
+	
+	if s.config.EnablePerformanceLog {
+		log.Printf("Optimized transaction processing: %d transactions processed in %v", len(transactions), time.Since(startTime))
+	}
+	
+	return nil
+}
+
 func (s *SyncService) pullTransactions(ctx context.Context, tx *gorm.DB, lastSync time.Time, licenseID uuid.UUID, response *dto.SyncResponse) error {
-	// Get all transactions for the license that were updated after lastSync
-	// Select only the transaction fields without relations to avoid unnecessary data
+	// Performance optimization: Use optimized query with proper indexing
+	if s.config.EnableQueryOptimization {
+		return s.pullTransactionsOptimized(ctx, tx, lastSync, licenseID, response)
+	}
+
+	// Fallback to original implementation
 	var transactions []entities.Transaction
 	err := tx.WithContext(ctx).
 		Select("transactions.*").
@@ -1838,6 +2218,78 @@ func (s *SyncService) pullTransactions(ctx context.Context, tx *gorm.DB, lastSyn
 
 	// Map entities to DTOs to exclude relationship fields
 	response.Transactions = dto.MapTransactionsToSyncDTOs(transactions)
+	return nil
+}
+
+// pullTransactionsOptimized uses index-optimized queries for better performance
+func (s *SyncService) pullTransactionsOptimized(ctx context.Context, tx *gorm.DB, lastSync time.Time, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	startTime := time.Now()
+
+	// Use cached shop IDs if available
+	var shopIDs []uuid.UUID
+	var err error
+
+	if s.config.EnableCaching {
+		// Try to get shop IDs from cache
+		shopLicenseMap, cacheErr := s.cacheManager.GetShopLicenseMapping(ctx, licenseID)
+		if cacheErr == nil {
+			shopIDs = make([]uuid.UUID, 0, len(shopLicenseMap))
+			for shopID := range shopLicenseMap {
+				shopIDs = append(shopIDs, shopID)
+			}
+		} else {
+			log.Printf("Cache lookup failed, using direct query: %v", cacheErr)
+		}
+	}
+
+	// Fallback to direct query if cache is disabled or failed
+	if len(shopIDs) == 0 {
+		err = tx.WithContext(ctx).
+			Model(&entities.Shop{}).
+			Select("id").
+			Where("license_id = ?", licenseID).
+			Pluck("id", &shopIDs).Error
+
+		if err != nil {
+			return fmt.Errorf("failed to query shops for license: %w", err)
+		}
+	}
+
+	if len(shopIDs) == 0 {
+		response.Transactions = []dto.SyncTransactionDTO{}
+		return nil
+	}
+
+	// Query transactions using shop_id + updated_at index (idx_transactions_shop_updated)
+	var transactions []entities.Transaction
+	query := tx.WithContext(ctx).
+		Select("transactions.*").
+		Where("transactions.shop_id IN (?) AND transactions.updated_at > ?", shopIDs, lastSync).
+		Order("transactions.updated_at ASC")
+
+	// Add index hint if enabled
+	if s.config.EnableIndexHints {
+		query = s.optimizer.OptimizeQueryWithIndexHints(query, "transactions", "sync_pull")
+	}
+
+	// Limit result set to prevent memory issues
+	if s.config.MaxResultsPerQuery > 0 {
+		query = query.Limit(s.config.MaxResultsPerQuery)
+	}
+
+	err = query.Find(&transactions).Error
+	if err != nil {
+		return fmt.Errorf("failed to query transactions: %w", err)
+	}
+
+	// Map entities to DTOs to exclude relationship fields
+	response.Transactions = dto.MapTransactionsToSyncDTOs(transactions)
+
+	if s.config.EnablePerformanceLog {
+		log.Printf("Optimized transaction pull: %d transactions from %d shops in %v", 
+			len(transactions), len(shopIDs), time.Since(startTime))
+	}
+
 	return nil
 }
 
@@ -2617,6 +3069,12 @@ func (s *SyncService) filterStockHistoriesByShopAccessWithSyncData(stockHistorie
 		return stockHistories
 	}
 
+	// Performance optimization: Use bulk validation when enabled and there are many stock histories
+	if s.config.EnableBulkValidation && len(stockHistories) > 10 {
+		return s.filterStockHistoriesByShopAccessOptimized(stockHistories, syncProducts, syncContext.AccessibleShopIDs, syncContext)
+	}
+
+	// Fallback to original implementation for smaller sets or when optimization is disabled
 	var filtered []entities.StockHistory
 	
 	// Create a map of products in the sync request for quick lookup
@@ -2692,6 +3150,98 @@ func (s *SyncService) filterStockHistoriesByShopAccessWithSyncData(stockHistorie
 	
 	log.Printf("SUMMARY: Filtered stock histories for user %s (role: %s): %d → %d", 
 		syncContext.UserID, syncContext.UserRole, len(stockHistories), len(filtered))
+	return filtered
+}
+
+// filterStockHistoriesByShopAccessOptimized uses bulk database queries for better performance
+func (s *SyncService) filterStockHistoriesByShopAccessOptimized(stockHistories []entities.StockHistory, syncProducts []entities.Product, accessibleShopIDs []uuid.UUID, syncContext dto.SyncContext) []entities.StockHistory {
+	startTime := time.Now()
+	
+	// Create a map of products in the sync request for quick lookup
+	syncProductMap := make(map[uuid.UUID]uuid.UUID) // product_id -> shop_id
+	for _, product := range syncProducts {
+		syncProductMap[product.ID] = product.ShopID
+	}
+	
+	// Create accessible shop set for fast lookup
+	accessibleShopSet := make(map[uuid.UUID]bool)
+	for _, shopID := range accessibleShopIDs {
+		accessibleShopSet[shopID] = true
+	}
+	
+	// Get product IDs that are not in sync data and need database lookup
+	missingProductIDs := make([]uuid.UUID, 0)
+	for _, stockHistory := range stockHistories {
+		if _, exists := syncProductMap[stockHistory.ProductID]; !exists {
+			missingProductIDs = append(missingProductIDs, stockHistory.ProductID)
+		}
+	}
+	
+	// Bulk fetch missing products from database
+	var missingProductToShop map[uuid.UUID]uuid.UUID
+	var err error
+	
+	if len(missingProductIDs) > 0 {
+		if s.config.EnableCaching {
+			// Use cache manager for potentially cached results
+			missingProductToShop, err = s.cacheManager.GetProductShopMapping(context.Background(), missingProductIDs)
+		} else {
+			// Use direct database query for missing products
+			var products []entities.Product
+			err = s.db.WithContext(context.Background()).
+				Select("id, shop_id").
+				Where("id IN (?)", missingProductIDs).
+				Find(&products).Error
+			
+			if err == nil {
+				missingProductToShop = make(map[uuid.UUID]uuid.UUID)
+				for _, product := range products {
+					missingProductToShop[product.ID] = product.ShopID
+				}
+			}
+		}
+		
+		if err != nil {
+			log.Printf("Bulk product fetch failed, falling back to individual lookup: %v", err)
+			// Fallback to original method
+			return s.filterStockHistoriesByShopAccessWithSyncData(stockHistories, syncProducts, accessibleShopSet, syncContext)
+		}
+	} else {
+		missingProductToShop = make(map[uuid.UUID]uuid.UUID)
+	}
+	
+	// Filter stock histories using combined data
+	var filtered []entities.StockHistory
+	
+	for _, stockHistory := range stockHistories {
+		var productShopID uuid.UUID
+		var productFound bool
+		
+		// Check sync data first
+		if shopID, exists := syncProductMap[stockHistory.ProductID]; exists {
+			productShopID = shopID
+			productFound = true
+		} else if shopID, exists := missingProductToShop[stockHistory.ProductID]; exists {
+			// Check bulk-fetched data
+			productShopID = shopID
+			productFound = true
+		}
+		
+		if !productFound {
+			continue
+		}
+		
+		// Check accessibility
+		if accessibleShopSet[productShopID] {
+			filtered = append(filtered, stockHistory)
+		}
+	}
+	
+	if s.config.EnablePerformanceLog {
+		log.Printf("Optimized stock history filtering: %d → %d stock histories processed in %v (sync products: %d, db lookups: %d)", 
+			len(stockHistories), len(filtered), time.Since(startTime), len(syncProducts), len(missingProductIDs))
+	}
+	
 	return filtered
 }
 
@@ -3641,6 +4191,117 @@ func (s *SyncService) addDetailedError(response *dto.SyncResponse, entityType st
 	response.Errors = append(response.Errors, syncError)
 	log.Printf("Sync error - Type: %s, ID: %s, Code: %s, Message: %s, Details: %s",
 		entityType, entityID, errorCode, message, errorDetails)
+}
+
+// addDetailedValidationError adds comprehensive validation errors to the sync response
+func (s *SyncService) addDetailedValidationError(response *dto.SyncResponse, entityType string, entityID uuid.UUID, errorCode string, validationErr error, details map[string]interface{}) {
+	// Handle different types of validation errors
+	if validationErrors, ok := validationErr.(validators.ValidationErrors); ok {
+		// Multiple validation errors
+		for i, ve := range validationErrors {
+			errorDetails := fmt.Sprintf("Field: %s, Code: %s, Details: %+v", ve.Field, ve.Code, details)
+			syncError := dto.SyncError{
+				EntityType: entityType,
+				EntityID:   entityID,
+				ErrorCode:  fmt.Sprintf("%s_%d", errorCode, i+1),
+				Message:    ve.Message,
+				Details:    errorDetails,
+			}
+			response.Errors = append(response.Errors, syncError)
+			
+			log.Printf("Validation error - Type: %s, ID: %s, Field: %s, Code: %s, Message: %s",
+				entityType, entityID, ve.Field, ve.Code, ve.Message)
+		}
+	} else {
+		// Single validation error
+		errorDetails := ""
+		if len(details) > 0 {
+			errorDetails = fmt.Sprintf("Details: %+v", details)
+		}
+		
+		syncError := dto.SyncError{
+			EntityType: entityType,
+			EntityID:   entityID,
+			ErrorCode:  errorCode,
+			Message:    validationErr.Error(),
+			Details:    errorDetails,
+		}
+		response.Errors = append(response.Errors, syncError)
+		
+		log.Printf("Validation error - Type: %s, ID: %s, Message: %s, Details: %s",
+			entityType, entityID, validationErr.Error(), errorDetails)
+	}
+}
+
+// CRITICAL FIX: Enhanced error handling with configurable policies
+// handleEntityError processes errors according to the configured error policy
+func (s *SyncService) handleEntityError(err error, entityType string, entityID uuid.UUID, response *dto.SyncResponse, details map[string]interface{}) error {
+	// Parse the error policy from configuration
+	errorPolicy := dto.ParseSyncErrorPolicy(s.config.ErrorPolicy)
+	
+	// Add the error to the response for tracking
+	s.addDetailedError(response, entityType, entityID, "processing_error", err.Error(), details)
+	
+	// Check if we've exceeded the maximum allowed errors
+	if len(response.Errors) > s.config.MaxEntityErrorsPerSync {
+		log.Printf("Maximum entity errors exceeded (%d), aborting sync", s.config.MaxEntityErrorsPerSync)
+		return fmt.Errorf("too many entity errors during sync: %d errors", len(response.Errors))
+	}
+
+	// Handle based on policy
+	switch errorPolicy {
+	case dto.ContinueOnError:
+		// Log and continue - this is the current behavior
+		log.Printf("Continuing sync despite error in %s %s: %v", entityType, entityID, err)
+		return nil
+		
+	case dto.AbortOnError:
+		// Stop processing immediately
+		log.Printf("Aborting sync due to error in %s %s: %v", entityType, entityID, err)
+		return fmt.Errorf("sync aborted due to error policy: %w", err)
+		
+	case dto.RetryOnError:
+		// For now, just log and continue - retry logic would require more complex state management
+		// This could be enhanced in future versions with proper retry queues
+		log.Printf("Entity error (retry policy not yet implemented, continuing): %s %s: %v", entityType, entityID, err)
+		return nil
+		
+	default:
+		// Default to continue
+		log.Printf("Unknown error policy, continuing: %s %s: %v", entityType, entityID, err)
+		return nil
+	}
+}
+
+// CRITICAL FIX: Savepoint-based transaction processing for better error isolation
+// processEntityWithSavepoint processes an entity within a savepoint for isolated error handling
+func (s *SyncService) processEntityWithSavepoint(ctx context.Context, tx *gorm.DB, entityID uuid.UUID, processFunc func() error) error {
+	// Create savepoint name
+	savepointName := fmt.Sprintf("sp_%s", entityID.String()[:8])
+	
+	// Create savepoint
+	if err := tx.SavePoint(savepointName).Error; err != nil {
+		log.Printf("Warning: Failed to create savepoint %s, proceeding without isolation: %v", savepointName, err)
+		// If savepoint creation fails, proceed without it - this maintains backward compatibility
+		return processFunc()
+	}
+	
+	// Execute the processing function
+	if err := processFunc(); err != nil {
+		// Rollback to savepoint on error
+		if rollbackErr := tx.RollbackTo(savepointName).Error; rollbackErr != nil {
+			log.Printf("Warning: Failed to rollback to savepoint %s: %v", savepointName, rollbackErr)
+		}
+		return err
+	}
+	
+	// Release savepoint on success (optional, but good practice)
+	if err := tx.Exec(fmt.Sprintf("RELEASE SAVEPOINT %s", savepointName)).Error; err != nil {
+		log.Printf("Warning: Failed to release savepoint %s: %v", savepointName, err)
+		// This is not critical - the savepoint will be cleaned up when the transaction ends
+	}
+	
+	return nil
 }
 
 // logPerformanceMetrics logs performance metrics for monitoring
