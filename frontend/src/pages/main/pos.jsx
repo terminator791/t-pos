@@ -4,7 +4,9 @@ import Icon from "@/components/ui/Icon";
 import Button from "@/components/ui/Button";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import ErrorDisplay from "@/components/ui/ErrorDisplay";
-import Modal from "@/components/ui/Modal";
+import ShoppingCart from "@/components/pos/ShoppingCart";
+import ProductGrid from "@/components/pos/ProductGrid";
+import PaymentModal from "@/components/pos/PaymentModal";
 import {
   useProducts,
   useCategories,
@@ -31,8 +33,6 @@ const POSPage = () => {
   const [discountPercentage, setDiscountPercentage] = useState(0);
   const [discountAmount, setDiscountAmount] = useState(0);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentAmount, setPaymentAmount] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState("cash");
 
   // Get user info from Redux
   const { user } = useSelector((state) => state.auth);
@@ -147,17 +147,13 @@ const POSPage = () => {
       toast.error("Cart is empty");
       return;
     }
-    setPaymentAmount(total);
     setShowPaymentModal(true);
   };
 
   // Handle payment processing
-  const handlePayment = async () => {
+  const handlePayment = async (paymentData) => {
     try {
-      if (paymentAmount < total) {
-        toast.error("Payment amount cannot be less than total");
-        return;
-      }
+      const { amount, method, notes } = paymentData;
 
       // Create transaction
       const transactionData = {
@@ -178,7 +174,7 @@ const POSPage = () => {
         // Process payment
         await payTransaction.mutateAsync({
           transactionId: transactionResult.data.id,
-          amount: paymentAmount
+          amount: amount
         });
 
         // Clear cart after successful transaction
@@ -188,7 +184,6 @@ const POSPage = () => {
         setCustomerName("");
         setDiscountPercentage(0);
         setDiscountAmount(0);
-        setPaymentAmount(0);
         setShowPaymentModal(false);
         
         toast.success("Transaction completed successfully!");
@@ -197,9 +192,6 @@ const POSPage = () => {
       console.error("Payment failed:", error);
     }
   };
-
-  // Calculate change
-  const change = paymentAmount - total;
 
   if (productsLoading || cartsLoading) {
     return <LoadingSpinner message="Loading POS system..." />;
@@ -316,47 +308,13 @@ const POSPage = () => {
 
           {/* Products Grid */}
           <Card title="Products">
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {filteredProducts.map((product) => (
-                <div
-                  key={product.id}
-                  className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
-                  onClick={() => handleAddToCart(product)}
-                >
-                  <div className="aspect-square bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center mb-3">
-                    {product.photo ? (
-                      <img
-                        src={product.photo}
-                        alt={product.name}
-                        className="w-full h-full object-cover rounded-lg"
-                      />
-                    ) : (
-                      <Icon icon="ph:package" className="text-4xl text-gray-400" />
-                    )}
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-gray-900 dark:text-white text-sm truncate">
-                      {product.name}
-                    </h3>
-                    <p className="text-gray-500 dark:text-gray-400 text-xs">
-                      Stock: {product.stock} {product.unit}
-                    </p>
-                    <p className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
-                      ${product.sale?.toFixed(2)}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-            
-            {filteredProducts.length === 0 && (
-              <div className="text-center py-8">
-                <Icon icon="ph:package" className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                <p className="text-gray-500 dark:text-gray-400">
-                  No products found matching your criteria.
-                </p>
-              </div>
-            )}
+            <ProductGrid
+              products={filteredProducts}
+              onAddToCart={handleAddToCart}
+              isLoading={productsLoading}
+              searchTerm={searchTerm}
+              selectedCategory={selectedCategory}
+            />
           </Card>
         </div>
 
@@ -381,72 +339,14 @@ const POSPage = () => {
           </Card>
 
           {/* Shopping Cart */}
-          <Card 
-            title="Shopping Cart" 
-            headerslot={
-              <Button
-                icon="ph:trash"
-                size="sm"
-                className="btn-outline-danger"
-                onClick={handleClearCart}
-                disabled={cartItems.length === 0}
-              >
-                Clear
-              </Button>
-            }
-          >
-            <div className="space-y-2 max-h-60 overflow-y-auto">
-              {cartItems.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
-                >
-                  <div className="flex-1">
-                    <h4 className="font-medium text-sm text-gray-900 dark:text-white">
-                      {item.product_name || `Product ${item.product_id}`}
-                    </h4>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      ${item.unit_price?.toFixed(2)} each
-                    </p>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      size="sm"
-                      className="btn-outline-secondary w-8 h-8 p-0"
-                      onClick={() => handleQuantityChange(item, item.quantity - 1)}
-                    >
-                      <Icon icon="ph:minus" />
-                    </Button>
-                    <span className="w-8 text-center text-sm font-medium">
-                      {item.quantity}
-                    </span>
-                    <Button
-                      size="sm"
-                      className="btn-outline-secondary w-8 h-8 p-0"
-                      onClick={() => handleQuantityChange(item, item.quantity + 1)}
-                    >
-                      <Icon icon="ph:plus" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="btn-outline-danger w-8 h-8 p-0"
-                      onClick={() => handleRemoveFromCart(item.id)}
-                    >
-                      <Icon icon="ph:x" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-              
-              {cartItems.length === 0 && (
-                <div className="text-center py-8">
-                  <Icon icon="ph:shopping-cart" className="mx-auto h-12 w-12 text-gray-400 mb-2" />
-                  <p className="text-gray-500 dark:text-gray-400 text-sm">
-                    Cart is empty. Add products to start a transaction.
-                  </p>
-                </div>
-              )}
-            </div>
+          <Card title="Shopping Cart">
+            <ShoppingCart
+              items={cartItems}
+              onQuantityChange={handleQuantityChange}
+              onRemove={handleRemoveFromCart}
+              onClear={handleClearCart}
+              isLoading={cartsLoading}
+            />
           </Card>
 
           {/* Discounts */}
@@ -524,77 +424,18 @@ const POSPage = () => {
       </div>
 
       {/* Payment Modal */}
-      <Modal
-        title="Process Payment"
-        activeModal={showPaymentModal}
+      <PaymentModal
+        isOpen={showPaymentModal}
         onClose={() => setShowPaymentModal(false)}
-        className="max-w-md"
-      >
-        <div className="space-y-4">
-          <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
-            <div className="flex justify-between text-lg font-bold">
-              <span>Total Amount:</span>
-              <span>${total.toFixed(2)}</span>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Payment Method
-            </label>
-            <select
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value)}
-              className="form-control"
-            >
-              <option value="cash">Cash</option>
-              <option value="card">Credit/Debit Card</option>
-              <option value="digital">Digital Payment</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Amount Received
-            </label>
-            <input
-              type="number"
-              min={total}
-              step="0.01"
-              value={paymentAmount}
-              onChange={(e) => setPaymentAmount(Number(e.target.value))}
-              className="form-control"
-              placeholder="Enter payment amount"
-            />
-          </div>
-
-          {paymentAmount >= total && (
-            <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
-              <div className="flex justify-between text-lg font-bold text-green-800 dark:text-green-400">
-                <span>Change:</span>
-                <span>${change.toFixed(2)}</span>
-              </div>
-            </div>
-          )}
-
-          <div className="flex space-x-3">
-            <Button
-              className="btn-outline-secondary flex-1"
-              onClick={() => setShowPaymentModal(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              className="btn-primary flex-1"
-              onClick={handlePayment}
-              disabled={paymentAmount < total}
-              isLoading={createTransaction.isPending || payTransaction.isPending}
-            >
-              Complete Payment
-            </Button>
-          </div>
-        </div>
-      </Modal>
+        onConfirmPayment={handlePayment}
+        orderSummary={{
+          subtotal,
+          discount: discountTotal,
+          tax: ppnAmount,
+          total
+        }}
+        isProcessing={createTransaction.isPending || payTransaction.isPending}
+      />
     </div>
   );
 };
