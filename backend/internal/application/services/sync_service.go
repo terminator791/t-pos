@@ -423,47 +423,19 @@ func (s *SyncService) pushChangesWithRoleAccessSafe(ctx context.Context, tx *gor
 		response.Errors = append(response.Errors, warning)
 	}
 
-	// Process each entity type with the filtered data and enhanced error handling
-	if err := s.pushCartsSafe(ctx, tx, filteredReq.Carts, syncContext.LicenseID, response); err != nil {
-		return fmt.Errorf("failed to push carts: %w", err)
-	}
+	// CRITICAL FIX: Process entities in correct dependency order to avoid foreign key violations
+	// This ensures that when validating entities, their referenced entities exist in the database
 
-	if err := s.pushCategoriesSafe(ctx, tx, filteredReq.Categories, syncContext.LicenseID, response); err != nil {
-		return fmt.Errorf("failed to push categories: %w", err)
-	}
-
-	if err := s.pushProductsSafe(ctx, tx, filteredReq.Products, syncContext.LicenseID, response); err != nil {
-		return fmt.Errorf("failed to push products: %w", err)
-	}
-
-	if err := s.pushTransactionsSafe(ctx, tx, filteredReq.Transactions, syncContext.LicenseID, response); err != nil {
-		return fmt.Errorf("failed to push transactions: %w", err)
-	}
-
-	if err := s.pushExpensesSafe(ctx, tx, filteredReq.Expenses, syncContext.LicenseID, response); err != nil {
-		return fmt.Errorf("failed to push expenses: %w", err)
-	}
-
-	if err := s.pushPaymentsSafe(ctx, tx, filteredReq.Payments, syncContext.LicenseID, response); err != nil {
-		return fmt.Errorf("failed to push payments: %w", err)
-	}
-
-	if err := s.pushReceiptsSafe(ctx, tx, filteredReq.Receipts, syncContext.LicenseID, response); err != nil {
-		return fmt.Errorf("failed to push receipts: %w", err)
-	}
-
-	if err := s.pushHistoriesSafe(ctx, tx, filteredReq.Histories, syncContext.LicenseID, response); err != nil {
-		return fmt.Errorf("failed to push histories: %w", err)
-	}
-
-	// Only allow shop configuration changes for owner_business and admins
+	// Level 1: Independent entities (no foreign key dependencies)
 	if syncContext.UserRole != "cashier" {
-		if err := s.pushShopsSafe(ctx, tx, filteredReq.Shops, syncContext.LicenseID, response); err != nil {
-			return fmt.Errorf("failed to push shops: %w", err)
-		}
-
+		// 1. Users (no dependencies)
 		if err := s.pushUsersSafe(ctx, tx, filteredReq.Users, syncContext.LicenseID, response); err != nil {
 			return fmt.Errorf("failed to push users: %w", err)
+		}
+
+		// 2. Shops (references Users via UserID)
+		if err := s.pushShopsSafe(ctx, tx, filteredReq.Shops, syncContext.LicenseID, response); err != nil {
+			return fmt.Errorf("failed to push shops: %w", err)
 		}
 	} else {
 		// Log filtered operations for cashiers
@@ -479,12 +451,58 @@ func (s *SyncService) pushChangesWithRoleAccessSafe(ctx context.Context, tx *gor
 		}
 	}
 
+	// Level 2: Entities that depend only on Shops and/or Users
+	// 3. Categories (references Shops via ShopID)
+	if err := s.pushCategoriesSafe(ctx, tx, filteredReq.Categories, syncContext.LicenseID, response); err != nil {
+		return fmt.Errorf("failed to push categories: %w", err)
+	}
+
+	// 4. Expenses (references Shops via ShopID)
+	if err := s.pushExpensesSafe(ctx, tx, filteredReq.Expenses, syncContext.LicenseID, response); err != nil {
+		return fmt.Errorf("failed to push expenses: %w", err)
+	}
+
+	// 5. Payments (references Shops via ShopID)
+	if err := s.pushPaymentsSafe(ctx, tx, filteredReq.Payments, syncContext.LicenseID, response); err != nil {
+		return fmt.Errorf("failed to push payments: %w", err)
+	}
+
+	// 6. Transactions (references Shops via ShopID and Users via CashierID)
+	if err := s.pushTransactionsSafe(ctx, tx, filteredReq.Transactions, syncContext.LicenseID, response); err != nil {
+		return fmt.Errorf("failed to push transactions: %w", err)
+	}
+
+	// Level 3: Entities that depend on Categories and/or Shops
+	// 7. Products (references Shops via ShopID and optionally Categories via CatID)
+	if err := s.pushProductsSafe(ctx, tx, filteredReq.Products, syncContext.LicenseID, response); err != nil {
+		return fmt.Errorf("failed to push products: %w", err)
+	}
+
+	// Level 4: Entities that depend on Products and/or other Level 2/3 entities
+	// 8. Carts (references Shops via ShopID, Products via ProductID, Users via UserID)
+	if err := s.pushCartsSafe(ctx, tx, filteredReq.Carts, syncContext.LicenseID, response); err != nil {
+		return fmt.Errorf("failed to push carts: %w", err)
+	}
+
+	// 9. Transaction Products (references Transactions via TransactionID)
+	if err := s.pushTransactionProductsSafe(ctx, tx, filteredReq.TransactionProducts, filteredReq.Transactions, syncContext, response); err != nil {
+		return fmt.Errorf("failed to push transaction products: %w", err)
+	}
+
+	// 10. Stock Histories (references Products via ProductID)
 	if err := s.pushStockHistoriesSafe(ctx, tx, filteredReq.StockHistories, filteredReq.Products, syncContext, response); err != nil {
 		return fmt.Errorf("failed to push stock histories: %w", err)
 	}
 
-	if err := s.pushTransactionProductsSafe(ctx, tx, filteredReq.TransactionProducts, filteredReq.Transactions, syncContext, response); err != nil {
-		return fmt.Errorf("failed to push transaction products: %w", err)
+	// Level 5: Entities that depend on Level 2 entities
+	// 11. Receipts (references Shops via ShopID and Payments via PaymentsID)
+	if err := s.pushReceiptsSafe(ctx, tx, filteredReq.Receipts, syncContext.LicenseID, response); err != nil {
+		return fmt.Errorf("failed to push receipts: %w", err)
+	}
+
+	// 12. Histories (references Shops via ShopID and Transactions via TransactionID)
+	if err := s.pushHistoriesSafe(ctx, tx, filteredReq.Histories, syncContext.LicenseID, response); err != nil {
+		return fmt.Errorf("failed to push histories: %w", err)
 	}
 
 	return nil
@@ -1677,10 +1695,11 @@ func (s *SyncService) validateCartLicense(ctx context.Context, cart entities.Car
 }
 
 // Helper methods for category operations
-func (s *SyncService) validateCategoryLicense(ctx context.Context, category entities.Category, licenseID uuid.UUID) bool {
+func (s *SyncService) validateCategoryLicense(ctx context.Context, tx *gorm.DB, category entities.Category, licenseID uuid.UUID) bool {
 	// Validate that the category's shop belongs to the license
+	// Use the transaction context to see shops created in the same transaction
 	var count int64
-	s.db.Model(&entities.Shop{}).Where("id = ? AND license_id = ?", category.ShopID, licenseID).Count(&count)
+	tx.WithContext(ctx).Model(&entities.Shop{}).Where("id = ? AND license_id = ?", category.ShopID, licenseID).Count(&count)
 	return count > 0
 }
 
@@ -1744,7 +1763,7 @@ func (s *SyncService) resolveCategoryConflict(existing, incoming entities.Catego
 func (s *SyncService) pushCategories(ctx context.Context, tx *gorm.DB, categories []entities.Category, licenseID uuid.UUID, response *dto.SyncResponse) error {
 	for _, category := range categories {
 		// Validate category belongs to license
-		if !s.validateCategoryLicense(ctx, category, licenseID) {
+		if !s.validateCategoryLicense(ctx, tx, category, licenseID) {
 			s.addError(response, "categories", category.ID, "unauthorized", "Category does not belong to license")
 			continue
 		}
@@ -4430,12 +4449,12 @@ func (s *SyncService) pushHistoriesSafe(ctx context.Context, tx *gorm.DB, histor
 // pushShopsSafe handles shop synchronization safely
 func (s *SyncService) pushShopsSafe(ctx context.Context, tx *gorm.DB, shops []entities.Shop, licenseID uuid.UUID, response *dto.SyncResponse) error {
 	log.Printf("DEBUG: pushShopsSafe - Processing %d shops for license %s", len(shops), licenseID)
-	
+
 	if len(shops) == 0 {
 		log.Printf("DEBUG: pushShopsSafe - No shops to process")
 		return nil
 	}
-	
+
 	for i, shop := range shops {
 		log.Printf("DEBUG: pushShopsSafe - Processing shop %d: ID=%s, Name=%s, LicenseID=%s", i, shop.ID, shop.Name, shop.LicenseID)
 		if err := s.processSingleShopSafe(ctx, tx, shop, licenseID, response); err != nil {
@@ -4446,7 +4465,7 @@ func (s *SyncService) pushShopsSafe(ctx context.Context, tx *gorm.DB, shops []en
 		}
 		log.Printf("DEBUG: pushShopsSafe - Successfully processed shop %s", shop.ID)
 	}
-	
+
 	log.Printf("DEBUG: pushShopsSafe - Completed processing %d shops", len(shops))
 	return nil
 }
@@ -4494,7 +4513,7 @@ func (s *SyncService) pushTransactionProductsSafe(ctx context.Context, tx *gorm.
 
 // processSingleCategorySafe processes a single category entity safely
 func (s *SyncService) processSingleCategorySafe(ctx context.Context, tx *gorm.DB, category entities.Category, licenseID uuid.UUID, response *dto.SyncResponse) error {
-	if !s.validateCategoryLicense(ctx, category, licenseID) {
+	if !s.validateCategoryLicense(ctx, tx, category, licenseID) {
 		return fmt.Errorf("category does not belong to license %s", licenseID)
 	}
 
@@ -4733,12 +4752,12 @@ func (s *SyncService) processSingleHistorySafe(ctx context.Context, tx *gorm.DB,
 // processSingleShopSafe processes a single shop entity safely
 func (s *SyncService) processSingleShopSafe(ctx context.Context, tx *gorm.DB, shop entities.Shop, licenseID uuid.UUID, response *dto.SyncResponse) error {
 	log.Printf("DEBUG: processSingleShopSafe - Validating shop %s license: shop.LicenseID=%s vs licenseID=%s", shop.ID, shop.LicenseID, licenseID)
-	
+
 	if !s.validateShopLicense(ctx, shop, licenseID) {
 		log.Printf("ERROR: Shop %s license validation failed: shop.LicenseID=%s does not match licenseID=%s", shop.ID, shop.LicenseID, licenseID)
 		return fmt.Errorf("shop does not belong to license %s", licenseID)
 	}
-	
+
 	log.Printf("DEBUG: processSingleShopSafe - Shop %s passed license validation", shop.ID)
 
 	existing, err := s.findShopByID(ctx, tx, shop.ID)

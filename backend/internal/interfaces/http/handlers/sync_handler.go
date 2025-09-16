@@ -116,18 +116,13 @@ func (h *SyncHandler) ProcessSync(c *gin.Context) {
 			response.ErrorInternalServer(c, "Failed to get shops for license", err.Error())
 			return
 		}
-		
-		// Validate that shops were found for this license
-		if len(shops) == 0 {
-			log.Printf("WARNING: No shops found for license %s (user %s)", licenseID.String(), userID.String())
-			// Allow sync to continue - owner_business might not have shops yet
-			// This is valid for new licenses or licenses without shops
-		}
-		
+
+		// Add existing shops for this license
 		for _, shop := range shops {
 			accessibleShopIDs = append(accessibleShopIDs, shop.ID)
 		}
-		log.Printf("DEBUG: Owner business user %s syncing %d shops under license %s: %v", 
+
+		log.Printf("DEBUG: Owner business user %s syncing %d shops under license %s: %v",
 			userID.String(), len(accessibleShopIDs), licenseID.String(), accessibleShopIDs)
 
 	case "cashier":
@@ -149,6 +144,60 @@ func (h *SyncHandler) ProcessSync(c *gin.Context) {
 	if err := c.ShouldBindJSON(&syncRequest); err != nil {
 		response.ErrorBadRequest(c, "Invalid sync request format", err.Error())
 		return
+	}
+
+	// CRITICAL FIX: For owner_business users, include shop IDs from the sync request
+	// for new shops being created. This allows related entities to be processed correctly.
+	if userRole == "owner_business" {
+		for _, shop := range syncRequest.Shops {
+			if shop.LicenseID == licenseID {
+				// Check if this shop ID is not already in the accessible list
+				shopExists := false
+				for _, existingShopID := range accessibleShopIDs {
+					if existingShopID == shop.ID {
+						shopExists = true
+						break
+					}
+				}
+				if !shopExists {
+					accessibleShopIDs = append(accessibleShopIDs, shop.ID)
+					log.Printf("DEBUG: Added new shop %s from sync request to accessible shops for owner_business user %s",
+						shop.ID.String(), userID.String())
+				}
+			} else {
+				log.Printf("WARNING: Shop %s in sync request has license %s, but user %s is on license %s",
+					shop.ID.String(), shop.LicenseID.String(), userID.String(), licenseID.String())
+			}
+		}
+
+		log.Printf("DEBUG: Updated accessible shops for owner_business user %s: %v",
+			userID.String(), accessibleShopIDs)
+	}
+
+	// CRITICAL FIX: For admin and super_admin users, also include shop IDs from sync request
+	// to ensure proper processing of new shops and their entities
+	if userRole == "super_admin" || userRole == "admin" {
+		for _, shop := range syncRequest.Shops {
+			// Admin/super_admin can manage shops across any license
+			// Add shop IDs from the sync request to ensure filtering works correctly
+			shopExists := false
+			for _, existingShopID := range accessibleShopIDs {
+				if existingShopID == shop.ID {
+					shopExists = true
+					break
+				}
+			}
+			if !shopExists {
+				accessibleShopIDs = append(accessibleShopIDs, shop.ID)
+				log.Printf("DEBUG: Added new shop %s from sync request to accessible shops for %s user %s",
+					shop.ID.String(), userRole, userID.String())
+			}
+		}
+
+		if len(syncRequest.Shops) > 0 {
+			log.Printf("DEBUG: Updated accessible shops for %s user %s: %v",
+				userRole, userID.String(), accessibleShopIDs)
+		}
 	}
 
 	// CRITICAL FIX: Handle shop_id requirements based on role
@@ -564,77 +613,6 @@ func (h *SyncHandler) validateSyncRequestWithRoleAccess(req *dto.SyncRequest, us
 
 	default:
 		return fmt.Errorf("unknown user role: %s", userRole)
-	}
-
-	return nil
-}
-
-// validateEntitiesShopAccess validates that all entities in the sync request belong to accessible shops
-func (h *SyncHandler) validateEntitiesShopAccess(req *dto.SyncRequest, accessibleShopIDs []uuid.UUID) error {
-	shopSet := make(map[uuid.UUID]bool)
-	for _, shopID := range accessibleShopIDs {
-		shopSet[shopID] = true
-	}
-
-	// Validate carts
-	for i, cart := range req.Carts {
-		if !shopSet[cart.ShopID] {
-			return fmt.Errorf("cart at index %d belongs to inaccessible shop %s", i, cart.ShopID)
-		}
-	}
-
-	// Validate categories
-	for i, category := range req.Categories {
-		if !shopSet[category.ShopID] {
-			return fmt.Errorf("category at index %d belongs to inaccessible shop %s", i, category.ShopID)
-		}
-	}
-
-	// Validate products
-	for i, product := range req.Products {
-		if !shopSet[product.ShopID] {
-			return fmt.Errorf("product at index %d belongs to inaccessible shop %s", i, product.ShopID)
-		}
-	}
-
-	// Validate transactions
-	for i, transaction := range req.Transactions {
-		if !shopSet[transaction.ShopID] {
-			return fmt.Errorf("transaction at index %d belongs to inaccessible shop %s", i, transaction.ShopID)
-		}
-	}
-
-	// Validate expenses
-	for i, expense := range req.Expenses {
-		if !shopSet[expense.ShopID] {
-			return fmt.Errorf("expense at index %d belongs to inaccessible shop %s", i, expense.ShopID)
-		}
-	}
-
-	// Validate payments
-	for i, payment := range req.Payments {
-		if !shopSet[payment.ShopID] {
-			return fmt.Errorf("payment at index %d belongs to inaccessible shop %s", i, payment.ShopID)
-		}
-	}
-
-	// Validate receipts
-	for i, receipt := range req.Receipts {
-		if !shopSet[receipt.ShopID] {
-			return fmt.Errorf("receipt at index %d belongs to inaccessible shop %s", i, receipt.ShopID)
-		}
-	}
-
-	// Validate histories
-	for i, history := range req.Histories {
-		if !shopSet[history.ShopID] {
-			return fmt.Errorf("history at index %d belongs to inaccessible shop %s", i, history.ShopID)
-		}
-	}
-
-	// Validate shops - for cashiers, they shouldn't be syncing shop data at all
-	if len(req.Shops) > 0 && len(accessibleShopIDs) == 1 {
-		return fmt.Errorf("cashiers cannot sync shop configuration data")
 	}
 
 	return nil
