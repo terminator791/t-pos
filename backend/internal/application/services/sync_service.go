@@ -412,7 +412,7 @@ func (s *SyncService) getTotalProcessedEntities(stats dto.SyncStats) int {
 func (s *SyncService) pushChangesWithRoleAccessSafe(ctx context.Context, tx *gorm.DB, req dto.SyncRequest, syncContext dto.SyncContext, response *dto.SyncResponse) error {
 	// CRITICAL FIX: Filter and validate entities based on role access BEFORE processing
 	// This prevents validation errors from aborting the entire transaction
-	filteredReq, filterStats := s.filterAndValidateSyncRequest(req, syncContext)
+	filteredReq, filterStats := s.filterAndValidateSyncRequest(req, syncContext, response)
 
 	// Log filtering results with detailed stats
 	log.Printf("Role-based filtering for user %s (role: %s): %s",
@@ -491,7 +491,7 @@ func (s *SyncService) pushChangesWithRoleAccessSafe(ctx context.Context, tx *gor
 }
 
 // filterAndValidateSyncRequest filters and validates sync request entities based on role access
-func (s *SyncService) filterAndValidateSyncRequest(req dto.SyncRequest, syncContext dto.SyncContext) (dto.SyncRequest, string) {
+func (s *SyncService) filterAndValidateSyncRequest(req dto.SyncRequest, syncContext dto.SyncContext, response *dto.SyncResponse) (dto.SyncRequest, string) {
 	if syncContext.HasGlobalAccess {
 		return req, "global access - no filtering applied"
 	}
@@ -597,11 +597,27 @@ func (s *SyncService) filterAndValidateSyncRequest(req dto.SyncRequest, syncCont
 	if syncContext.UserRole != "cashier" {
 		if syncContext.UserRole == "owner_business" {
 			originalCount = len(req.Shops)
-			for _, shop := range req.Shops {
+			log.Printf("DEBUG: Owner business filtering - original shops: %d, license_id: %s", originalCount, syncContext.LicenseID)
+			for i, shop := range req.Shops {
+				log.Printf("DEBUG: Checking shop %d: ID=%s, LicenseID=%s, Name=%s", i, shop.ID, shop.LicenseID, shop.Name)
 				if shop.LicenseID == syncContext.LicenseID {
 					filteredReq.Shops = append(filteredReq.Shops, shop)
+					log.Printf("DEBUG: Shop %s ACCEPTED for owner_business (license match)", shop.ID)
+				} else {
+					log.Printf("ERROR: Shop %s REJECTED for owner_business (license mismatch: %s != %s)", shop.ID, shop.LicenseID, syncContext.LicenseID)
+					// Add detailed error for license mismatch
+					s.addDetailedError(response, "shops", shop.ID, "license_mismatch",
+						fmt.Sprintf("Shop license %s does not match user license %s", shop.LicenseID, syncContext.LicenseID),
+						map[string]interface{}{
+							"shop_license_id": shop.LicenseID,
+							"user_license_id": syncContext.LicenseID,
+							"shop_name":       shop.Name,
+							"user_role":       syncContext.UserRole,
+						})
+					continue
 				}
 			}
+			log.Printf("DEBUG: Owner business filtering result - filtered shops: %d", len(filteredReq.Shops))
 			if originalCount > 0 {
 				stats["shops"] = fmt.Sprintf("%d→%d", originalCount, len(filteredReq.Shops))
 			}
@@ -4413,14 +4429,25 @@ func (s *SyncService) pushHistoriesSafe(ctx context.Context, tx *gorm.DB, histor
 
 // pushShopsSafe handles shop synchronization safely
 func (s *SyncService) pushShopsSafe(ctx context.Context, tx *gorm.DB, shops []entities.Shop, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	log.Printf("DEBUG: pushShopsSafe - Processing %d shops for license %s", len(shops), licenseID)
+	
+	if len(shops) == 0 {
+		log.Printf("DEBUG: pushShopsSafe - No shops to process")
+		return nil
+	}
+	
 	for i, shop := range shops {
+		log.Printf("DEBUG: pushShopsSafe - Processing shop %d: ID=%s, Name=%s, LicenseID=%s", i, shop.ID, shop.Name, shop.LicenseID)
 		if err := s.processSingleShopSafe(ctx, tx, shop, licenseID, response); err != nil {
-			log.Printf("Error processing shop %s (index %d): %v", shop.ID, i, err)
+			log.Printf("ERROR: Processing shop %s (index %d): %v", shop.ID, i, err)
 			s.addDetailedError(response, "shops", shop.ID, "processing_failed", err.Error(),
 				map[string]interface{}{"shop_license_id": shop.LicenseID, "license_id": licenseID, "index": i})
 			continue
 		}
+		log.Printf("DEBUG: pushShopsSafe - Successfully processed shop %s", shop.ID)
 	}
+	
+	log.Printf("DEBUG: pushShopsSafe - Completed processing %d shops", len(shops))
 	return nil
 }
 
@@ -4705,35 +4732,49 @@ func (s *SyncService) processSingleHistorySafe(ctx context.Context, tx *gorm.DB,
 
 // processSingleShopSafe processes a single shop entity safely
 func (s *SyncService) processSingleShopSafe(ctx context.Context, tx *gorm.DB, shop entities.Shop, licenseID uuid.UUID, response *dto.SyncResponse) error {
+	log.Printf("DEBUG: processSingleShopSafe - Validating shop %s license: shop.LicenseID=%s vs licenseID=%s", shop.ID, shop.LicenseID, licenseID)
+	
 	if !s.validateShopLicense(ctx, shop, licenseID) {
+		log.Printf("ERROR: Shop %s license validation failed: shop.LicenseID=%s does not match licenseID=%s", shop.ID, shop.LicenseID, licenseID)
 		return fmt.Errorf("shop does not belong to license %s", licenseID)
 	}
+	
+	log.Printf("DEBUG: processSingleShopSafe - Shop %s passed license validation", shop.ID)
 
 	existing, err := s.findShopByID(ctx, tx, shop.ID)
 	if err != nil {
+		log.Printf("ERROR: Failed to find shop %s: %v", shop.ID, err)
 		return fmt.Errorf("failed to find shop: %w", err)
 	}
 
 	if existing == nil {
+		log.Printf("DEBUG: processSingleShopSafe - Creating new shop %s", shop.ID)
 		if err := s.createShop(ctx, tx, shop); err != nil {
+			log.Printf("ERROR: Failed to create shop %s: %v", shop.ID, err)
 			return fmt.Errorf("failed to create shop: %w", err)
 		}
+		log.Printf("DEBUG: processSingleShopSafe - Successfully created shop %s", shop.ID)
 		s.incrementStat(response.Stats.CreatedEntities, "shops")
 	} else {
+		log.Printf("DEBUG: processSingleShopSafe - Updating existing shop %s", shop.ID)
 		if conflict := s.resolveShopConflict(*existing, shop); conflict != nil {
 			response.Conflicts = append(response.Conflicts, *conflict)
 			if existing.UpdatedAt.After(shop.UpdatedAt) {
+				log.Printf("DEBUG: processSingleShopSafe - Shop %s conflict resolved, skipping update (existing is newer)", shop.ID)
 				s.incrementStat(response.Stats.ProcessedEntities, "shops")
 				return nil
 			}
 		}
 		if err := s.updateShop(ctx, tx, shop); err != nil {
+			log.Printf("ERROR: Failed to update shop %s: %v", shop.ID, err)
 			return fmt.Errorf("failed to update shop: %w", err)
 		}
+		log.Printf("DEBUG: processSingleShopSafe - Successfully updated shop %s", shop.ID)
 		s.incrementStat(response.Stats.UpdatedEntities, "shops")
 	}
 
 	s.incrementStat(response.Stats.ProcessedEntities, "shops")
+	log.Printf("DEBUG: processSingleShopSafe - Completed processing shop %s", shop.ID)
 	return nil
 }
 

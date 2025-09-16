@@ -52,15 +52,40 @@ func (h *SyncHandler) ProcessSync(c *gin.Context) {
 	// Get user entity to extract license ID and role information
 	user, err := h.userRepo.GetByID(c.Request.Context(), userID)
 	if err != nil {
+		log.Printf("ERROR: Failed to get user %s from database: %v", userID.String(), err)
+		response.ErrorNotFound(c, "User not found in database", nil)
+		return
+	}
+
+	// Validate user exists and is active
+	if user == nil {
+		log.Printf("ERROR: User %s returned nil from database", userID.String())
+		response.ErrorNotFound(c, "User data is invalid", nil)
+		return
+	}
+
+	// CRITICAL: Validate user exists in database by checking ID
+	if user.ID != userID {
+		log.Printf("ERROR: User ID mismatch - requested: %s, found: %s", userID.String(), user.ID.String())
 		response.ErrorNotFound(c, "User not found", nil)
 		return
 	}
 
-	// Validate user has license ID
+	// Validate user has license ID (mandatory for all sync operations)
 	if user.LicenseID == nil {
+		log.Printf("ERROR: User %s has no license_id associated", userID.String())
 		response.ErrorUnauthorized(c, "User is not associated with a license", nil)
 		return
 	}
+
+	// Additional validation: Ensure license_id is not zero UUID
+	if *user.LicenseID == uuid.Nil {
+		log.Printf("ERROR: User %s has invalid (nil) license_id", userID.String())
+		response.ErrorUnauthorized(c, "User has invalid license association", nil)
+		return
+	}
+
+	log.Printf("DEBUG: User %s validated - license_id: %s", userID.String(), user.LicenseID.String())
 
 	licenseID := *user.LicenseID
 
@@ -87,13 +112,23 @@ func (h *SyncHandler) ProcessSync(c *gin.Context) {
 		// Owner can sync all shops under their license
 		shops, err := h.getShopsByLicenseID(c.Request.Context(), licenseID)
 		if err != nil {
+			log.Printf("ERROR: Failed to get shops for license %s (user %s): %v", licenseID.String(), userID.String(), err)
 			response.ErrorInternalServer(c, "Failed to get shops for license", err.Error())
 			return
 		}
+		
+		// Validate that shops were found for this license
+		if len(shops) == 0 {
+			log.Printf("WARNING: No shops found for license %s (user %s)", licenseID.String(), userID.String())
+			// Allow sync to continue - owner_business might not have shops yet
+			// This is valid for new licenses or licenses without shops
+		}
+		
 		for _, shop := range shops {
 			accessibleShopIDs = append(accessibleShopIDs, shop.ID)
 		}
-		log.Printf("DEBUG: Owner business user %s syncing %d shops under license %s: %v", userID.String(), len(accessibleShopIDs), licenseID.String(), accessibleShopIDs)
+		log.Printf("DEBUG: Owner business user %s syncing %d shops under license %s: %v", 
+			userID.String(), len(accessibleShopIDs), licenseID.String(), accessibleShopIDs)
 
 	case "cashier":
 		// Cashier can only sync their assigned shop
@@ -605,19 +640,30 @@ func (h *SyncHandler) validateEntitiesShopAccess(req *dto.SyncRequest, accessibl
 	return nil
 }
 
-// getShopsByLicenseID retrieves all shops for a given license ID
+// getShopsByLicenseID retrieves all shops for a given license ID with enhanced validation
 func (h *SyncHandler) getShopsByLicenseID(ctx context.Context, licenseID uuid.UUID) ([]entities.Shop, error) {
+	// Validate license ID is not nil
+	if licenseID == uuid.Nil {
+		return nil, fmt.Errorf("invalid license ID: cannot be nil")
+	}
+
 	shopPtrs, err := h.shopRepo.GetByLicenseID(ctx, licenseID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get shops for license %s: %w", licenseID, err)
 	}
 
-	// Convert []*entities.Shop to []entities.Shop
+	// Convert []*entities.Shop to []entities.Shop and log for debugging
 	shops := make([]entities.Shop, len(shopPtrs))
 	for i, shopPtr := range shopPtrs {
+		if shopPtr == nil {
+			log.Printf("WARNING: Found nil shop pointer at index %d for license %s", i, licenseID)
+			continue
+		}
 		shops[i] = *shopPtr
+		log.Printf("DEBUG: Found shop %s (name: %s) for license %s", shopPtr.ID, shopPtr.Name, licenseID)
 	}
 
+	log.Printf("DEBUG: Retrieved %d shops for license %s", len(shops), licenseID)
 	return shops, nil
 }
 
