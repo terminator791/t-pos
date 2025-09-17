@@ -54,7 +54,7 @@ type SyncService struct {
 	validator   *validators.SyncEntityValidator
 	lockManager *SyncLockManager
 
-	// Performance optimizations (Session 3)
+	// Performance optimizations
 	optimizer    *SyncPerformanceOptimizer
 	cacheManager *SyncCacheManager
 }
@@ -184,9 +184,6 @@ func (s *SyncService) ProcessSyncWithRoleAccess(ctx context.Context, req dto.Syn
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, s.config.TransactionTimeout)
 	defer cancel()
 
-	// CRITICAL FIX: Use separate transactions for push and pull to prevent transaction abort errors
-	// This prevents a failed operation in one phase from affecting the other
-
 	// Phase 1: Push - Process incoming changes from mobile with role-based filtering
 	if err := s.processPushWithTransaction(ctxWithTimeout, req, syncContext, response); err != nil {
 		log.Printf("Push phase failed for user %s: %v", syncContext.UserID, err)
@@ -204,6 +201,9 @@ func (s *SyncService) ProcessSyncWithRoleAccess(ctx context.Context, req dto.Syn
 
 	// Clean up response - remove empty arrays and fix conflict data
 	s.cleanupResponse(response)
+
+	// Log final response statistics including errors
+	log.Printf("DEBUG: Final sync response before stats calculation - Errors: %d, Conflicts: %d", len(response.Errors), len(response.Conflicts))
 
 	// Calculate final stats
 	response.Stats.ProcessingTimeMs = time.Since(startTime).Milliseconds()
@@ -412,7 +412,7 @@ func (s *SyncService) getTotalProcessedEntities(stats dto.SyncStats) int {
 func (s *SyncService) pushChangesWithRoleAccessSafe(ctx context.Context, tx *gorm.DB, req dto.SyncRequest, syncContext dto.SyncContext, response *dto.SyncResponse) error {
 	// CRITICAL FIX: Filter and validate entities based on role access BEFORE processing
 	// This prevents validation errors from aborting the entire transaction
-	filteredReq, filterStats := s.filterAndValidateSyncRequest(req, syncContext, response)
+	filteredReq, filterStats := s.filterAndValidateSyncRequest(ctx, tx, req, syncContext, response)
 
 	// Log filtering results with detailed stats
 	log.Printf("Role-based filtering for user %s (role: %s): %s",
@@ -458,18 +458,19 @@ func (s *SyncService) pushChangesWithRoleAccessSafe(ctx context.Context, tx *gor
 	}
 
 	// 4. Expenses (references Shops via ShopID)
-	if err := s.pushExpensesSafe(ctx, tx, filteredReq.Expenses, syncContext.LicenseID, response); err != nil {
+	if err := s.pushExpensesSafe(ctx, tx, filteredReq.Expenses, syncContext.LicenseID, filteredReq, response); err != nil {
 		return fmt.Errorf("failed to push expenses: %w", err)
 	}
 
-	// 5. Payments (references Shops via ShopID)
-	if err := s.pushPaymentsSafe(ctx, tx, filteredReq.Payments, syncContext.LicenseID, response); err != nil {
-		return fmt.Errorf("failed to push payments: %w", err)
-	}
-
-	// 6. Transactions (references Shops via ShopID and Users via CashierID)
+	// 5. Transactions (references Shops via ShopID and Users via CashierID)
 	if err := s.pushTransactionsSafe(ctx, tx, filteredReq.Transactions, syncContext.LicenseID, response); err != nil {
 		return fmt.Errorf("failed to push transactions: %w", err)
+	}
+
+	// Level 3: Entities that depend on Transactions
+	// 6. Payments (references Shops via ShopID and Transactions via TransactionID)
+	if err := s.pushPaymentsSafe(ctx, tx, filteredReq.Payments, syncContext.LicenseID, filteredReq, response); err != nil {
+		return fmt.Errorf("failed to push payments: %w", err)
 	}
 
 	// Level 3: Entities that depend on Categories and/or Shops
@@ -494,14 +495,14 @@ func (s *SyncService) pushChangesWithRoleAccessSafe(ctx context.Context, tx *gor
 		return fmt.Errorf("failed to push stock histories: %w", err)
 	}
 
-	// Level 5: Entities that depend on Level 2 entities
+	// Level 5: Entities that depend on Payments and Transactions
 	// 11. Receipts (references Shops via ShopID and Payments via PaymentsID)
-	if err := s.pushReceiptsSafe(ctx, tx, filteredReq.Receipts, syncContext.LicenseID, response); err != nil {
+	if err := s.pushReceiptsSafe(ctx, tx, filteredReq.Receipts, syncContext.LicenseID, filteredReq, response); err != nil {
 		return fmt.Errorf("failed to push receipts: %w", err)
 	}
 
 	// 12. Histories (references Shops via ShopID and Transactions via TransactionID)
-	if err := s.pushHistoriesSafe(ctx, tx, filteredReq.Histories, syncContext.LicenseID, response); err != nil {
+	if err := s.pushHistoriesSafe(ctx, tx, filteredReq.Histories, syncContext.LicenseID, filteredReq, response); err != nil {
 		return fmt.Errorf("failed to push histories: %w", err)
 	}
 
@@ -509,8 +510,12 @@ func (s *SyncService) pushChangesWithRoleAccessSafe(ctx context.Context, tx *gor
 }
 
 // filterAndValidateSyncRequest filters and validates sync request entities based on role access
-func (s *SyncService) filterAndValidateSyncRequest(req dto.SyncRequest, syncContext dto.SyncContext, response *dto.SyncResponse) (dto.SyncRequest, string) {
+func (s *SyncService) filterAndValidateSyncRequest(ctx context.Context, tx *gorm.DB, req dto.SyncRequest, syncContext dto.SyncContext, response *dto.SyncResponse) (dto.SyncRequest, string) {
+	log.Printf("DEBUG: filterAndValidateSyncRequest starting - Expenses: %d, Payments: %d, Histories: %d, Receipts: %d",
+		len(req.Expenses), len(req.Payments), len(req.Histories), len(req.Receipts))
+
 	if syncContext.HasGlobalAccess {
+		log.Printf("DEBUG: User has global access, no filtering applied")
 		return req, "global access - no filtering applied"
 	}
 
@@ -573,8 +578,22 @@ func (s *SyncService) filterAndValidateSyncRequest(req dto.SyncRequest, syncCont
 
 	originalCount = len(req.Expenses)
 	for _, expense := range req.Expenses {
+		// First validate references regardless of access control - check payload first, then database
+		if err := s.validateExpenseReferencesWithPayload(ctx, tx, expense, req); err != nil {
+			log.Printf("ERROR: Expense %s validation failed: %v", expense.ID, err)
+			s.addDetailedError(response, "expenses", expense.ID, "validation_failed", err.Error(),
+				map[string]interface{}{"expense_shop_id": expense.ShopID})
+			continue // Skip invalid entities
+		}
+
+		// Then apply access control filtering
 		if accessibleShops[expense.ShopID] {
 			filteredReq.Expenses = append(filteredReq.Expenses, expense)
+		} else {
+			log.Printf("WARNING: Expense %s filtered due to shop access (shop %s not accessible)", expense.ID, expense.ShopID)
+			s.addDetailedError(response, "expenses", expense.ID, "access_denied",
+				fmt.Sprintf("Expense belongs to shop %s which is not accessible to user", expense.ShopID),
+				map[string]interface{}{"expense_shop_id": expense.ShopID, "user_role": syncContext.UserRole})
 		}
 	}
 	if originalCount > 0 {
@@ -583,8 +602,22 @@ func (s *SyncService) filterAndValidateSyncRequest(req dto.SyncRequest, syncCont
 
 	originalCount = len(req.Payments)
 	for _, payment := range req.Payments {
+		// First validate references regardless of access control - check payload first, then database
+		if err := s.validatePaymentReferencesWithPayload(ctx, tx, payment, req); err != nil {
+			log.Printf("ERROR: Payment %s validation failed: %v", payment.ID, err)
+			s.addDetailedError(response, "payments", payment.ID, "validation_failed", err.Error(),
+				map[string]interface{}{"payment_shop_id": payment.ShopID, "payment_transaction_id": payment.TransactionID})
+			continue // Skip invalid entities
+		}
+
+		// Then apply access control filtering
 		if accessibleShops[payment.ShopID] {
 			filteredReq.Payments = append(filteredReq.Payments, payment)
+		} else {
+			log.Printf("WARNING: Payment %s filtered due to shop access (shop %s not accessible)", payment.ID, payment.ShopID)
+			s.addDetailedError(response, "payments", payment.ID, "access_denied",
+				fmt.Sprintf("Payment belongs to shop %s which is not accessible to user", payment.ShopID),
+				map[string]interface{}{"payment_shop_id": payment.ShopID, "user_role": syncContext.UserRole})
 		}
 	}
 	if originalCount > 0 {
@@ -593,8 +626,22 @@ func (s *SyncService) filterAndValidateSyncRequest(req dto.SyncRequest, syncCont
 
 	originalCount = len(req.Receipts)
 	for _, receipt := range req.Receipts {
+		// First validate references regardless of access control - check payload first, then database
+		if err := s.validateReceiptReferencesWithPayload(ctx, tx, receipt, syncContext.LicenseID, req); err != nil {
+			log.Printf("ERROR: Receipt %s validation failed: %v", receipt.ID, err)
+			s.addDetailedError(response, "receipts", receipt.ID, "validation_failed", err.Error(),
+				map[string]interface{}{"receipt_shop_id": receipt.ShopID, "receipt_payments_id": receipt.PaymentsID})
+			continue // Skip invalid entities
+		}
+
+		// Then apply access control filtering
 		if accessibleShops[receipt.ShopID] {
 			filteredReq.Receipts = append(filteredReq.Receipts, receipt)
+		} else {
+			log.Printf("WARNING: Receipt %s filtered due to shop access (shop %s not accessible)", receipt.ID, receipt.ShopID)
+			s.addDetailedError(response, "receipts", receipt.ID, "access_denied",
+				fmt.Sprintf("Receipt belongs to shop %s which is not accessible to user", receipt.ShopID),
+				map[string]interface{}{"receipt_shop_id": receipt.ShopID, "user_role": syncContext.UserRole})
 		}
 	}
 	if originalCount > 0 {
@@ -603,8 +650,22 @@ func (s *SyncService) filterAndValidateSyncRequest(req dto.SyncRequest, syncCont
 
 	originalCount = len(req.Histories)
 	for _, history := range req.Histories {
+		// First validate references regardless of access control - check payload first, then database
+		if err := s.validateHistoryReferencesWithPayload(ctx, tx, history, req); err != nil {
+			log.Printf("ERROR: History %s validation failed: %v", history.ID, err)
+			s.addDetailedError(response, "histories", history.ID, "validation_failed", err.Error(),
+				map[string]interface{}{"history_shop_id": history.ShopID, "history_transaction_id": history.TransactionID})
+			continue // Skip invalid entities
+		}
+
+		// Then apply access control filtering
 		if accessibleShops[history.ShopID] {
 			filteredReq.Histories = append(filteredReq.Histories, history)
+		} else {
+			log.Printf("WARNING: History %s filtered due to shop access (shop %s not accessible)", history.ID, history.ShopID)
+			s.addDetailedError(response, "histories", history.ID, "access_denied",
+				fmt.Sprintf("History belongs to shop %s which is not accessible to user", history.ShopID),
+				map[string]interface{}{"history_shop_id": history.ShopID, "user_role": syncContext.UserRole})
 		}
 	}
 	if originalCount > 0 {
@@ -1113,9 +1174,9 @@ func (s *SyncService) pushCartsSafe(ctx context.Context, tx *gorm.DB, carts []en
 
 // processSingleCartWithErrorIsolation processes a single cart entity with isolated error handling
 func (s *SyncService) processSingleCartWithErrorIsolation(ctx context.Context, tx *gorm.DB, cart entities.Cart, licenseID uuid.UUID, response *dto.SyncResponse) error {
-	// Validate cart belongs to license
-	if !s.validateCartLicense(ctx, cart, licenseID) {
-		return fmt.Errorf("cart does not belong to license %s", licenseID)
+	// Validate all cart references (shop, product, user)
+	if err := s.validateCartReferences(ctx, tx, cart, licenseID); err != nil {
+		return fmt.Errorf("cart reference validation failed: %w", err)
 	}
 
 	// CRITICAL FIX: Use savepoint-based processing for better error isolation
@@ -1220,7 +1281,7 @@ func (s *SyncService) processSingleCart(ctx context.Context, tx *gorm.DB, cart e
 	}
 
 	// Validate cart belongs to license (existing validation)
-	if !s.validateCartLicense(ctx, cart, licenseID) {
+	if !s.validateCartLicense(ctx, tx, cart, licenseID) {
 		s.addDetailedError(response, "carts", cart.ID, "unauthorized", "Cart does not belong to license",
 			map[string]interface{}{"cart_shop_id": cart.ShopID, "license_id": licenseID})
 		return nil // Continue processing other entities
@@ -1686,11 +1747,46 @@ func (s *SyncService) pullChanges(ctx context.Context, tx *gorm.DB, lastSync *ti
 	return s.pullChangesWithRoleAccess(ctx, tx, lastSync, syncContext, response)
 }
 
+// validateCartReferences validates all foreign key references for a cart
+func (s *SyncService) validateCartReferences(ctx context.Context, tx *gorm.DB, cart entities.Cart, licenseID uuid.UUID) error {
+	// Validate shop reference (existing validation)
+	if !s.validateCartLicense(ctx, tx, cart, licenseID) {
+		return fmt.Errorf("cart shop does not belong to license %s", licenseID)
+	}
+
+	// Validate product reference
+	var productCount int64
+	err := tx.WithContext(ctx).Model(&entities.Product{}).
+		Where("id = ? AND shop_id = ?", cart.ProductID, cart.ShopID).
+		Count(&productCount).Error
+	if err != nil {
+		return fmt.Errorf("failed to validate product reference: %w", err)
+	}
+	if productCount == 0 {
+		return fmt.Errorf("product %s does not exist in shop %s", cart.ProductID, cart.ShopID)
+	}
+
+	// Validate user reference - user should have access to the shop
+	var userCount int64
+	err = tx.WithContext(ctx).Model(&entities.User{}).
+		Where("id = ?", cart.UserID).
+		Count(&userCount).Error
+	if err != nil {
+		return fmt.Errorf("failed to validate user reference: %w", err)
+	}
+	if userCount == 0 {
+		return fmt.Errorf("user %s does not exist", cart.UserID)
+	}
+
+	return nil
+}
+
 // Helper methods for cart operations
-func (s *SyncService) validateCartLicense(ctx context.Context, cart entities.Cart, licenseID uuid.UUID) bool {
+func (s *SyncService) validateCartLicense(ctx context.Context, tx *gorm.DB, cart entities.Cart, licenseID uuid.UUID) bool {
 	// Validate that the cart's shop belongs to the license
+	// Use the transaction context to see shops created in the same transaction
 	var count int64
-	s.db.Model(&entities.Shop{}).Where("id = ? AND license_id = ?", cart.ShopID, licenseID).Count(&count)
+	tx.WithContext(ctx).Model(&entities.Shop{}).Where("id = ? AND license_id = ?", cart.ShopID, licenseID).Count(&count)
 	return count > 0
 }
 
@@ -1835,7 +1931,7 @@ func (s *SyncService) pushProducts(ctx context.Context, tx *gorm.DB, products []
 	// Fallback to original implementation for single products or when optimization is disabled
 	for _, product := range products {
 		// Validate product belongs to license
-		if !s.validateProductLicense(ctx, product, licenseID) {
+		if !s.validateProductLicense(ctx, tx, product, licenseID) {
 			s.addError(response, "products", product.ID, "unauthorized", "Product does not belong to license")
 			continue
 		}
@@ -2038,10 +2134,11 @@ func (s *SyncService) pullProductsOptimized(ctx context.Context, tx *gorm.DB, la
 }
 
 // Helper methods for product operations
-func (s *SyncService) validateProductLicense(ctx context.Context, product entities.Product, licenseID uuid.UUID) bool {
+func (s *SyncService) validateProductLicense(ctx context.Context, tx *gorm.DB, product entities.Product, licenseID uuid.UUID) bool {
 	// Validate that the product's shop belongs to the license
+	// Use the transaction context to see shops created in the same transaction
 	var count int64
-	s.db.Model(&entities.Shop{}).Where("id = ? AND license_id = ?", product.ShopID, licenseID).Count(&count)
+	tx.WithContext(ctx).Model(&entities.Shop{}).Where("id = ? AND license_id = ?", product.ShopID, licenseID).Count(&count)
 	return count > 0
 }
 
@@ -2055,6 +2152,30 @@ func (s *SyncService) findProductByID(ctx context.Context, tx *gorm.DB, id uuid.
 		return nil, err
 	}
 	return &product, nil
+}
+
+// validateProductReferences validates all foreign key references for a product
+func (s *SyncService) validateProductReferences(ctx context.Context, tx *gorm.DB, product entities.Product, licenseID uuid.UUID) error {
+	// Validate shop reference (existing validation)
+	if !s.validateProductLicense(ctx, tx, product, licenseID) {
+		return fmt.Errorf("product shop does not belong to license %s", licenseID)
+	}
+
+	// Validate category reference if CatID is provided
+	if product.CatID != nil {
+		var count int64
+		err := tx.WithContext(ctx).Model(&entities.Category{}).
+			Where("id = ? AND shop_id = ?", *product.CatID, product.ShopID).
+			Count(&count).Error
+		if err != nil {
+			return fmt.Errorf("failed to validate category reference: %w", err)
+		}
+		if count == 0 {
+			return fmt.Errorf("category %s does not exist in shop %s", *product.CatID, product.ShopID)
+		}
+	}
+
+	return nil
 }
 
 func (s *SyncService) createProduct(ctx context.Context, tx *gorm.DB, product entities.Product) error {
@@ -2108,7 +2229,7 @@ func (s *SyncService) pushTransactions(ctx context.Context, tx *gorm.DB, transac
 	// Fallback to original implementation for single transactions or when optimization is disabled
 	for _, transaction := range transactions {
 		// Validate transaction belongs to license
-		if !s.validateTransactionLicense(ctx, transaction, licenseID) {
+		if !s.validateTransactionLicense(ctx, tx, transaction, licenseID) {
 			s.addError(response, "transactions", transaction.ID, "unauthorized", "Transaction does not belong to license")
 			continue
 		}
@@ -2329,10 +2450,11 @@ func (s *SyncService) pullTransactionsOptimized(ctx context.Context, tx *gorm.DB
 }
 
 // Helper methods for transaction operations
-func (s *SyncService) validateTransactionLicense(ctx context.Context, transaction entities.Transaction, licenseID uuid.UUID) bool {
+func (s *SyncService) validateTransactionLicense(ctx context.Context, tx *gorm.DB, transaction entities.Transaction, licenseID uuid.UUID) bool {
 	// Validate that the transaction's shop belongs to the license
+	// Use the transaction context to see shops created in the same transaction
 	var count int64
-	s.db.Model(&entities.Shop{}).Where("id = ? AND license_id = ?", transaction.ShopID, licenseID).Count(&count)
+	tx.WithContext(ctx).Model(&entities.Shop{}).Where("id = ? AND license_id = ?", transaction.ShopID, licenseID).Count(&count)
 	return count > 0
 }
 
@@ -2349,6 +2471,10 @@ func (s *SyncService) findTransactionByID(ctx context.Context, tx *gorm.DB, id u
 }
 
 func (s *SyncService) createTransaction(ctx context.Context, tx *gorm.DB, transaction entities.Transaction) error {
+	// Validate transaction references
+	if err := s.validateTransactionReferences(ctx, tx, transaction); err != nil {
+		return err
+	}
 	return tx.WithContext(ctx).Create(&transaction).Error
 }
 
@@ -2393,8 +2519,14 @@ func (s *SyncService) resolveTransactionConflict(existing, incoming entities.Tra
 // pushExpenses handles expense synchronization
 func (s *SyncService) pushExpenses(ctx context.Context, tx *gorm.DB, expenses []entities.Expense, licenseID uuid.UUID, response *dto.SyncResponse) error {
 	for _, expense := range expenses {
+		// Validate all expense references (shop)
+		if err := s.validateExpenseReferences(ctx, tx, expense); err != nil {
+			s.addError(response, "expenses", expense.ID, "validation_error", err.Error())
+			continue
+		}
+
 		// Validate expense belongs to license
-		if !s.validateExpenseLicense(ctx, expense, licenseID) {
+		if !s.validateExpenseLicense(ctx, tx, expense, licenseID) {
 			s.addError(response, "expenses", expense.ID, "unauthorized", "Expense does not belong to license")
 			continue
 		}
@@ -2458,10 +2590,11 @@ func (s *SyncService) pullExpenses(ctx context.Context, tx *gorm.DB, lastSync ti
 }
 
 // Helper methods for expense operations
-func (s *SyncService) validateExpenseLicense(ctx context.Context, expense entities.Expense, licenseID uuid.UUID) bool {
+func (s *SyncService) validateExpenseLicense(ctx context.Context, tx *gorm.DB, expense entities.Expense, licenseID uuid.UUID) bool {
 	// Validate that the expense's shop belongs to the license
+	// Use the transaction context to see shops created in the same transaction
 	var count int64
-	s.db.Model(&entities.Shop{}).Where("id = ? AND license_id = ?", expense.ShopID, licenseID).Count(&count)
+	tx.WithContext(ctx).Model(&entities.Shop{}).Where("id = ? AND license_id = ?", expense.ShopID, licenseID).Count(&count)
 	return count > 0
 }
 
@@ -2522,8 +2655,14 @@ func (s *SyncService) resolveExpenseConflict(existing, incoming entities.Expense
 // pushPayments handles payment synchronization
 func (s *SyncService) pushPayments(ctx context.Context, tx *gorm.DB, payments []entities.Payment, licenseID uuid.UUID, response *dto.SyncResponse) error {
 	for _, payment := range payments {
+		// Validate all payment references (shop, transaction, user)
+		if err := s.validatePaymentReferences(ctx, tx, payment); err != nil {
+			s.addError(response, "payments", payment.ID, "validation_error", err.Error())
+			continue
+		}
+
 		// Validate payment belongs to license
-		if !s.validatePaymentLicense(ctx, payment, licenseID) {
+		if !s.validatePaymentLicense(ctx, tx, payment, licenseID) {
 			s.addError(response, "payments", payment.ID, "unauthorized", "Payment does not belong to license")
 			continue
 		}
@@ -2587,10 +2726,11 @@ func (s *SyncService) pullPayments(ctx context.Context, tx *gorm.DB, lastSync ti
 }
 
 // Helper methods for payment operations
-func (s *SyncService) validatePaymentLicense(ctx context.Context, payment entities.Payment, licenseID uuid.UUID) bool {
+func (s *SyncService) validatePaymentLicense(ctx context.Context, tx *gorm.DB, payment entities.Payment, licenseID uuid.UUID) bool {
 	// Validate that the payment's shop belongs to the license
+	// Use the transaction context to see shops created in the same transaction
 	var count int64
-	s.db.Model(&entities.Shop{}).Where("id = ? AND license_id = ?", payment.ShopID, licenseID).Count(&count)
+	tx.WithContext(ctx).Model(&entities.Shop{}).Where("id = ? AND license_id = ?", payment.ShopID, licenseID).Count(&count)
 	return count > 0
 }
 
@@ -2607,6 +2747,10 @@ func (s *SyncService) findPaymentByID(ctx context.Context, tx *gorm.DB, id uuid.
 }
 
 func (s *SyncService) createPayment(ctx context.Context, tx *gorm.DB, payment entities.Payment) error {
+	// Validate payment references
+	if err := s.validatePaymentReferences(ctx, tx, payment); err != nil {
+		return err
+	}
 	return tx.WithContext(ctx).Create(&payment).Error
 }
 
@@ -2669,7 +2813,7 @@ func (s *SyncService) incrementStat(stats map[string]int, entityType string) {
 func (s *SyncService) pushReceipts(ctx context.Context, tx *gorm.DB, receipts []entities.Receipt, licenseID uuid.UUID, response *dto.SyncResponse) error {
 	for _, receipt := range receipts {
 		// Validate receipt belongs to license
-		if !s.validateReceiptLicense(ctx, receipt, licenseID) {
+		if !s.validateReceiptLicense(ctx, tx, receipt, licenseID) {
 			s.addError(response, "receipts", receipt.ID, "unauthorized", "Receipt does not belong to license")
 			continue
 		}
@@ -2725,9 +2869,11 @@ func (s *SyncService) pullReceipts(ctx context.Context, tx *gorm.DB, lastSync ti
 	return nil
 }
 
-func (s *SyncService) validateReceiptLicense(ctx context.Context, receipt entities.Receipt, licenseID uuid.UUID) bool {
+func (s *SyncService) validateReceiptLicense(ctx context.Context, tx *gorm.DB, receipt entities.Receipt, licenseID uuid.UUID) bool {
+	// Validate that the receipt's shop belongs to the license
+	// Use the transaction context to see shops created in the same transaction
 	var count int64
-	err := s.db.Model(&entities.Shop{}).
+	err := tx.WithContext(ctx).Model(&entities.Shop{}).
 		Where("id = ? AND license_id = ?", receipt.ShopID, licenseID).
 		Count(&count).Error
 	return err == nil && count > 0
@@ -2743,6 +2889,103 @@ func (s *SyncService) findReceiptByID(ctx context.Context, tx *gorm.DB, id uuid.
 		return nil, err
 	}
 	return &receipt, nil
+}
+
+// validateReceiptReferences validates all foreign key references for a receipt
+func (s *SyncService) validateReceiptReferences(ctx context.Context, tx *gorm.DB, receipt entities.Receipt, licenseID uuid.UUID) error {
+	// Validate shop_id reference - shop should exist
+	var shopCount int64
+	err := tx.WithContext(ctx).Model(&entities.Shop{}).
+		Where("id = ?", receipt.ShopID).
+		Count(&shopCount).Error
+	if err != nil {
+		return fmt.Errorf("failed to validate shop reference: %w", err)
+	}
+	if shopCount == 0 {
+		return fmt.Errorf("shop %s does not exist", receipt.ShopID)
+	}
+
+	// Validate shop reference (license validation)
+	if !s.validateReceiptLicense(ctx, tx, receipt, licenseID) {
+		return fmt.Errorf("receipt shop does not belong to license %s", licenseID)
+	}
+
+	// Validate payments_id reference - payment should exist
+	var paymentCount int64
+	err = tx.WithContext(ctx).Model(&entities.Payment{}).
+		Where("id = ?", receipt.PaymentsID).
+		Count(&paymentCount).Error
+	if err != nil {
+		return fmt.Errorf("failed to validate payment reference: %w", err)
+	}
+	if paymentCount == 0 {
+		return fmt.Errorf("payment %s does not exist", receipt.PaymentsID)
+	}
+
+	// Additional validation: ensure payment belongs to the same shop
+	var paymentInShopCount int64
+	err = tx.WithContext(ctx).Model(&entities.Payment{}).
+		Where("id = ? AND shop_id = ?", receipt.PaymentsID, receipt.ShopID).
+		Count(&paymentInShopCount).Error
+	if err != nil {
+		return fmt.Errorf("failed to validate payment shop reference: %w", err)
+	}
+	if paymentInShopCount == 0 {
+		return fmt.Errorf("payment %s does not exist in shop %s", receipt.PaymentsID, receipt.ShopID)
+	}
+
+	return nil
+}
+
+// validateReceiptReferencesWithPayload validates all foreign key references for a receipt, checking payload first then database
+func (s *SyncService) validateReceiptReferencesWithPayload(ctx context.Context, tx *gorm.DB, receipt entities.Receipt, licenseID uuid.UUID, req dto.SyncRequest) error {
+	// Validate shop_id reference - check payload first, then database
+	if err := s.validateShopExistsWithPayload(ctx, tx, receipt.ShopID, req); err != nil {
+		return fmt.Errorf("failed to validate shop reference: %w", err)
+	}
+
+	// Validate shop reference (license validation) - check payload first, then database
+	if !s.validateReceiptLicenseWithPayload(ctx, tx, receipt, licenseID, req) {
+		return fmt.Errorf("receipt shop does not belong to license %s", licenseID)
+	}
+
+	// Validate payments_id reference - check payload first, then database
+	if err := s.validatePaymentExistsWithPayload(ctx, tx, receipt.PaymentsID, req); err != nil {
+		return fmt.Errorf("failed to validate payment reference: %w", err)
+	}
+
+	// Additional validation: ensure payment belongs to the same shop
+	// Check if payment is in payload first
+	paymentInPayload := false
+	var paymentShopID uuid.UUID
+	for _, payment := range req.Payments {
+		if payment.ID == receipt.PaymentsID {
+			paymentInPayload = true
+			paymentShopID = payment.ShopID
+			break
+		}
+	}
+
+	if paymentInPayload {
+		// Payment is in payload, check if it belongs to the same shop
+		if paymentShopID != receipt.ShopID {
+			return fmt.Errorf("payment %s does not exist in shop %s", receipt.PaymentsID, receipt.ShopID)
+		}
+	} else {
+		// Payment not in payload, check database
+		var paymentInShopCount int64
+		err := tx.WithContext(ctx).Model(&entities.Payment{}).
+			Where("id = ? AND shop_id = ?", receipt.PaymentsID, receipt.ShopID).
+			Count(&paymentInShopCount).Error
+		if err != nil {
+			return fmt.Errorf("failed to validate payment shop reference: %w", err)
+		}
+		if paymentInShopCount == 0 {
+			return fmt.Errorf("payment %s does not exist in shop %s", receipt.PaymentsID, receipt.ShopID)
+		}
+	}
+
+	return nil
 }
 
 func (s *SyncService) createReceipt(ctx context.Context, tx *gorm.DB, receipt entities.Receipt) error {
@@ -2791,6 +3034,12 @@ func (s *SyncService) resolveReceiptConflict(existing, incoming entities.Receipt
 // History sync implementation
 func (s *SyncService) pushHistories(ctx context.Context, tx *gorm.DB, histories []entities.History, licenseID uuid.UUID, response *dto.SyncResponse) error {
 	for _, history := range histories {
+		// Validate all history references (shop, transaction)
+		if err := s.validateHistoryReferences(ctx, tx, history); err != nil {
+			s.addError(response, "histories", history.ID, "validation_error", err.Error())
+			continue
+		}
+
 		// Validate history belongs to license
 		if !s.validateHistoryLicense(ctx, history, licenseID) {
 			s.addError(response, "histories", history.ID, "unauthorized", "History does not belong to license")
@@ -2856,6 +3105,41 @@ func (s *SyncService) validateHistoryLicense(ctx context.Context, history entiti
 	return err == nil && count > 0
 }
 
+// validateHistoryLicenseWithTx validates license using transaction context to see shops created in same transaction
+func (s *SyncService) validateHistoryLicenseWithTx(ctx context.Context, tx *gorm.DB, history entities.History, licenseID uuid.UUID) bool {
+	var count int64
+	err := tx.WithContext(ctx).Model(&entities.Shop{}).
+		Where("id = ? AND license_id = ?", history.ShopID, licenseID).
+		Count(&count).Error
+	return err == nil && count > 0
+}
+
+// validateHistoryLicenseWithPayload validates license checking payload first, then transaction/database
+func (s *SyncService) validateHistoryLicenseWithPayload(ctx context.Context, tx *gorm.DB, history entities.History, licenseID uuid.UUID, req dto.SyncRequest) bool {
+	// First check if shop exists in the same payload
+	for _, shop := range req.Shops {
+		if shop.ID == history.ShopID && shop.LicenseID == licenseID {
+			return true
+		}
+	}
+
+	// If not in payload, check in transaction context (database)
+	return s.validateHistoryLicenseWithTx(ctx, tx, history, licenseID)
+}
+
+// validateReceiptLicenseWithPayload validates license checking payload first, then transaction/database
+func (s *SyncService) validateReceiptLicenseWithPayload(ctx context.Context, tx *gorm.DB, receipt entities.Receipt, licenseID uuid.UUID, req dto.SyncRequest) bool {
+	// First check if shop exists in the same payload
+	for _, shop := range req.Shops {
+		if shop.ID == receipt.ShopID && shop.LicenseID == licenseID {
+			return true
+		}
+	}
+
+	// If not in payload, check in transaction context (database)
+	return s.validateReceiptLicense(ctx, tx, receipt, licenseID)
+}
+
 func (s *SyncService) findHistoryByID(ctx context.Context, tx *gorm.DB, id uuid.UUID) (*entities.History, error) {
 	var history entities.History
 	err := tx.First(&history, "id = ?", id).Error
@@ -2869,6 +3153,10 @@ func (s *SyncService) findHistoryByID(ctx context.Context, tx *gorm.DB, id uuid.
 }
 
 func (s *SyncService) createHistory(ctx context.Context, tx *gorm.DB, history entities.History) error {
+	// Validate history references
+	if err := s.validateHistoryReferences(ctx, tx, history); err != nil {
+		return err
+	}
 	return tx.Create(&history).Error
 }
 
@@ -3637,6 +3925,213 @@ func (s *SyncService) findStockHistoryByID(ctx context.Context, tx *gorm.DB, id 
 	return &stockHistory, nil
 }
 
+// validateStockHistoryReferences validates all foreign key references for a stock history
+func (s *SyncService) validateStockHistoryReferences(ctx context.Context, tx *gorm.DB, stockHistory entities.StockHistory, licenseID uuid.UUID) error {
+	// Validate product reference - product should exist and belong to a shop under the license
+	var productCount int64
+	err := tx.WithContext(ctx).Model(&entities.Product{}).
+		Joins("JOIN shops ON products.shop_id = shops.id").
+		Where("products.id = ? AND shops.license_id = ?", stockHistory.ProductID, licenseID).
+		Count(&productCount).Error
+	if err != nil {
+		return fmt.Errorf("failed to validate product reference: %w", err)
+	}
+	if productCount == 0 {
+		return fmt.Errorf("product %s does not exist or does not belong to license %s", stockHistory.ProductID, licenseID)
+	}
+
+	return nil
+}
+
+// validateTransactionReferences validates references for Transaction entity
+func (s *SyncService) validateTransactionReferences(ctx context.Context, tx *gorm.DB, transaction entities.Transaction) error {
+	// Validate cashier_id reference - cashier should exist
+	var userCount int64
+	err := tx.WithContext(ctx).Model(&entities.User{}).
+		Where("id = ?", transaction.CashierID).
+		Count(&userCount).Error
+	if err != nil {
+		return fmt.Errorf("failed to validate cashier reference: %w", err)
+	}
+	if userCount == 0 {
+		return fmt.Errorf("cashier %s does not exist", transaction.CashierID)
+	}
+
+	return nil
+}
+
+// validateExpenseReferences validates references for Expense entity
+func (s *SyncService) validateExpenseReferences(ctx context.Context, tx *gorm.DB, expense entities.Expense) error {
+	log.Printf("DEBUG: Validating expense %s references - shop_id: %s", expense.ID, expense.ShopID)
+
+	// Validate shop_id reference - shop should exist
+	var shopCount int64
+	err := tx.WithContext(ctx).Model(&entities.Shop{}).
+		Where("id = ?", expense.ShopID).
+		Count(&shopCount).Error
+	if err != nil {
+		log.Printf("ERROR: Failed to validate shop reference for expense %s: %v", expense.ID, err)
+		return fmt.Errorf("failed to validate shop reference: %w", err)
+	}
+	if shopCount == 0 {
+		log.Printf("ERROR: Shop %s does not exist for expense %s", expense.ShopID, expense.ID)
+		return fmt.Errorf("shop %s does not exist", expense.ShopID)
+	}
+
+	log.Printf("DEBUG: Expense %s validation passed - shop %s exists", expense.ID, expense.ShopID)
+	return nil
+}
+
+// validateExpenseReferencesWithPayload validates references for Expense entity, checking payload first then database
+func (s *SyncService) validateExpenseReferencesWithPayload(ctx context.Context, tx *gorm.DB, expense entities.Expense, req dto.SyncRequest) error {
+	log.Printf("DEBUG: Validating expense %s references with payload - shop_id: %s", expense.ID, expense.ShopID)
+
+	// Validate shop_id reference - check payload first, then database
+	if err := s.validateShopExistsWithPayload(ctx, tx, expense.ShopID, req); err != nil {
+		log.Printf("ERROR: Shop validation failed for expense %s: %v", expense.ID, err)
+		return err
+	}
+
+	log.Printf("DEBUG: Expense %s validation passed - shop %s exists", expense.ID, expense.ShopID)
+	return nil
+}
+
+// validatePaymentReferences validates references for Payment entity
+func (s *SyncService) validatePaymentReferences(ctx context.Context, tx *gorm.DB, payment entities.Payment) error {
+	log.Printf("DEBUG: Validating payment %s references - shop_id: %s, transaction_id: %s", payment.ID, payment.ShopID, payment.TransactionID)
+
+	// Validate shop_id reference - shop should exist
+	var shopCount int64
+	err := tx.WithContext(ctx).Model(&entities.Shop{}).
+		Where("id = ?", payment.ShopID).
+		Count(&shopCount).Error
+	if err != nil {
+		log.Printf("ERROR: Failed to validate shop reference for payment %s: %v", payment.ID, err)
+		return fmt.Errorf("failed to validate shop reference: %w", err)
+	}
+	if shopCount == 0 {
+		log.Printf("ERROR: Shop %s does not exist for payment %s", payment.ShopID, payment.ID)
+		return fmt.Errorf("shop %s does not exist", payment.ShopID)
+	}
+
+	// Validate transaction_id reference - transaction should exist
+	var transactionCount int64
+	err = tx.WithContext(ctx).Model(&entities.Transaction{}).
+		Where("id = ?", payment.TransactionID).
+		Count(&transactionCount).Error
+	if err != nil {
+		log.Printf("ERROR: Failed to validate transaction reference for payment %s: %v", payment.ID, err)
+		return fmt.Errorf("failed to validate transaction reference: %w", err)
+	}
+	if transactionCount == 0 {
+		log.Printf("ERROR: Transaction %s does not exist for payment %s", payment.TransactionID, payment.ID)
+		return fmt.Errorf("transaction %s does not exist", payment.TransactionID)
+	}
+
+	// Validate user_id reference if provided (user_id is optional)
+	if payment.UserID != nil {
+		var userCount int64
+		err := tx.WithContext(ctx).Model(&entities.User{}).
+			Where("id = ?", *payment.UserID).
+			Count(&userCount).Error
+		if err != nil {
+			log.Printf("ERROR: Failed to validate user reference for payment %s: %v", payment.ID, err)
+			return fmt.Errorf("failed to validate user reference: %w", err)
+		}
+		if userCount == 0 {
+			log.Printf("ERROR: User %s does not exist for payment %s", *payment.UserID, payment.ID)
+			return fmt.Errorf("user %s does not exist", *payment.UserID)
+		}
+	}
+
+	log.Printf("DEBUG: Payment %s validation passed", payment.ID)
+	return nil
+}
+
+// validatePaymentReferencesWithPayload validates references for Payment entity, checking payload first then database
+func (s *SyncService) validatePaymentReferencesWithPayload(ctx context.Context, tx *gorm.DB, payment entities.Payment, req dto.SyncRequest) error {
+	log.Printf("DEBUG: Validating payment %s references with payload - shop_id: %s, transaction_id: %s", payment.ID, payment.ShopID, payment.TransactionID)
+
+	// Validate shop_id reference - check payload first, then database
+	if err := s.validateShopExistsWithPayload(ctx, tx, payment.ShopID, req); err != nil {
+		log.Printf("ERROR: Shop validation failed for payment %s: %v", payment.ID, err)
+		return err
+	}
+
+	// Validate transaction_id reference - check payload first, then database
+	if err := s.validateTransactionExistsWithPayload(ctx, tx, payment.TransactionID, req); err != nil {
+		log.Printf("ERROR: Transaction validation failed for payment %s: %v", payment.ID, err)
+		return err
+	}
+
+	// Validate user_id reference if provided (user_id is optional)
+	if payment.UserID != nil {
+		if err := s.validateUserExistsWithPayload(ctx, tx, *payment.UserID, req); err != nil {
+			log.Printf("ERROR: User validation failed for payment %s: %v", payment.ID, err)
+			return err
+		}
+	}
+
+	log.Printf("DEBUG: Payment %s validation passed", payment.ID)
+	return nil
+}
+
+// validateHistoryReferences validates references for History entity
+func (s *SyncService) validateHistoryReferences(ctx context.Context, tx *gorm.DB, history entities.History) error {
+	log.Printf("DEBUG: Validating history %s references - shop_id: %s, transaction_id: %s", history.ID, history.ShopID, history.TransactionID)
+
+	// Validate shop_id reference - shop should exist
+	var shopCount int64
+	err := tx.WithContext(ctx).Model(&entities.Shop{}).
+		Where("id = ?", history.ShopID).
+		Count(&shopCount).Error
+	if err != nil {
+		log.Printf("ERROR: Failed to validate shop reference for history %s: %v", history.ID, err)
+		return fmt.Errorf("failed to validate shop reference: %w", err)
+	}
+	if shopCount == 0 {
+		log.Printf("ERROR: Shop %s does not exist for history %s", history.ShopID, history.ID)
+		return fmt.Errorf("shop %s does not exist", history.ShopID)
+	}
+
+	// Validate transaction_id reference - transaction should exist
+	var transactionCount int64
+	err = tx.WithContext(ctx).Model(&entities.Transaction{}).
+		Where("id = ?", history.TransactionID).
+		Count(&transactionCount).Error
+	if err != nil {
+		log.Printf("ERROR: Failed to validate transaction reference for history %s: %v", history.ID, err)
+		return fmt.Errorf("failed to validate transaction reference: %w", err)
+	}
+	if transactionCount == 0 {
+		log.Printf("ERROR: Transaction %s does not exist for history %s", history.TransactionID, history.ID)
+		return fmt.Errorf("transaction %s does not exist", history.TransactionID)
+	}
+
+	log.Printf("DEBUG: History %s validation passed", history.ID)
+	return nil
+}
+
+// validateHistoryReferencesWithPayload validates references for History entity, checking payload first then database
+func (s *SyncService) validateHistoryReferencesWithPayload(ctx context.Context, tx *gorm.DB, history entities.History, req dto.SyncRequest) error {
+	log.Printf("DEBUG: Validating history %s references with payload - shop_id: %s, transaction_id: %s", history.ID, history.ShopID, history.TransactionID)
+
+	// Validate shop_id reference - check payload first, then database
+	if err := s.validateShopExistsWithPayload(ctx, tx, history.ShopID, req); err != nil {
+		log.Printf("ERROR: Shop validation failed for history %s: %v", history.ID, err)
+		return err
+	}
+
+	// Validate transaction_id reference - check payload first, then database
+	if err := s.validateTransactionExistsWithPayload(ctx, tx, history.TransactionID, req); err != nil {
+		log.Printf("ERROR: Transaction validation failed for history %s: %v", history.ID, err)
+		return err
+	}
+
+	log.Printf("DEBUG: History %s validation passed", history.ID)
+	return nil
+}
+
 func (s *SyncService) createStockHistory(ctx context.Context, tx *gorm.DB, stockHistory entities.StockHistory) error {
 	return tx.Create(&stockHistory).Error
 }
@@ -3741,9 +4236,11 @@ func (s *SyncService) pullTransactionProducts(ctx context.Context, tx *gorm.DB, 
 	return nil
 }
 
-func (s *SyncService) validateTransactionProductLicense(ctx context.Context, transactionProduct entities.TransactionProduct, licenseID uuid.UUID) bool {
+func (s *SyncService) validateTransactionProductLicense(ctx context.Context, tx *gorm.DB, transactionProduct entities.TransactionProduct, licenseID uuid.UUID) bool {
+	// Validate that the transaction product's transaction belongs to a shop under the license
+	// Use the transaction context to see shops and transactions created in the same transaction
 	var count int64
-	err := s.db.Model(&entities.Transaction{}).
+	err := tx.WithContext(ctx).Model(&entities.Transaction{}).
 		Joins("JOIN shops ON transactions.shop_id = shops.id").
 		Where("transactions.id = ? AND shops.license_id = ?", transactionProduct.TransactionID, licenseID).
 		Count(&count).Error
@@ -3760,6 +4257,29 @@ func (s *SyncService) findTransactionProductByID(ctx context.Context, tx *gorm.D
 		return nil, err
 	}
 	return &transactionProduct, nil
+}
+
+// validateTransactionProductReferences validates all foreign key references for a transaction product
+func (s *SyncService) validateTransactionProductReferences(ctx context.Context, tx *gorm.DB, transactionProduct entities.TransactionProduct, licenseID uuid.UUID) error {
+	// Validate transaction reference (existing validation)
+	if !s.validateTransactionProductLicense(ctx, tx, transactionProduct, licenseID) {
+		return fmt.Errorf("transaction product transaction does not belong to license %s", licenseID)
+	}
+
+	// Validate product reference - product should exist and belong to the same shop as the transaction
+	var productCount int64
+	err := tx.WithContext(ctx).Model(&entities.Product{}).
+		Joins("JOIN transactions ON transactions.shop_id = products.shop_id").
+		Where("products.id = ? AND transactions.id = ?", transactionProduct.ProductID, transactionProduct.TransactionID).
+		Count(&productCount).Error
+	if err != nil {
+		return fmt.Errorf("failed to validate product reference: %w", err)
+	}
+	if productCount == 0 {
+		return fmt.Errorf("product %s does not exist in the same shop as transaction %s", transactionProduct.ProductID, transactionProduct.TransactionID)
+	}
+
+	return nil
 }
 
 func (s *SyncService) createTransactionProduct(ctx context.Context, tx *gorm.DB, transactionProduct entities.TransactionProduct) error {
@@ -4395,22 +4915,29 @@ func (s *SyncService) pushTransactionsSafe(ctx context.Context, tx *gorm.DB, tra
 }
 
 // pushExpensesSafe handles expense synchronization safely
-func (s *SyncService) pushExpensesSafe(ctx context.Context, tx *gorm.DB, expenses []entities.Expense, licenseID uuid.UUID, response *dto.SyncResponse) error {
+func (s *SyncService) pushExpensesSafe(ctx context.Context, tx *gorm.DB, expenses []entities.Expense, licenseID uuid.UUID, req dto.SyncRequest, response *dto.SyncResponse) error {
+	log.Printf("DEBUG: Processing %d expenses in pushExpensesSafe", len(expenses))
+
 	for i, expense := range expenses {
-		if err := s.processSingleExpenseSafe(ctx, tx, expense, licenseID, response); err != nil {
-			log.Printf("Error processing expense %s (index %d): %v", expense.ID, i, err)
+		log.Printf("DEBUG: Processing expense %d/%d: %s", i+1, len(expenses), expense.ID)
+		if err := s.processSingleExpenseSafe(ctx, tx, expense, licenseID, req, response); err != nil {
+			log.Printf("ERROR: Processing expense %s (index %d) failed: %v", expense.ID, i, err)
 			s.addDetailedError(response, "expenses", expense.ID, "processing_failed", err.Error(),
 				map[string]interface{}{"expense_shop_id": expense.ShopID, "license_id": licenseID, "index": i})
+			log.Printf("DEBUG: Added error to response for expense %s. Current error count: %d", expense.ID, len(response.Errors))
 			continue
 		}
+		log.Printf("DEBUG: Successfully processed expense %s", expense.ID)
 	}
+
+	log.Printf("DEBUG: Completed processing expenses. Total errors in response: %d", len(response.Errors))
 	return nil
 }
 
 // pushPaymentsSafe handles payment synchronization safely
-func (s *SyncService) pushPaymentsSafe(ctx context.Context, tx *gorm.DB, payments []entities.Payment, licenseID uuid.UUID, response *dto.SyncResponse) error {
+func (s *SyncService) pushPaymentsSafe(ctx context.Context, tx *gorm.DB, payments []entities.Payment, licenseID uuid.UUID, req dto.SyncRequest, response *dto.SyncResponse) error {
 	for i, payment := range payments {
-		if err := s.processSinglePaymentSafe(ctx, tx, payment, licenseID, response); err != nil {
+		if err := s.processSinglePaymentSafe(ctx, tx, payment, licenseID, req, response); err != nil {
 			log.Printf("Error processing payment %s (index %d): %v", payment.ID, i, err)
 			s.addDetailedError(response, "payments", payment.ID, "processing_failed", err.Error(),
 				map[string]interface{}{"payment_shop_id": payment.ShopID, "license_id": licenseID, "index": i})
@@ -4421,9 +4948,9 @@ func (s *SyncService) pushPaymentsSafe(ctx context.Context, tx *gorm.DB, payment
 }
 
 // pushReceiptsSafe handles receipt synchronization safely
-func (s *SyncService) pushReceiptsSafe(ctx context.Context, tx *gorm.DB, receipts []entities.Receipt, licenseID uuid.UUID, response *dto.SyncResponse) error {
+func (s *SyncService) pushReceiptsSafe(ctx context.Context, tx *gorm.DB, receipts []entities.Receipt, licenseID uuid.UUID, req dto.SyncRequest, response *dto.SyncResponse) error {
 	for i, receipt := range receipts {
-		if err := s.processSingleReceiptSafe(ctx, tx, receipt, licenseID, response); err != nil {
+		if err := s.processSingleReceiptSafe(ctx, tx, receipt, licenseID, req, response); err != nil {
 			log.Printf("Error processing receipt %s (index %d): %v", receipt.ID, i, err)
 			s.addDetailedError(response, "receipts", receipt.ID, "processing_failed", err.Error(),
 				map[string]interface{}{"receipt_shop_id": receipt.ShopID, "license_id": licenseID, "index": i})
@@ -4434,9 +4961,9 @@ func (s *SyncService) pushReceiptsSafe(ctx context.Context, tx *gorm.DB, receipt
 }
 
 // pushHistoriesSafe handles history synchronization safely
-func (s *SyncService) pushHistoriesSafe(ctx context.Context, tx *gorm.DB, histories []entities.History, licenseID uuid.UUID, response *dto.SyncResponse) error {
+func (s *SyncService) pushHistoriesSafe(ctx context.Context, tx *gorm.DB, histories []entities.History, licenseID uuid.UUID, req dto.SyncRequest, response *dto.SyncResponse) error {
 	for i, history := range histories {
-		if err := s.processSingleHistorySafe(ctx, tx, history, licenseID, response); err != nil {
+		if err := s.processSingleHistorySafe(ctx, tx, history, licenseID, req, response); err != nil {
 			log.Printf("Error processing history %s (index %d): %v", history.ID, i, err)
 			s.addDetailedError(response, "histories", history.ID, "processing_failed", err.Error(),
 				map[string]interface{}{"history_shop_id": history.ShopID, "license_id": licenseID, "index": i})
@@ -4547,8 +5074,9 @@ func (s *SyncService) processSingleCategorySafe(ctx context.Context, tx *gorm.DB
 
 // processSingleProductSafe processes a single product entity safely
 func (s *SyncService) processSingleProductSafe(ctx context.Context, tx *gorm.DB, product entities.Product, licenseID uuid.UUID, response *dto.SyncResponse) error {
-	if !s.validateProductLicense(ctx, product, licenseID) {
-		return fmt.Errorf("product does not belong to license %s", licenseID)
+	// Validate all product references (shop, category)
+	if err := s.validateProductReferences(ctx, tx, product, licenseID); err != nil {
+		return fmt.Errorf("product reference validation failed: %w", err)
 	}
 
 	existing, err := s.findProductByID(ctx, tx, product.ID)
@@ -4581,7 +5109,7 @@ func (s *SyncService) processSingleProductSafe(ctx context.Context, tx *gorm.DB,
 
 // processSingleTransactionSafe processes a single transaction entity safely
 func (s *SyncService) processSingleTransactionSafe(ctx context.Context, tx *gorm.DB, transaction entities.Transaction, licenseID uuid.UUID, response *dto.SyncResponse) error {
-	if !s.validateTransactionLicense(ctx, transaction, licenseID) {
+	if !s.validateTransactionLicense(ctx, tx, transaction, licenseID) {
 		return fmt.Errorf("transaction does not belong to license %s", licenseID)
 	}
 
@@ -4614,8 +5142,17 @@ func (s *SyncService) processSingleTransactionSafe(ctx context.Context, tx *gorm
 }
 
 // processSingleExpenseSafe processes a single expense entity safely
-func (s *SyncService) processSingleExpenseSafe(ctx context.Context, tx *gorm.DB, expense entities.Expense, licenseID uuid.UUID, response *dto.SyncResponse) error {
-	if !s.validateExpenseLicense(ctx, expense, licenseID) {
+func (s *SyncService) processSingleExpenseSafe(ctx context.Context, tx *gorm.DB, expense entities.Expense, licenseID uuid.UUID, req dto.SyncRequest, response *dto.SyncResponse) error {
+	log.Printf("DEBUG: Processing expense %s", expense.ID)
+
+	// Validate all expense references (shop) - check payload first, then database
+	if err := s.validateExpenseReferencesWithPayload(ctx, tx, expense, req); err != nil {
+		log.Printf("ERROR: Expense %s validation failed: %v", expense.ID, err)
+		return fmt.Errorf("expense reference validation failed: %w", err)
+	}
+
+	if !s.validateExpenseLicense(ctx, tx, expense, licenseID) {
+		log.Printf("ERROR: Expense %s license validation failed", expense.ID)
 		return fmt.Errorf("expense does not belong to license %s", licenseID)
 	}
 
@@ -4648,8 +5185,13 @@ func (s *SyncService) processSingleExpenseSafe(ctx context.Context, tx *gorm.DB,
 }
 
 // processSinglePaymentSafe processes a single payment entity safely
-func (s *SyncService) processSinglePaymentSafe(ctx context.Context, tx *gorm.DB, payment entities.Payment, licenseID uuid.UUID, response *dto.SyncResponse) error {
-	if !s.validatePaymentLicense(ctx, payment, licenseID) {
+func (s *SyncService) processSinglePaymentSafe(ctx context.Context, tx *gorm.DB, payment entities.Payment, licenseID uuid.UUID, req dto.SyncRequest, response *dto.SyncResponse) error {
+	// Validate all payment references (shop, transaction, user) - check payload first, then database
+	if err := s.validatePaymentReferencesWithPayload(ctx, tx, payment, req); err != nil {
+		return fmt.Errorf("payment reference validation failed: %w", err)
+	}
+
+	if !s.validatePaymentLicense(ctx, tx, payment, licenseID) {
 		return fmt.Errorf("payment does not belong to license %s", licenseID)
 	}
 
@@ -4682,9 +5224,10 @@ func (s *SyncService) processSinglePaymentSafe(ctx context.Context, tx *gorm.DB,
 }
 
 // processSingleReceiptSafe processes a single receipt entity safely
-func (s *SyncService) processSingleReceiptSafe(ctx context.Context, tx *gorm.DB, receipt entities.Receipt, licenseID uuid.UUID, response *dto.SyncResponse) error {
-	if !s.validateReceiptLicense(ctx, receipt, licenseID) {
-		return fmt.Errorf("receipt does not belong to license %s", licenseID)
+func (s *SyncService) processSingleReceiptSafe(ctx context.Context, tx *gorm.DB, receipt entities.Receipt, licenseID uuid.UUID, req dto.SyncRequest, response *dto.SyncResponse) error {
+	// Validate all receipt references (shop, payment) - check payload first, then database
+	if err := s.validateReceiptReferencesWithPayload(ctx, tx, receipt, licenseID, req); err != nil {
+		return fmt.Errorf("receipt reference validation failed: %w", err)
 	}
 
 	existing, err := s.findReceiptByID(ctx, tx, receipt.ID)
@@ -4716,8 +5259,13 @@ func (s *SyncService) processSingleReceiptSafe(ctx context.Context, tx *gorm.DB,
 }
 
 // processSingleHistorySafe processes a single history entity safely
-func (s *SyncService) processSingleHistorySafe(ctx context.Context, tx *gorm.DB, history entities.History, licenseID uuid.UUID, response *dto.SyncResponse) error {
-	if !s.validateHistoryLicense(ctx, history, licenseID) {
+func (s *SyncService) processSingleHistorySafe(ctx context.Context, tx *gorm.DB, history entities.History, licenseID uuid.UUID, req dto.SyncRequest, response *dto.SyncResponse) error {
+	// Validate all history references (shop, transaction) - check payload first, then database
+	if err := s.validateHistoryReferencesWithPayload(ctx, tx, history, req); err != nil {
+		return fmt.Errorf("history reference validation failed: %w", err)
+	}
+
+	if !s.validateHistoryLicenseWithPayload(ctx, tx, history, licenseID, req) {
 		return fmt.Errorf("history does not belong to license %s", licenseID)
 	}
 
@@ -4849,6 +5397,11 @@ func (s *SyncService) processSingleStockHistorySafe(ctx context.Context, tx *gor
 		return fmt.Errorf("stock history access denied for user role and shop")
 	}
 
+	// Additional reference validation (product exists and belongs to license)
+	if err := s.validateStockHistoryReferences(ctx, tx, stockHistory, syncContext.LicenseID); err != nil {
+		return fmt.Errorf("stock history reference validation failed: %w", err)
+	}
+
 	existing, err := s.findStockHistoryByID(ctx, tx, stockHistory.ID)
 	if err != nil {
 		return fmt.Errorf("failed to find stock history: %w", err)
@@ -4909,6 +5462,11 @@ func (s *SyncService) processSingleTransactionProductSafe(ctx context.Context, t
 		return fmt.Errorf("transaction product access denied for user role and shop - details: %+v", errorDetails)
 	}
 
+	// Additional reference validation (product exists in same shop as transaction)
+	if err := s.validateTransactionProductReferences(ctx, tx, transactionProduct, syncContext.LicenseID); err != nil {
+		return fmt.Errorf("transaction product reference validation failed: %w", err)
+	}
+
 	existing, err := s.findTransactionProductByID(ctx, tx, transactionProduct.ID)
 	if err != nil {
 		return fmt.Errorf("failed to find transaction product: %w", err)
@@ -4934,5 +5492,223 @@ func (s *SyncService) processSingleTransactionProductSafe(ctx context.Context, t
 	}
 
 	s.incrementStat(response.Stats.ProcessedEntities, "transaction_products")
+	return nil
+}
+
+// Payload validation helpers - check if entities exist in sync request payload before checking database
+
+// checkShopInPayload checks if a shop exists in the sync request payload
+func (s *SyncService) checkShopInPayload(shopID uuid.UUID, req dto.SyncRequest) bool {
+	for _, shop := range req.Shops {
+		if shop.ID == shopID {
+			return true
+		}
+	}
+	return false
+}
+
+// checkProductInPayload checks if a product exists in the sync request payload
+func (s *SyncService) checkProductInPayload(productID uuid.UUID, req dto.SyncRequest) bool {
+	for _, product := range req.Products {
+		if product.ID == productID {
+			return true
+		}
+	}
+	return false
+}
+
+// checkTransactionInPayload checks if a transaction exists in the sync request payload
+func (s *SyncService) checkTransactionInPayload(transactionID uuid.UUID, req dto.SyncRequest) bool {
+	for _, transaction := range req.Transactions {
+		if transaction.ID == transactionID {
+			return true
+		}
+	}
+	return false
+}
+
+// checkPaymentInPayload checks if a payment exists in the sync request payload
+func (s *SyncService) checkPaymentInPayload(paymentID uuid.UUID, req dto.SyncRequest) bool {
+	for _, payment := range req.Payments {
+		if payment.ID == paymentID {
+			return true
+		}
+	}
+	return false
+}
+
+// checkCategoryInPayload checks if a category exists in the sync request payload
+func (s *SyncService) checkCategoryInPayload(categoryID uuid.UUID, req dto.SyncRequest) bool {
+	for _, category := range req.Categories {
+		if category.ID == categoryID {
+			return true
+		}
+	}
+	return false
+}
+
+// checkUserInPayload checks if a user exists in the sync request payload
+func (s *SyncService) checkUserInPayload(userID uuid.UUID, req dto.SyncRequest) bool {
+	for _, user := range req.Users {
+		if user.ID == userID {
+			return true
+		}
+	}
+	return false
+}
+
+// validateShopExistsWithPayload validates shop existence, checking payload first then database
+func (s *SyncService) validateShopExistsWithPayload(ctx context.Context, tx *gorm.DB, shopID uuid.UUID, req dto.SyncRequest) error {
+	// First check if shop exists in the sync request payload
+	if s.checkShopInPayload(shopID, req) {
+		log.Printf("DEBUG: Shop %s found in sync request payload", shopID)
+		return nil
+	}
+
+	// If not in payload, check database
+	var shopCount int64
+	err := tx.WithContext(ctx).Model(&entities.Shop{}).
+		Where("id = ?", shopID).
+		Count(&shopCount).Error
+	if err != nil {
+		log.Printf("ERROR: Failed to validate shop reference %s: %v", shopID, err)
+		return fmt.Errorf("failed to validate shop reference: %w", err)
+	}
+	if shopCount == 0 {
+		log.Printf("ERROR: Shop %s does not exist in payload or database", shopID)
+		return fmt.Errorf("shop %s does not exist", shopID)
+	}
+
+	log.Printf("DEBUG: Shop %s found in database", shopID)
+	return nil
+}
+
+// validateProductExistsWithPayload validates product existence, checking payload first then database
+func (s *SyncService) validateProductExistsWithPayload(ctx context.Context, tx *gorm.DB, productID uuid.UUID, req dto.SyncRequest) error {
+	// First check if product exists in the sync request payload
+	if s.checkProductInPayload(productID, req) {
+		log.Printf("DEBUG: Product %s found in sync request payload", productID)
+		return nil
+	}
+
+	// If not in payload, check database
+	var productCount int64
+	err := tx.WithContext(ctx).Model(&entities.Product{}).
+		Where("id = ?", productID).
+		Count(&productCount).Error
+	if err != nil {
+		log.Printf("ERROR: Failed to validate product reference %s: %v", productID, err)
+		return fmt.Errorf("failed to validate product reference: %w", err)
+	}
+	if productCount == 0 {
+		log.Printf("ERROR: Product %s does not exist in payload or database", productID)
+		return fmt.Errorf("product %s does not exist", productID)
+	}
+
+	log.Printf("DEBUG: Product %s found in database", productID)
+	return nil
+}
+
+// validateTransactionExistsWithPayload validates transaction existence, checking payload first then database
+func (s *SyncService) validateTransactionExistsWithPayload(ctx context.Context, tx *gorm.DB, transactionID uuid.UUID, req dto.SyncRequest) error {
+	// First check if transaction exists in the sync request payload
+	if s.checkTransactionInPayload(transactionID, req) {
+		log.Printf("DEBUG: Transaction %s found in sync request payload", transactionID)
+		return nil
+	}
+
+	// If not in payload, check database
+	var transactionCount int64
+	err := tx.WithContext(ctx).Model(&entities.Transaction{}).
+		Where("id = ?", transactionID).
+		Count(&transactionCount).Error
+	if err != nil {
+		log.Printf("ERROR: Failed to validate transaction reference %s: %v", transactionID, err)
+		return fmt.Errorf("failed to validate transaction reference: %w", err)
+	}
+	if transactionCount == 0 {
+		log.Printf("ERROR: Transaction %s does not exist in payload or database", transactionID)
+		return fmt.Errorf("transaction %s does not exist", transactionID)
+	}
+
+	log.Printf("DEBUG: Transaction %s found in database", transactionID)
+	return nil
+}
+
+// validatePaymentExistsWithPayload validates payment existence, checking payload first then database
+func (s *SyncService) validatePaymentExistsWithPayload(ctx context.Context, tx *gorm.DB, paymentID uuid.UUID, req dto.SyncRequest) error {
+	// First check if payment exists in the sync request payload
+	if s.checkPaymentInPayload(paymentID, req) {
+		log.Printf("DEBUG: Payment %s found in sync request payload", paymentID)
+		return nil
+	}
+
+	// If not in payload, check database
+	var paymentCount int64
+	err := tx.WithContext(ctx).Model(&entities.Payment{}).
+		Where("id = ?", paymentID).
+		Count(&paymentCount).Error
+	if err != nil {
+		log.Printf("ERROR: Failed to validate payment reference %s: %v", paymentID, err)
+		return fmt.Errorf("failed to validate payment reference: %w", err)
+	}
+	if paymentCount == 0 {
+		log.Printf("ERROR: Payment %s does not exist in payload or database", paymentID)
+		return fmt.Errorf("payment %s does not exist", paymentID)
+	}
+
+	log.Printf("DEBUG: Payment %s found in database", paymentID)
+	return nil
+}
+
+// validateCategoryExistsWithPayload validates category existence, checking payload first then database
+func (s *SyncService) validateCategoryExistsWithPayload(ctx context.Context, tx *gorm.DB, categoryID uuid.UUID, req dto.SyncRequest) error {
+	// First check if category exists in the sync request payload
+	if s.checkCategoryInPayload(categoryID, req) {
+		log.Printf("DEBUG: Category %s found in sync request payload", categoryID)
+		return nil
+	}
+
+	// If not in payload, check database
+	var categoryCount int64
+	err := tx.WithContext(ctx).Model(&entities.Category{}).
+		Where("id = ?", categoryID).
+		Count(&categoryCount).Error
+	if err != nil {
+		log.Printf("ERROR: Failed to validate category reference %s: %v", categoryID, err)
+		return fmt.Errorf("failed to validate category reference: %w", err)
+	}
+	if categoryCount == 0 {
+		log.Printf("ERROR: Category %s does not exist in payload or database", categoryID)
+		return fmt.Errorf("category %s does not exist", categoryID)
+	}
+
+	log.Printf("DEBUG: Category %s found in database", categoryID)
+	return nil
+}
+
+// validateUserExistsWithPayload validates user existence, checking payload first then database
+func (s *SyncService) validateUserExistsWithPayload(ctx context.Context, tx *gorm.DB, userID uuid.UUID, req dto.SyncRequest) error {
+	// First check if user exists in the sync request payload
+	if s.checkUserInPayload(userID, req) {
+		log.Printf("DEBUG: User %s found in sync request payload", userID)
+		return nil
+	}
+
+	// If not in payload, check database
+	var userCount int64
+	err := tx.WithContext(ctx).Model(&entities.User{}).
+		Where("id = ?", userID).
+		Count(&userCount).Error
+	if err != nil {
+		log.Printf("ERROR: Failed to validate user reference %s: %v", userID, err)
+		return fmt.Errorf("failed to validate user reference: %w", err)
+	}
+	if userCount == 0 {
+		log.Printf("ERROR: User %s does not exist in payload or database", userID)
+		return fmt.Errorf("user %s does not exist", userID)
+	}
+
+	log.Printf("DEBUG: User %s found in database", userID)
 	return nil
 }
