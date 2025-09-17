@@ -9,24 +9,24 @@ import (
 
 // TransactionDTO represents a transaction without circular dependencies
 type TransactionDTO struct {
-	ID                   uuid.UUID                `json:"id"`
-	ShopID               uuid.UUID                `json:"shop_id"`
-	CashierID            uuid.UUID                `json:"cashier_id"`
-	CustomerName         *string                  `json:"customer_name"`
-	Discount             float64                  `json:"discount"`
-	DiscountPercentage   float64                  `json:"discount_percentage"`
-	AdditionalCost       float64                  `json:"additional_cost"`
+	ID                   uuid.UUID                  `json:"id"`
+	ShopID               uuid.UUID                  `json:"shop_id"`
+	CashierID            uuid.UUID                  `json:"cashier_id"`
+	CustomerName         *string                    `json:"customer_name"`
+	Discount             float64                    `json:"discount"`
+	DiscountPercentage   float64                    `json:"discount_percentage"`
+	AdditionalCost       float64                    `json:"additional_cost"`
 	Status               entities.TransactionStatus `json:"status"`
-	TotalPrice           float64                  `json:"total_price"`
-	ProfitTransaction    *float64                 `json:"profit_transaction"`
-	CashierName          *string                  `json:"cashier_name"`
-	Change               *float64                 `json:"change"`
-	Amount               int64                    `json:"amount"`
-	InitialPaymentStatus *string                  `json:"initial_payment_status"`
-	CreatedAt            time.Time                `json:"created_at"`
-	UpdatedAt            time.Time                `json:"updated_at"`
-	Shop                 *ShopSummaryDTO          `json:"shop,omitempty"`
-	Cashier              *UserSummaryDTO          `json:"cashier,omitempty"`
+	TotalPrice           float64                    `json:"total_price"`
+	ProfitTransaction    *float64                   `json:"profit_transaction"`
+	CashierName          *string                    `json:"cashier_name"`
+	Change               *float64                   `json:"change"`
+	Amount               int64                      `json:"amount"`
+	InitialPaymentStatus *string                    `json:"initial_payment_status"`
+	CreatedAt            time.Time                  `json:"created_at"`
+	UpdatedAt            time.Time                  `json:"updated_at"`
+	Shop                 *ShopSummaryDTO            `json:"shop,omitempty"`
+	Cashier              *UserSummaryDTO            `json:"cashier,omitempty"`
 }
 
 // PaymentDTO represents a payment without circular dependencies
@@ -59,35 +59,35 @@ type ExpenseDTO struct {
 
 // ShopSummaryDTO represents a shop summary without deep relations
 type ShopSummaryDTO struct {
-	ID               uuid.UUID         `json:"id"`
-	LicenseID        uuid.UUID         `json:"license_id"`
-	UserID           uuid.UUID         `json:"user_id"`
-	Name             string            `json:"name"`
-	Domain           string            `json:"domain"`
-	Photo            *string           `json:"photo"`
-	Address          *string           `json:"address"`
-	Slogan           *string           `json:"slogan"`
-	ProfitCalculate int64          `json:"profit_calculate"`
-	CreatedAt        time.Time         `json:"created_at"`
-	UpdatedAt        time.Time         `json:"updated_at"`
-	License          *LicenseSummaryDTO `json:"license,omitempty"`
-	Owner            *UserSummaryDTO   `json:"owner,omitempty"`
+	ID              uuid.UUID          `json:"id"`
+	LicenseID       uuid.UUID          `json:"license_id"`
+	UserID          uuid.UUID          `json:"user_id"`
+	Name            string             `json:"name"`
+	Domain          string             `json:"domain"`
+	Photo           *string            `json:"photo"`
+	Address         *string            `json:"address"`
+	Slogan          *string            `json:"slogan"`
+	ProfitCalculate int64              `json:"profit_calculate"`
+	CreatedAt       time.Time          `json:"created_at"`
+	UpdatedAt       time.Time          `json:"updated_at"`
+	License         *LicenseSummaryDTO `json:"license,omitempty"`
+	Owner           *UserSummaryDTO    `json:"owner,omitempty"`
 }
 
 // UserSummaryDTO represents a user summary without deep relations
 type UserSummaryDTO struct {
-	ID                uuid.UUID  `json:"id"`
-	LicenseID         *uuid.UUID `json:"license_id"`
-	RoleID            *uuid.UUID `json:"role_id"`
-	ShopID            *uuid.UUID `json:"shop_id"`
-	Email             *string    `json:"email"`
-	EmailVerifiedAt   *time.Time `json:"email_verified_at"`
-	Username          *string    `json:"username"`
-	Name              string     `json:"name"`
-	InfoDevice        *string    `json:"info_device"`
-	FCMToken          *string    `json:"fcm_token"`
-	CreatedAt         time.Time  `json:"created_at"`
-	UpdatedAt         time.Time  `json:"updated_at"`
+	ID              uuid.UUID  `json:"id"`
+	LicenseID       *uuid.UUID `json:"license_id"`
+	RoleID          *uuid.UUID `json:"role_id"`
+	ShopID          *uuid.UUID `json:"shop_id"`
+	Email           *string    `json:"email"`
+	EmailVerifiedAt *time.Time `json:"email_verified_at"`
+	Username        *string    `json:"username"`
+	Name            string     `json:"name"`
+	InfoDevice      *string    `json:"info_device"`
+	FCMToken        *string    `json:"fcm_token"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 }
 
 // LicenseSummaryDTO represents a license summary
@@ -100,23 +100,23 @@ type LicenseSummaryDTO struct {
 
 // TransactionSummaryDTO represents a transaction summary for use in other DTOs
 type TransactionSummaryDTO struct {
-	ID                   uuid.UUID                `json:"id"`
-	ShopID               uuid.UUID                `json:"shop_id"`
-	CashierID            uuid.UUID                `json:"cashier_id"`
-	CustomerName         *string                  `json:"customer_name"`
-	Discount             float64                  `json:"discount"`
-	DiscountPercentage   float64                  `json:"discount_percentage"`
-	AdditionalCost       float64                  `json:"additional_cost"`
+	ID                   uuid.UUID                  `json:"id"`
+	ShopID               uuid.UUID                  `json:"shop_id"`
+	CashierID            uuid.UUID                  `json:"cashier_id"`
+	CustomerName         *string                    `json:"customer_name"`
+	Discount             float64                    `json:"discount"`
+	DiscountPercentage   float64                    `json:"discount_percentage"`
+	AdditionalCost       float64                    `json:"additional_cost"`
 	Status               entities.TransactionStatus `json:"status"`
-	TotalPrice           float64                  `json:"total_price"`
-	ProfitTransaction    *float64                 `json:"profit_transaction"`
-	CashierName          *string                  `json:"cashier_name"`
-	Change               *float64                 `json:"change"`
-	Amount               int64                    `json:"amount"`
-	InitialPaymentStatus *string                  `json:"initial_payment_status"`
-	CreatedAt            time.Time                `json:"created_at"`
-	UpdatedAt            time.Time                `json:"updated_at"`
-	Cashier              *UserSummaryDTO          `json:"cashier,omitempty"`
+	TotalPrice           float64                    `json:"total_price"`
+	ProfitTransaction    *float64                   `json:"profit_transaction"`
+	CashierName          *string                    `json:"cashier_name"`
+	Change               *float64                   `json:"change"`
+	Amount               int64                      `json:"amount"`
+	InitialPaymentStatus *string                    `json:"initial_payment_status"`
+	CreatedAt            time.Time                  `json:"created_at"`
+	UpdatedAt            time.Time                  `json:"updated_at"`
+	Cashier              *UserSummaryDTO            `json:"cashier,omitempty"`
 }
 
 // CreateTransactionResponseDTO represents the response after creating a transaction

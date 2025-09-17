@@ -163,21 +163,21 @@ func runSeeder() error {
 
 	// Run enhanced auth seeder for performance optimization
 	enhancedAuthSeeder := seeders.NewEnhancedAuthSeeder(roleRepo, userRepo, policyRepo, enforcerService)
-	
+
 	// Get performance metrics before optimization
 	beforeMetrics := enhancedAuthSeeder.GetPerformanceMetrics()
 	log.Printf("Performance metrics before optimization: %+v", beforeMetrics)
-	
+
 	if err := enhancedAuthSeeder.SeedRoleGroupingsWithOptimization(); err != nil {
 		log.Printf("Warning: Enhanced auth seeding failed: %v", err)
 		// Don't fail completely, just log the warning
 	}
-	
+
 	if err := enhancedAuthSeeder.OptimizePolicyPerformance(); err != nil {
 		log.Printf("Warning: Policy optimization failed: %v", err)
 		// Don't fail completely, just log the warning
 	}
-	
+
 	// Get performance metrics after optimization
 	afterMetrics := enhancedAuthSeeder.GetPerformanceMetrics()
 	log.Printf("Performance metrics after optimization: %+v", afterMetrics)

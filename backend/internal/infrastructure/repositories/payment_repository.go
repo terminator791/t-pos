@@ -90,14 +90,14 @@ func (r *PaymentRepositoryImpl) ListByShopIDs(ctx context.Context, shopIDs []uui
 	if len(shopIDs) == 0 {
 		return payments, nil // Return empty slice if no accessible shops
 	}
-	
+
 	err := r.db.WithContext(ctx).
 		Joins("JOIN transactions ON payments.transaction_id = transactions.id").
 		Where("transactions.shop_id IN (?)", shopIDs).
 		Limit(limit).
 		Offset(offset).
 		Find(&payments).Error
-		
+
 	return payments, err
 }
 
@@ -107,11 +107,11 @@ func (r *PaymentRepositoryImpl) GetByShopIDs(ctx context.Context, shopIDs []uuid
 	if len(shopIDs) == 0 {
 		return payments, nil // Return empty slice if no accessible shops
 	}
-	
+
 	err := r.db.WithContext(ctx).
 		Joins("JOIN transactions ON payments.transaction_id = transactions.id").
 		Where("transactions.shop_id IN (?)", shopIDs).
 		Find(&payments).Error
-		
+
 	return payments, err
 }

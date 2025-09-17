@@ -78,7 +78,7 @@ func (r *CartRepositoryImpl) ListByShopIDs(ctx context.Context, shopIDs []uuid.U
 	if len(shopIDs) == 0 {
 		return carts, nil // Return empty slice if no accessible shops
 	}
-	
+
 	err := r.db.WithContext(ctx).
 		Preload("Product").
 		Preload("Shop").
@@ -88,7 +88,7 @@ func (r *CartRepositoryImpl) ListByShopIDs(ctx context.Context, shopIDs []uuid.U
 		Limit(limit).
 		Offset(offset).
 		Find(&carts).Error
-		
+
 	return carts, err
 }
 
@@ -98,7 +98,7 @@ func (r *CartRepositoryImpl) GetByShopIDs(ctx context.Context, shopIDs []uuid.UU
 	if len(shopIDs) == 0 {
 		return carts, nil // Return empty slice if no accessible shops
 	}
-	
+
 	err := r.db.WithContext(ctx).
 		Preload("Product").
 		Preload("Shop").
@@ -106,6 +106,6 @@ func (r *CartRepositoryImpl) GetByShopIDs(ctx context.Context, shopIDs []uuid.UU
 		Joins("JOIN products ON carts.product_id = products.id").
 		Where("products.shop_id IN (?)", shopIDs).
 		Find(&carts).Error
-		
+
 	return carts, err
 }

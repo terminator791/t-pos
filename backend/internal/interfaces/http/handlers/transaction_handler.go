@@ -97,7 +97,7 @@ func (h *TransactionHandler) CreateTransaction(c *gin.Context) {
 			})
 			return
 		}
-		
+
 		shopID = *req.ShopID
 	} else {
 		// No shop context and no shop_id in request

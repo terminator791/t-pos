@@ -75,22 +75,22 @@ type SyncPaymentDTO struct {
 
 // SyncTransactionDTO represents a transaction entity for sync responses without relations
 type SyncTransactionDTO struct {
-	ID                   uuid.UUID  `json:"id"`
-	ShopID               uuid.UUID  `json:"shop_id"`
-	CashierID            uuid.UUID  `json:"cashier_id"`
-	CustomerName         *string    `json:"customer_name"`
-	Discount             float64    `json:"discount"`
-	DiscountPercentage   float64    `json:"discount_percentage"`
-	AdditionalCost       float64    `json:"additional_cost"`
-	Status               string     `json:"status"`
-	TotalPrice           float64    `json:"total_price"`
-	ProfitTransaction    *float64   `json:"profit_transaction"`
-	CashierName          *string    `json:"cashier_name"`
-	Change               *float64   `json:"change"`
-	Amount               int64      `json:"amount"`
-	InitialPaymentStatus *string    `json:"initial_payment_status"`
-	CreatedAt            time.Time  `json:"created_at"`
-	UpdatedAt            time.Time  `json:"updated_at"`
+	ID                   uuid.UUID `json:"id"`
+	ShopID               uuid.UUID `json:"shop_id"`
+	CashierID            uuid.UUID `json:"cashier_id"`
+	CustomerName         *string   `json:"customer_name"`
+	Discount             float64   `json:"discount"`
+	DiscountPercentage   float64   `json:"discount_percentage"`
+	AdditionalCost       float64   `json:"additional_cost"`
+	Status               string    `json:"status"`
+	TotalPrice           float64   `json:"total_price"`
+	ProfitTransaction    *float64  `json:"profit_transaction"`
+	CashierName          *string   `json:"cashier_name"`
+	Change               *float64  `json:"change"`
+	Amount               int64     `json:"amount"`
+	InitialPaymentStatus *string   `json:"initial_payment_status"`
+	CreatedAt            time.Time `json:"created_at"`
+	UpdatedAt            time.Time `json:"updated_at"`
 }
 
 // SyncReceiptDTO represents a receipt entity for sync responses without relations
@@ -113,17 +113,17 @@ type SyncHistoryDTO struct {
 
 // SyncShopDTO represents a shop entity for sync responses without relations
 type SyncShopDTO struct {
-	ID               uuid.UUID `json:"id"`
-	LicenseID        uuid.UUID `json:"license_id"`
-	UserID           uuid.UUID `json:"user_id"`
-	Name             string    `json:"name"`
-	Domain           string    `json:"domain"`
-	Photo            *string   `json:"photo"`
-	Address          *string   `json:"address"`
-	Slogan           *string   `json:"slogan"`
-	ProfitCalculate  int64     `json:"profit_calculate"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	ID              uuid.UUID `json:"id"`
+	LicenseID       uuid.UUID `json:"license_id"`
+	UserID          uuid.UUID `json:"user_id"`
+	Name            string    `json:"name"`
+	Domain          string    `json:"domain"`
+	Photo           *string   `json:"photo"`
+	Address         *string   `json:"address"`
+	Slogan          *string   `json:"slogan"`
+	ProfitCalculate int64     `json:"profit_calculate"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 // SyncStockHistoryDTO represents a stock history entity for sync responses without relations

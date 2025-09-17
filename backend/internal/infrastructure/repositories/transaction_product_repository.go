@@ -97,7 +97,7 @@ func (r *TransactionProductRepositoryImpl) ListByShopIDs(ctx context.Context, sh
 	if len(shopIDs) == 0 {
 		return transactionProducts, nil // Return empty slice if no accessible shops
 	}
-	
+
 	err := r.db.WithContext(ctx).
 		Preload("Transaction").
 		Preload("Product").
@@ -106,7 +106,7 @@ func (r *TransactionProductRepositoryImpl) ListByShopIDs(ctx context.Context, sh
 		Limit(limit).
 		Offset(offset).
 		Find(&transactionProducts).Error
-		
+
 	return transactionProducts, err
 }
 
@@ -116,13 +116,13 @@ func (r *TransactionProductRepositoryImpl) GetByShopIDs(ctx context.Context, sho
 	if len(shopIDs) == 0 {
 		return transactionProducts, nil // Return empty slice if no accessible shops
 	}
-	
+
 	err := r.db.WithContext(ctx).
 		Preload("Transaction").
 		Preload("Product").
 		Joins("JOIN transactions ON transaction_products.transaction_id = transactions.id").
 		Where("transactions.shop_id IN (?)", shopIDs).
 		Find(&transactionProducts).Error
-		
+
 	return transactionProducts, err
 }

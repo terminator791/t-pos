@@ -249,7 +249,7 @@ func (s *AuthSeeder) SeedPolicies() error {
 		{"admin", "*", "/api/v1/auth/*", "DELETE"},
 
 		// NOTE: owner_business and cashier policies will be assigned dynamically
-		// in auth handlers with specific domains (license.SerialNumber for owner_business, 
+		// in auth handlers with specific domains (license.SerialNumber for owner_business,
 		// shop.Domain for cashier) to enforce proper multi-tenancy isolation
 	}
 

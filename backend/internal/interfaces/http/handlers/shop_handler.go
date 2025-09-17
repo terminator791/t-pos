@@ -143,7 +143,7 @@ func (h *ShopHandler) ListShops(c *gin.Context) {
 		// Filter by accessible shop/license IDs for tenant users
 		shopFilter := domainAccess.GetShopFilter()
 		licenseFilter := domainAccess.GetLicenseFilter()
-		
+
 		if len(shopFilter) == 0 && len(licenseFilter) == 0 {
 			// User has no accessible shops or licenses
 			shops = []*entities.Shop{}

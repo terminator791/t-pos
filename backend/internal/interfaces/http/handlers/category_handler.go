@@ -134,8 +134,8 @@ func (h *CategoryHandler) ListCategories(c *gin.Context) {
 		if !domainAccess.CanAccessShop(shopID) {
 			response.ErrorForbidden(c, "Cannot access categories for this shop", map[string]interface{}{
 				"requested_shop_id": shopID,
-				"user_role":        domainAccess.Role,
-				"accessible_shops": domainAccess.AccessibleShopIDs,
+				"user_role":         domainAccess.Role,
+				"accessible_shops":  domainAccess.AccessibleShopIDs,
 			})
 			return
 		}

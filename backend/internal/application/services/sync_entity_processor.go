@@ -15,22 +15,22 @@ import (
 type EntityProcessor[T any] interface {
 	// Validate validates the entity for the given operation
 	Validate(ctx context.Context, entity T, operation string) error
-	
+
 	// Create creates a new entity in the database
 	Create(ctx context.Context, tx *gorm.DB, entity T) error
-	
+
 	// Update updates an existing entity in the database
 	Update(ctx context.Context, tx *gorm.DB, entity T) error
-	
+
 	// FindExisting finds an existing entity by ID
 	FindExisting(ctx context.Context, tx *gorm.DB, id uuid.UUID) (*T, error)
-	
+
 	// ResolveConflict handles conflicts between existing and incoming entities
 	ResolveConflict(existing, incoming T) *dto.ConflictInfo
-	
+
 	// GetEntityType returns the entity type name for logging and error reporting
 	GetEntityType() string
-	
+
 	// GetEntityID extracts the ID from the entity
 	GetEntityID(entity T) uuid.UUID
 }
@@ -95,28 +95,28 @@ func ProcessEntities[T any](
 ) error {
 	entityType := processor.GetEntityType()
 	startTime := time.Now()
-	
+
 	log.Printf("Processing %d %s entities with generic framework", len(entities), entityType)
-	
+
 	// Process entities in batches
 	for i := 0; i < len(entities); i += config.BatchSize {
 		end := i + config.BatchSize
 		if end > len(entities) {
 			end = len(entities)
 		}
-		
+
 		batch := entities[i:end]
 		if err := processBatch(ctx, tx, processor, batch, processingContext, response, config); err != nil {
 			return fmt.Errorf("failed to process %s batch %d-%d: %w", entityType, i, end-1, err)
 		}
 	}
-	
+
 	processingTime := time.Since(startTime)
 	log.Printf("Completed processing %d %s entities in %v", len(entities), entityType, processingTime)
-	
+
 	// Update response statistics
 	updateResponseStats(response, entityType, len(entities), processingTime)
-	
+
 	return nil
 }
 
@@ -153,14 +153,14 @@ func processEntityWithErrorHandling[T any](
 	config EntityProcessingConfig,
 ) error {
 	entityID := processor.GetEntityID(entity)
-	
+
 	// Use savepoint for error isolation if enabled
 	if config.EnableSavepoints {
 		return processEntityWithSavepoint(ctx, tx, entityID, func() error {
 			return processEntity(ctx, tx, processor, entity, processingContext, response, config)
 		})
 	}
-	
+
 	return processEntity(ctx, tx, processor, entity, processingContext, response, config)
 }
 
@@ -176,7 +176,7 @@ func processEntity[T any](
 ) error {
 	entityID := processor.GetEntityID(entity)
 	entityType := processor.GetEntityType()
-	
+
 	// 1. Validation (if enabled)
 	if config.EnableValidation {
 		if err := processor.Validate(ctx, entity, "create"); err != nil {
@@ -187,7 +187,7 @@ func processEntity[T any](
 			return err
 		}
 	}
-	
+
 	// 2. Check if entity exists
 	existing, err := processor.FindExisting(ctx, tx, entityID)
 	if err != nil && err != gorm.ErrRecordNotFound {
@@ -197,7 +197,7 @@ func processEntity[T any](
 		})
 		return err
 	}
-	
+
 	// 3. Process based on existence
 	if existing == nil {
 		// Create new entity
@@ -215,7 +215,7 @@ func processEntity[T any](
 			response.Conflicts = append(response.Conflicts, *conflict)
 			updateEntityStats(response, entityType, "conflicted")
 		}
-		
+
 		// Validate for update if enabled
 		if config.EnableValidation {
 			if err := processor.Validate(ctx, entity, "update"); err != nil {
@@ -226,7 +226,7 @@ func processEntity[T any](
 				return err
 			}
 		}
-		
+
 		if err := processor.Update(ctx, tx, entity); err != nil {
 			addEntityError(response, entityType, entityID, "update_failed", err, map[string]interface{}{
 				"operation": "update",
@@ -236,20 +236,20 @@ func processEntity[T any](
 		}
 		updateEntityStats(response, entityType, "updated")
 	}
-	
+
 	return nil
 }
 
 // processEntityWithSavepoint executes entity processing within a savepoint for error isolation
 func processEntityWithSavepoint(ctx context.Context, tx *gorm.DB, entityID uuid.UUID, processFunc func() error) error {
 	savepointName := fmt.Sprintf("sp_%s", entityID.String()[:8])
-	
+
 	// Create savepoint
 	if err := tx.SavePoint(savepointName).Error; err != nil {
 		log.Printf("Failed to create savepoint %s, proceeding without: %v", savepointName, err)
 		return processFunc()
 	}
-	
+
 	// Execute processing
 	if err := processFunc(); err != nil {
 		// Rollback to savepoint on error
@@ -258,7 +258,7 @@ func processEntityWithSavepoint(ctx context.Context, tx *gorm.DB, entityID uuid.
 		}
 		return err
 	}
-	
+
 	return nil
 }
 
@@ -286,9 +286,9 @@ func updateEntityStats(response *dto.SyncResponse, entityType string, operation 
 	if response.Stats.UpdatedEntities == nil {
 		response.Stats.UpdatedEntities = make(map[string]int)
 	}
-	
+
 	response.Stats.ProcessedEntities[entityType]++
-	
+
 	switch operation {
 	case "created":
 		response.Stats.CreatedEntities[entityType]++
@@ -304,7 +304,7 @@ func updateResponseStats(response *dto.SyncResponse, entityType string, count in
 	if response.Stats.ProcessedEntities == nil {
 		response.Stats.ProcessedEntities = make(map[string]int)
 	}
-	
+
 	response.Stats.ProcessedEntities[entityType] += count
 	response.Stats.ProcessingTimeMs += processingTime.Milliseconds()
 }

@@ -18,12 +18,12 @@ func createTestUUID() uuid.UUID {
 func TestSyncHandler_InjectShopIDIntoEntities(t *testing.T) {
 	// Create sync handler (we'll test the method directly)
 	syncHandler := &SyncHandler{}
-	
+
 	// Setup test data
 	shopID := createTestUUID()
 	productID := createTestUUID()
 	cartID := createTestUUID()
-	
+
 	// Create sync request with entities that don't have shop_id set
 	syncReq := dto.SyncRequest{
 		Products: []entities.Product{
@@ -41,10 +41,10 @@ func TestSyncHandler_InjectShopIDIntoEntities(t *testing.T) {
 			},
 		},
 	}
-	
+
 	// Test the injection
 	syncHandler.injectShopIDIntoEntities(&syncReq, shopID)
-	
+
 	// Assertions
 	assert.Equal(t, shopID, syncReq.Products[0].ShopID)
 	assert.Equal(t, shopID, syncReq.Carts[0].ShopID)
@@ -53,11 +53,11 @@ func TestSyncHandler_InjectShopIDIntoEntities(t *testing.T) {
 func TestSyncHandler_ValidateCashierEntitiesShopID_Success(t *testing.T) {
 	// Create sync handler
 	syncHandler := &SyncHandler{}
-	
+
 	// Setup test data
 	shopID := createTestUUID()
 	productID := createTestUUID()
-	
+
 	// Create sync request with entities that have correct shop_id
 	syncReq := dto.SyncRequest{
 		Products: []entities.Product{
@@ -68,10 +68,10 @@ func TestSyncHandler_ValidateCashierEntitiesShopID_Success(t *testing.T) {
 			},
 		},
 	}
-	
+
 	// Test validation - should pass
 	err := syncHandler.validateCashierEntitiesShopID(&syncReq, shopID)
-	
+
 	// Assertions
 	assert.NoError(t, err)
 }
@@ -79,12 +79,12 @@ func TestSyncHandler_ValidateCashierEntitiesShopID_Success(t *testing.T) {
 func TestSyncHandler_ValidateCashierEntitiesShopID_Failure(t *testing.T) {
 	// Create sync handler
 	syncHandler := &SyncHandler{}
-	
+
 	// Setup test data
 	correctShopID := createTestUUID()
 	wrongShopID := createTestUUID()
 	productID := createTestUUID()
-	
+
 	// Create sync request with entities that have wrong shop_id
 	syncReq := dto.SyncRequest{
 		Products: []entities.Product{
@@ -95,10 +95,10 @@ func TestSyncHandler_ValidateCashierEntitiesShopID_Failure(t *testing.T) {
 			},
 		},
 	}
-	
+
 	// Test validation - should fail
 	err := syncHandler.validateCashierEntitiesShopID(&syncReq, correctShopID)
-	
+
 	// Assertions
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid shop_id detected")
@@ -109,19 +109,19 @@ func TestSyncHandler_ValidateCashierEntitiesShopID_Failure(t *testing.T) {
 func TestSyncHandler_HandleShopIDRequirements_Cashier_Success(t *testing.T) {
 	// Create sync handler
 	syncHandler := &SyncHandler{}
-	
+
 	// Setup test data
 	shopID := createTestUUID()
 	userID := createTestUUID()
 	productID := createTestUUID()
-	
+
 	// Create cashier user
 	cashierUser := &entities.User{
 		ID:     userID,
 		Name:   "Test Cashier",
 		ShopID: &shopID,
 	}
-	
+
 	// Create sync request without shop_id (should be auto-injected)
 	syncReq := dto.SyncRequest{
 		Products: []entities.Product{
@@ -132,10 +132,10 @@ func TestSyncHandler_HandleShopIDRequirements_Cashier_Success(t *testing.T) {
 			},
 		},
 	}
-	
+
 	// Test handling
 	err := syncHandler.handleShopIDRequirements(&syncReq, "cashier", cashierUser)
-	
+
 	// Assertions
 	assert.NoError(t, err)
 	assert.Equal(t, shopID, syncReq.Products[0].ShopID)
@@ -144,25 +144,25 @@ func TestSyncHandler_HandleShopIDRequirements_Cashier_Success(t *testing.T) {
 func TestSyncHandler_HandleShopIDRequirements_Cashier_NoShopAssigned(t *testing.T) {
 	// Create sync handler
 	syncHandler := &SyncHandler{}
-	
+
 	// Setup test data
 	userID := createTestUUID()
-	
+
 	// Create cashier user without shop assignment
 	cashierUser := &entities.User{
 		ID:     userID,
 		Name:   "Test Cashier",
 		ShopID: nil, // No shop assigned
 	}
-	
+
 	// Create sync request
 	syncReq := dto.SyncRequest{
 		Products: []entities.Product{{ID: createTestUUID(), Name: "Test Product"}},
 	}
-	
+
 	// Test handling - should fail
 	err := syncHandler.handleShopIDRequirements(&syncReq, "cashier", cashierUser)
-	
+
 	// Assertions
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not assigned to a shop")
@@ -171,20 +171,20 @@ func TestSyncHandler_HandleShopIDRequirements_Cashier_NoShopAssigned(t *testing.
 func TestSyncHandler_HandleShopIDRequirements_Cashier_DomainViolation(t *testing.T) {
 	// Create sync handler
 	syncHandler := &SyncHandler{}
-	
+
 	// Setup test data
 	correctShopID := createTestUUID()
 	wrongShopID := createTestUUID()
 	userID := createTestUUID()
 	productID := createTestUUID()
-	
+
 	// Create cashier user
 	cashierUser := &entities.User{
 		ID:     userID,
 		Name:   "Test Cashier",
 		ShopID: &correctShopID,
 	}
-	
+
 	// Create sync request with wrong shop_id
 	syncReq := dto.SyncRequest{
 		Products: []entities.Product{
@@ -195,10 +195,10 @@ func TestSyncHandler_HandleShopIDRequirements_Cashier_DomainViolation(t *testing
 			},
 		},
 	}
-	
+
 	// Test handling - should fail
 	err := syncHandler.handleShopIDRequirements(&syncReq, "cashier", cashierUser)
-	
+
 	// Assertions
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "domain validation failed")
@@ -207,22 +207,22 @@ func TestSyncHandler_HandleShopIDRequirements_Cashier_DomainViolation(t *testing
 func TestSyncHandler_HandleShopIDRequirements_UnknownRole(t *testing.T) {
 	// Create sync handler
 	syncHandler := &SyncHandler{}
-	
+
 	// Setup test data
 	userID := createTestUUID()
-	
+
 	// Create user
 	user := &entities.User{
 		ID:   userID,
 		Name: "Test User",
 	}
-	
+
 	// Create sync request
 	syncReq := dto.SyncRequest{}
-	
+
 	// Test handling with unknown role
 	err := syncHandler.handleShopIDRequirements(&syncReq, "unknown_role", user)
-	
+
 	// Assertions
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unknown user role: unknown_role")

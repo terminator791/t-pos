@@ -527,7 +527,7 @@ func (h *ProductHandler) ListProducts(c *gin.Context) {
 func (h *ProductHandler) SearchProducts(c *gin.Context) {
 	query := c.Query("q")
 	shopIDParam := c.Query("shop_id")
-	
+
 	if query == "" {
 		response.ErrorBadRequest(c, "Search query is required", nil)
 		return
@@ -554,8 +554,8 @@ func (h *ProductHandler) SearchProducts(c *gin.Context) {
 		if !domainAccess.CanAccessShop(shopID) {
 			response.ErrorForbidden(c, "Cannot search products in this shop", map[string]interface{}{
 				"requested_shop_id": shopID,
-				"user_role":        domainAccess.Role,
-				"accessible_shops": domainAccess.AccessibleShopIDs,
+				"user_role":         domainAccess.Role,
+				"accessible_shops":  domainAccess.AccessibleShopIDs,
 			})
 			return
 		}
@@ -621,8 +621,8 @@ func (h *ProductHandler) GetLowStockProducts(c *gin.Context) {
 		if !domainAccess.CanAccessShop(shopID) {
 			response.ErrorForbidden(c, "Cannot access low stock products for this shop", map[string]interface{}{
 				"requested_shop_id": shopID,
-				"user_role":        domainAccess.Role,
-				"accessible_shops": domainAccess.AccessibleShopIDs,
+				"user_role":         domainAccess.Role,
+				"accessible_shops":  domainAccess.AccessibleShopIDs,
 			})
 			return
 		}

@@ -118,7 +118,7 @@ func main() {
 	)
 
 	// Initialize handlers
-	authSeeder := seeders.NewAuthSeeder(roleRepo, policyRepo, enforcerService)  // Create auth seeder for auth handler
+	authSeeder := seeders.NewAuthSeeder(roleRepo, policyRepo, enforcerService) // Create auth seeder for auth handler
 	authHandler := handlers.NewAuthHandler(userRepo, userDomainRepo, roleRepo, licenseRepo, shopRepo, jwtService, passwordService, enforcerService, authSeeder)
 	productHandler := handlers.NewProductHandler(productUseCase, roleRepo, shopRepo)
 	checkoutHandler := handlers.NewCheckoutHandler(checkoutUseCase)

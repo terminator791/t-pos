@@ -13,7 +13,7 @@ import (
 
 // SyncPerformanceOptimizer handles performance optimizations for sync operations
 type SyncPerformanceOptimizer struct {
-	db *gorm.DB
+	db     *gorm.DB
 	config SyncPerformanceConfig
 }
 
@@ -31,10 +31,10 @@ type ShopLicenseMap map[uuid.UUID]uuid.UUID
 
 // EntityValidationCache contains pre-validated entity sets for bulk operations
 type EntityValidationCache struct {
-	ValidShopIDs     map[uuid.UUID]bool
-	ValidProductIDs  map[uuid.UUID]uuid.UUID // ProductID -> ShopID mapping
-	ValidUserShops   map[uuid.UUID][]uuid.UUID // UserID -> accessible shop IDs
-	CacheTimestamp   time.Time
+	ValidShopIDs    map[uuid.UUID]bool
+	ValidProductIDs map[uuid.UUID]uuid.UUID   // ProductID -> ShopID mapping
+	ValidUserShops  map[uuid.UUID][]uuid.UUID // UserID -> accessible shop IDs
+	CacheTimestamp  time.Time
 }
 
 // NewSyncPerformanceOptimizer creates a new performance optimizer

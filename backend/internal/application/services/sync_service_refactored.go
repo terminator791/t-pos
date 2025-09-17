@@ -26,9 +26,9 @@ func (s *SyncService) WithRefactoredProcessing() *RefactoredSyncServiceProcessin
 		ErrorPolicy:      dto.ParseSyncErrorPolicy(s.config.ErrorPolicy),
 		MaxRetries:       3,
 	}
-	
+
 	processorFactory := NewProcessorFactory(s.validator, config)
-	
+
 	return &RefactoredSyncServiceProcessing{
 		SyncService:      s,
 		processorFactory: processorFactory,
@@ -46,12 +46,12 @@ func (r *RefactoredSyncServiceProcessing) ProcessCartsRefactored(
 	if len(carts) == 0 {
 		return nil
 	}
-	
+
 	log.Printf("Processing %d carts using generic framework", len(carts))
-	
+
 	// Get the appropriate processor
 	processor := r.processorFactory.GetCartProcessor()
-	
+
 	// Process using generic framework
 	return processEntitiesGeneric(ctx, tx, carts, processor, syncContext, response, r.config)
 }
@@ -67,12 +67,12 @@ func (r *RefactoredSyncServiceProcessing) ProcessProductsRefactored(
 	if len(products) == 0 {
 		return nil
 	}
-	
+
 	log.Printf("Processing %d products using generic framework", len(products))
-	
+
 	// Get the appropriate processor
 	processor := r.processorFactory.GetProductProcessor()
-	
+
 	// Process using generic framework
 	return processEntitiesGeneric(ctx, tx, products, processor, syncContext, response, r.config)
 }
@@ -88,12 +88,12 @@ func (r *RefactoredSyncServiceProcessing) ProcessCategoriesRefactored(
 	if len(categories) == 0 {
 		return nil
 	}
-	
+
 	log.Printf("Processing %d categories using generic framework", len(categories))
-	
+
 	// Get the appropriate processor
 	processor := r.processorFactory.GetCategoryProcessor()
-	
+
 	// Process using generic framework
 	return processEntitiesGeneric(ctx, tx, categories, processor, syncContext, response, r.config)
 }
@@ -109,12 +109,12 @@ func (r *RefactoredSyncServiceProcessing) ProcessTransactionsRefactored(
 	if len(transactions) == 0 {
 		return nil
 	}
-	
+
 	log.Printf("Processing %d transactions using generic framework", len(transactions))
-	
+
 	// Get the appropriate processor
 	processor := r.processorFactory.GetTransactionProcessor()
-	
+
 	// Process using generic framework
 	return processEntitiesGeneric(ctx, tx, transactions, processor, syncContext, response, r.config)
 }
@@ -133,7 +133,7 @@ func (r *RefactoredSyncServiceProcessing) ProcessSyncWithRefactoredFramework(
 			UpdatedEntities:   make(map[string]int),
 		},
 	}
-	
+
 	// Start transaction
 	tx := r.db.Begin()
 	defer func() {
@@ -146,36 +146,36 @@ func (r *RefactoredSyncServiceProcessing) ProcessSyncWithRefactoredFramework(
 			tx.Commit()
 		}
 	}()
-	
+
 	// Process all entity types using the generic framework
 	// This replaces dozens of similar methods with a unified approach
-	
+
 	// Process carts
 	if err := r.ProcessCartsRefactored(ctx, tx, req.Carts, syncContext, response); err != nil {
 		return nil, fmt.Errorf("failed to process carts: %w", err)
 	}
-	
+
 	// Process categories
 	if err := r.ProcessCategoriesRefactored(ctx, tx, req.Categories, syncContext, response); err != nil {
 		return nil, fmt.Errorf("failed to process categories: %w", err)
 	}
-	
+
 	// Process products
 	if err := r.ProcessProductsRefactored(ctx, tx, req.Products, syncContext, response); err != nil {
 		return nil, fmt.Errorf("failed to process products: %w", err)
 	}
-	
+
 	// Process transactions
 	if err := r.ProcessTransactionsRefactored(ctx, tx, req.Transactions, syncContext, response); err != nil {
 		return nil, fmt.Errorf("failed to process transactions: %w", err)
 	}
-	
+
 	// Additional entity types would follow the same pattern...
 	// This demonstrates how 13+ similar methods are replaced with a unified approach
-	
-	log.Printf("Refactored sync processing completed: %d total entities processed", 
-		len(req.Carts) + len(req.Categories) + len(req.Products) + len(req.Transactions))
-	
+
+	log.Printf("Refactored sync processing completed: %d total entities processed",
+		len(req.Carts)+len(req.Categories)+len(req.Products)+len(req.Transactions))
+
 	return response, nil
 }
 
@@ -191,9 +191,9 @@ type CodeQualityMetrics struct {
 // GetCodeQualityMetrics returns metrics about the refactoring improvements
 func (r *RefactoredSyncServiceProcessing) GetCodeQualityMetrics() CodeQualityMetrics {
 	return CodeQualityMetrics{
-		OriginalMethodCount:    13, // 13+ processSingleXXXSafe methods
-		RefactoredMethodCount:  4,  // 4 generic processing methods demonstrated
-		CodeDuplicationReduced: 0.7, // ~70% reduction in duplicated code
+		OriginalMethodCount:    13,   // 13+ processSingleXXXSafe methods
+		RefactoredMethodCount:  4,    // 4 generic processing methods demonstrated
+		CodeDuplicationReduced: 0.7,  // ~70% reduction in duplicated code
 		LinesOfCodeReduced:     2500, // Estimated lines saved through generic approach
 		GenericMethodsAdded:    2,    // Generic framework + entity processors
 	}

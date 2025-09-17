@@ -78,7 +78,7 @@ func (s *EnhancedAuthSeeder) createOptimizedRolePolicies(roleName string) error 
 	// Use wildcard domain "*" for role-level policies
 	// Users will be assigned to roles with specific domains through grouping
 	baseDomain := "*"
-	
+
 	var policies [][]string
 
 	switch roleName {
@@ -99,41 +99,41 @@ func (s *EnhancedAuthSeeder) createOptimizedRolePolicies(roleName string) error 
 		policies = [][]string{
 			// Products management
 			{roleName, baseDomain, "/api/v1/products*", "GET|POST|PUT|DELETE"},
-			
+
 			// Categories management
 			{roleName, baseDomain, "/api/v1/categories*", "GET|POST|PUT|DELETE"},
-			
+
 			// Shops management
 			{roleName, baseDomain, "/api/v1/shops*", "GET|POST|PUT|DELETE"},
-			
+
 			// Transactions management
 			{roleName, baseDomain, "/api/v1/transactions*", "GET|POST|PUT|DELETE"},
-			
+
 			// Carts management
 			{roleName, baseDomain, "/api/v1/carts*", "GET|POST|PUT|DELETE"},
-			
+
 			// Expenses management
 			{roleName, baseDomain, "/api/v1/expenses*", "GET|POST|PUT|DELETE"},
-			
+
 			// Payments management
 			{roleName, baseDomain, "/api/v1/payments*", "GET|POST|PUT|DELETE"},
-			
+
 			// Histories management
 			{roleName, baseDomain, "/api/v1/histories*", "GET|POST|PUT|DELETE"},
-			
+
 			// Receipts management
 			{roleName, baseDomain, "/api/v1/receipts*", "GET|POST|PUT|DELETE"},
-			
+
 			// Transaction products management
 			{roleName, baseDomain, "/api/v1/transaction-products*", "GET|POST|PUT|DELETE"},
-			
+
 			// User management
 			{roleName, baseDomain, "/api/v1/auth/cashier/register", "POST"},
 			{roleName, baseDomain, "/api/v1/users*", "GET|POST|PUT|DELETE"},
-			
+
 			// ACL management
 			{roleName, baseDomain, "/api/v1/acl*", "GET|POST|PUT|DELETE"},
-			
+
 			// Sync operations
 			{roleName, baseDomain, "/api/v1/sync*", "GET|POST"},
 		}
@@ -144,26 +144,26 @@ func (s *EnhancedAuthSeeder) createOptimizedRolePolicies(roleName string) error 
 			// Read-only products and categories
 			{roleName, baseDomain, "/api/v1/products*", "GET"},
 			{roleName, baseDomain, "/api/v1/categories*", "GET"},
-			
+
 			// Cart operations
 			{roleName, baseDomain, "/api/v1/carts*", "GET|POST|PUT|DELETE"},
-			
+
 			// Transaction operations
 			{roleName, baseDomain, "/api/v1/transactions*", "GET|POST|PUT"},
 			{roleName, baseDomain, "/api/v1/transaction-products*", "GET|POST|PUT|DELETE"},
-			
+
 			// Payment operations
 			{roleName, baseDomain, "/api/v1/payments*", "GET|POST|PUT"},
-			
+
 			// Receipt generation
 			{roleName, baseDomain, "/api/v1/receipts*", "GET|POST"},
-			
+
 			// History viewing
 			{roleName, baseDomain, "/api/v1/histories*", "GET"},
-			
+
 			// Limited sync operations
 			{roleName, baseDomain, "/api/v1/sync*", "GET|POST"},
-			
+
 			// Profile management
 			{roleName, baseDomain, "/api/v1/auth/profile", "GET"},
 			{roleName, baseDomain, "/api/v1/auth/pin", "GET|POST|PUT|DELETE"},
@@ -207,11 +207,11 @@ func (s *EnhancedAuthSeeder) createUserRoleGroupings() error {
 
 		// Determine domain based on role and user assignment
 		domain := s.getUserDomain(user, role.Name)
-		
+
 		// Create user-to-role grouping: g, user_id, role_name, domain
 		grouping := []string{user.ID.String(), role.Name, domain}
 		groupings = append(groupings, grouping)
-		
+
 		log.Printf("Created grouping: user %s -> role %s in domain %s", user.ID, role.Name, domain)
 	}
 
@@ -228,21 +228,21 @@ func (s *EnhancedAuthSeeder) getUserDomain(user *entities.User, roleName string)
 	switch roleName {
 	case "super_admin", "admin":
 		return "*" // Global access
-		
+
 	case "owner_business":
 		if user.LicenseID != nil {
 			// Use license serial as domain
 			return fmt.Sprintf("LIC-%s", user.LicenseID.String()[:8])
 		}
 		return "*" // Fallback to global if no license
-		
+
 	case "cashier":
 		if user.ShopID != nil {
 			// Use shop-specific domain
 			return fmt.Sprintf("shop-%s", user.ShopID.String())
 		}
 		return "*" // Fallback to global if no shop assignment
-		
+
 	default:
 		return "*" // Unknown roles get global access
 	}
@@ -256,7 +256,7 @@ func (s *EnhancedAuthSeeder) addGroupingsBatch(groupings [][]string) error {
 			log.Printf("Warning: Invalid grouping format: %v", grouping)
 			continue
 		}
-		
+
 		if _, err := s.enforcerService.AddGroupingPolicy(grouping[0], grouping[1], grouping[2]); err != nil {
 			log.Printf("Warning: Failed to add grouping %v: %v", grouping, err)
 			// Continue with other groupings instead of failing
@@ -294,15 +294,15 @@ func (s *EnhancedAuthSeeder) OptimizePolicyPerformance() error {
 func (s *EnhancedAuthSeeder) removeDuplicatePolicies() error {
 	// Get all policies
 	policies := s.enforcerService.GetPolicy()
-	
+
 	// Track unique policies
 	seen := make(map[string]bool)
 	var duplicates [][]string
-	
+
 	for _, policy := range policies {
 		// Create a key from policy components
 		key := fmt.Sprintf("%s|%s|%s|%s", policy[0], policy[1], policy[2], policy[3])
-		
+
 		if seen[key] {
 			duplicates = append(duplicates, policy)
 		} else {
@@ -330,12 +330,12 @@ func (s *EnhancedAuthSeeder) removeDuplicatePolicies() error {
 func (s *EnhancedAuthSeeder) GetPerformanceMetrics() map[string]interface{} {
 	policies := s.enforcerService.GetPolicy()
 	groupings := s.enforcerService.GetGroupingPolicy()
-	
+
 	return map[string]interface{}{
-		"total_policies":          len(policies),
-		"total_groupings":         len(groupings),
+		"total_policies":           len(policies),
+		"total_groupings":          len(groupings),
 		"policy_to_grouping_ratio": float64(len(policies)) / float64(max(len(groupings), 1)),
-		"estimated_lookup_time":   s.estimateLookupTime(len(policies), len(groupings)),
+		"estimated_lookup_time":    s.estimateLookupTime(len(policies), len(groupings)),
 	}
 }
 
@@ -344,12 +344,12 @@ func (s *EnhancedAuthSeeder) estimateLookupTime(policyCount, groupingCount int) 
 	// Simple heuristic: lookup time increases with policy count
 	// With grouping, we expect better performance
 	baseTime := float64(policyCount) * 0.1 // 0.1ms per policy
-	
+
 	if groupingCount > 0 {
 		// Grouping reduces lookup time
 		baseTime = baseTime * 0.5
 	}
-	
+
 	if baseTime < 1 {
 		return "< 1ms"
 	} else if baseTime < 10 {

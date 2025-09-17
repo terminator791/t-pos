@@ -33,20 +33,20 @@ var (
 	Shop3ID = uuid.MustParse("33333333-cccc-cccc-cccc-cccccccccccc")
 
 	// Categories
-	FoodCat1ID     = uuid.MustParse("aaaaaaaa-1111-1111-1111-aaaaaaaaaaaa")
+	FoodCat1ID        = uuid.MustParse("aaaaaaaa-1111-1111-1111-aaaaaaaaaaaa")
 	ElectronicsCat1ID = uuid.MustParse("bbbbbbbb-1111-1111-1111-bbbbbbbbbbbb")
-	ClothingCat1ID = uuid.MustParse("cccccccc-1111-1111-1111-cccccccccccc")
-	HouseholdCat1ID = uuid.MustParse("dddddddd-1111-1111-1111-dddddddddddd")
+	ClothingCat1ID    = uuid.MustParse("cccccccc-1111-1111-1111-cccccccccccc")
+	HouseholdCat1ID   = uuid.MustParse("dddddddd-1111-1111-1111-dddddddddddd")
 
-	FoodCat2ID     = uuid.MustParse("aaaaaaaa-2222-2222-2222-aaaaaaaaaaaa")
+	FoodCat2ID        = uuid.MustParse("aaaaaaaa-2222-2222-2222-aaaaaaaaaaaa")
 	ElectronicsCat2ID = uuid.MustParse("bbbbbbbb-2222-2222-2222-bbbbbbbbbbbb")
-	ClothingCat2ID = uuid.MustParse("cccccccc-2222-2222-2222-cccccccccccc")
-	HouseholdCat2ID = uuid.MustParse("dddddddd-2222-2222-2222-dddddddddddd")
+	ClothingCat2ID    = uuid.MustParse("cccccccc-2222-2222-2222-cccccccccccc")
+	HouseholdCat2ID   = uuid.MustParse("dddddddd-2222-2222-2222-dddddddddddd")
 
-	FoodCat3ID     = uuid.MustParse("aaaaaaaa-3333-3333-3333-aaaaaaaaaaaa")
+	FoodCat3ID        = uuid.MustParse("aaaaaaaa-3333-3333-3333-aaaaaaaaaaaa")
 	ElectronicsCat3ID = uuid.MustParse("bbbbbbbb-3333-3333-3333-bbbbbbbbbbbb")
-	ClothingCat3ID = uuid.MustParse("cccccccc-3333-3333-3333-cccccccccccc")
-	HouseholdCat3ID = uuid.MustParse("dddddddd-3333-3333-3333-dddddddddddd")
+	ClothingCat3ID    = uuid.MustParse("cccccccc-3333-3333-3333-cccccccccccc")
+	HouseholdCat3ID   = uuid.MustParse("dddddddd-3333-3333-3333-dddddddddddd")
 
 	// Products
 	Product1ID = uuid.MustParse("11111111-1111-aaaa-aaaa-aaaaaaaaaaaa")
@@ -179,43 +179,43 @@ func (s *InitialDataSeeder) SeedBasicUsers() error {
 			Password: string(hashedPassword),
 		},
 		{
-			ID:         Owner1ID,
-			LicenseID:  &License1ID,
-			Email:      strPtr("owner1@example.com"),
-			Username:   strPtr("owner1"),
-			Name:       "Owner Business 1",
-			Pin:        strPtr(string(hashedPin)),
-			Password:   string(hashedPassword),
+			ID:        Owner1ID,
+			LicenseID: &License1ID,
+			Email:     strPtr("owner1@example.com"),
+			Username:  strPtr("owner1"),
+			Name:      "Owner Business 1",
+			Pin:       strPtr(string(hashedPin)),
+			Password:  string(hashedPassword),
 		},
 		{
-			ID:         Owner2ID,
-			LicenseID:  &License2ID,
-			Email:      strPtr("owner2@example.com"),
-			Username:   strPtr("owner2"),
-			Name:       "Owner Business 2",
-			Pin:        strPtr(string(hashedPin)),
-			Password:   string(hashedPassword),
+			ID:        Owner2ID,
+			LicenseID: &License2ID,
+			Email:     strPtr("owner2@example.com"),
+			Username:  strPtr("owner2"),
+			Name:      "Owner Business 2",
+			Pin:       strPtr(string(hashedPin)),
+			Password:  string(hashedPassword),
 		},
 		// Cashiers without shop references initially
 		{
-			ID:         Cashier1ID,
-			LicenseID:  &License1ID,
+			ID:        Cashier1ID,
+			LicenseID: &License1ID,
 			// ShopID will be set later
-			Email:      strPtr("cashier1@example.com"),
-			Username:   strPtr("cashier1"),
-			Name:       "Cashier 1",
-			Pin:        strPtr(string(hashedPin)),
-			Password:   string(hashedPassword),
+			Email:    strPtr("cashier1@example.com"),
+			Username: strPtr("cashier1"),
+			Name:     "Cashier 1",
+			Pin:      strPtr(string(hashedPin)),
+			Password: string(hashedPassword),
 		},
 		{
-			ID:         Cashier2ID,
-			LicenseID:  &License2ID,
+			ID:        Cashier2ID,
+			LicenseID: &License2ID,
 			// ShopID will be set later
-			Email:      strPtr("cashier2@example.com"),
-			Username:   strPtr("cashier2"),
-			Name:       "Cashier 2",
-			Pin:        strPtr(string(hashedPin)),
-			Password:   string(hashedPassword),
+			Email:    strPtr("cashier2@example.com"),
+			Username: strPtr("cashier2"),
+			Name:     "Cashier 2",
+			Pin:      strPtr(string(hashedPin)),
+			Password: string(hashedPassword),
 		},
 	}
 
@@ -415,7 +415,7 @@ func (s *InitialDataSeeder) SeedShops() error {
 
 	shops := []entities.Shop{
 		{
-			ID:       Shop1ID,
+			ID:        Shop1ID,
 			LicenseID: License1ID,
 			UserID:    admin.ID,
 			Name:      "Demo Shop Jakarta",
@@ -423,7 +423,7 @@ func (s *InitialDataSeeder) SeedShops() error {
 			Slogan:    strPtr("Your Trusted Partner in Jakarta"),
 		},
 		{
-			ID:       Shop2ID,
+			ID:        Shop2ID,
 			LicenseID: License2ID,
 			UserID:    owner1.ID,
 			Name:      "Demo Shop Bandung",
@@ -431,7 +431,7 @@ func (s *InitialDataSeeder) SeedShops() error {
 			Slogan:    strPtr("Quality Service in Bandung"),
 		},
 		{
-			ID:       Shop3ID,
+			ID:        Shop3ID,
 			LicenseID: License3ID,
 			UserID:    owner2.ID,
 			Name:      "Demo Shop Surabaya",
@@ -632,51 +632,51 @@ func (s *InitialDataSeeder) SeedProducts() error {
 			electronicsCatID := categoryMap["Electronics"]
 			products = []entities.Product{
 				{
-					ID:        Product1ID,
-					ShopID:    shop.ID,
-					CatID:     &foodCatID,
-					Name:      "Nasi Goreng Special Jakarta",
-					Barcode:   strPtr("1234567890123"),
-					Unit:      strPtr("portion"),
-					Sale:      25000,
-					Buy:       15000,
-					Stock:     50,
+					ID:          Product1ID,
+					ShopID:      shop.ID,
+					CatID:       &foodCatID,
+					Name:        "Nasi Goreng Special Jakarta",
+					Barcode:     strPtr("1234567890123"),
+					Unit:        strPtr("portion"),
+					Sale:        25000,
+					Buy:         15000,
+					Stock:       50,
 					IsHaveStock: true,
 				},
 				{
-					ID:        Product2ID,
-					ShopID:    shop.ID,
-					CatID:     &foodCatID,
-					Name:      "Ayam Bakar Jakarta",
-					Barcode:   strPtr("1234567890124"),
-					Unit:      strPtr("portion"),
-					Sale:      30000,
-					Buy:       18000,
-					Stock:     30,
+					ID:          Product2ID,
+					ShopID:      shop.ID,
+					CatID:       &foodCatID,
+					Name:        "Ayam Bakar Jakarta",
+					Barcode:     strPtr("1234567890124"),
+					Unit:        strPtr("portion"),
+					Sale:        30000,
+					Buy:         18000,
+					Stock:       30,
 					IsHaveStock: true,
 				},
 				{
-					ID:        Product3ID,
-					ShopID:    shop.ID,
-					CatID:     &electronicsCatID,
-					Name:      "Wireless Mouse Jakarta",
-					Barcode:   strPtr("9876543210987"),
-					Unit:      strPtr("pcs"),
-					Sale:      150000,
-					Buy:       100000,
-					Stock:     20,
+					ID:          Product3ID,
+					ShopID:      shop.ID,
+					CatID:       &electronicsCatID,
+					Name:        "Wireless Mouse Jakarta",
+					Barcode:     strPtr("9876543210987"),
+					Unit:        strPtr("pcs"),
+					Sale:        150000,
+					Buy:         100000,
+					Stock:       20,
 					IsHaveStock: true,
 				},
 				{
-					ID:        Product4ID,
-					ShopID:    shop.ID,
-					CatID:     &electronicsCatID,
-					Name:      "USB Cable Jakarta",
-					Barcode:   strPtr("9876543210988"),
-					Unit:      strPtr("pcs"),
-					Sale:      25000,
-					Buy:       15000,
-					Stock:     100,
+					ID:          Product4ID,
+					ShopID:      shop.ID,
+					CatID:       &electronicsCatID,
+					Name:        "USB Cable Jakarta",
+					Barcode:     strPtr("9876543210988"),
+					Unit:        strPtr("pcs"),
+					Sale:        25000,
+					Buy:         15000,
+					Stock:       100,
 					IsHaveStock: true,
 				},
 			}
@@ -685,51 +685,51 @@ func (s *InitialDataSeeder) SeedProducts() error {
 			electronicsCatID := categoryMap["Electronics"]
 			products = []entities.Product{
 				{
-					ID:        Product5ID,
-					ShopID:    shop.ID,
-					CatID:     &foodCatID,
-					Name:      "Sate Ayam Bandung",
-					Barcode:   strPtr("1111111111111"),
-					Unit:      strPtr("portion"),
-					Sale:      35000,
-					Buy:       20000,
-					Stock:     40,
+					ID:          Product5ID,
+					ShopID:      shop.ID,
+					CatID:       &foodCatID,
+					Name:        "Sate Ayam Bandung",
+					Barcode:     strPtr("1111111111111"),
+					Unit:        strPtr("portion"),
+					Sale:        35000,
+					Buy:         20000,
+					Stock:       40,
 					IsHaveStock: true,
 				},
 				{
-					ID:        Product6ID,
-					ShopID:    shop.ID,
-					CatID:     &foodCatID,
-					Name:      "Es Teh Manis Bandung",
-					Barcode:   strPtr("2222222222222"),
-					Unit:      strPtr("glass"),
-					Sale:      8000,
-					Buy:       4000,
-					Stock:     80,
+					ID:          Product6ID,
+					ShopID:      shop.ID,
+					CatID:       &foodCatID,
+					Name:        "Es Teh Manis Bandung",
+					Barcode:     strPtr("2222222222222"),
+					Unit:        strPtr("glass"),
+					Sale:        8000,
+					Buy:         4000,
+					Stock:       80,
 					IsHaveStock: true,
 				},
 				{
-					ID:        Product7ID,
-					ShopID:    shop.ID,
-					CatID:     &electronicsCatID,
-					Name:      "Bluetooth Speaker Bandung",
-					Barcode:   strPtr("3333333333333"),
-					Unit:      strPtr("pcs"),
-					Sale:      200000,
-					Buy:       150000,
-					Stock:     15,
+					ID:          Product7ID,
+					ShopID:      shop.ID,
+					CatID:       &electronicsCatID,
+					Name:        "Bluetooth Speaker Bandung",
+					Barcode:     strPtr("3333333333333"),
+					Unit:        strPtr("pcs"),
+					Sale:        200000,
+					Buy:         150000,
+					Stock:       15,
 					IsHaveStock: true,
 				},
 				{
-					ID:        Product8ID,
-					ShopID:    shop.ID,
-					CatID:     &electronicsCatID,
-					Name:      "Power Bank Bandung",
-					Barcode:   strPtr("4444444444444"),
-					Unit:      strPtr("pcs"),
-					Sale:      120000,
-					Buy:       80000,
-					Stock:     25,
+					ID:          Product8ID,
+					ShopID:      shop.ID,
+					CatID:       &electronicsCatID,
+					Name:        "Power Bank Bandung",
+					Barcode:     strPtr("4444444444444"),
+					Unit:        strPtr("pcs"),
+					Sale:        120000,
+					Buy:         80000,
+					Stock:       25,
 					IsHaveStock: true,
 				},
 			}
@@ -738,51 +738,51 @@ func (s *InitialDataSeeder) SeedProducts() error {
 			electronicsCatID := categoryMap["Electronics"]
 			products = []entities.Product{
 				{
-					ID:        Product9ID,
-					ShopID:    shop.ID,
-					CatID:     &foodCatID,
-					Name:      "Rawon Surabaya",
-					Barcode:   strPtr("5555555555555"),
-					Unit:      strPtr("portion"),
-					Sale:      28000,
-					Buy:       16000,
-					Stock:     35,
+					ID:          Product9ID,
+					ShopID:      shop.ID,
+					CatID:       &foodCatID,
+					Name:        "Rawon Surabaya",
+					Barcode:     strPtr("5555555555555"),
+					Unit:        strPtr("portion"),
+					Sale:        28000,
+					Buy:         16000,
+					Stock:       35,
 					IsHaveStock: true,
 				},
 				{
-					ID:        Product10ID,
-					ShopID:    shop.ID,
-					CatID:     &foodCatID,
-					Name:      "Tahu Tek Surabaya",
-					Barcode:   strPtr("6666666666666"),
-					Unit:      strPtr("portion"),
-					Sale:      15000,
-					Buy:       8000,
-					Stock:     60,
+					ID:          Product10ID,
+					ShopID:      shop.ID,
+					CatID:       &foodCatID,
+					Name:        "Tahu Tek Surabaya",
+					Barcode:     strPtr("6666666666666"),
+					Unit:        strPtr("portion"),
+					Sale:        15000,
+					Buy:         8000,
+					Stock:       60,
 					IsHaveStock: true,
 				},
 				{
-					ID:        Product11ID,
-					ShopID:    shop.ID,
-					CatID:     &electronicsCatID,
-					Name:      "Smartphone Case Surabaya",
-					Barcode:   strPtr("7777777777777"),
-					Unit:      strPtr("pcs"),
-					Sale:      50000,
-					Buy:       30000,
-					Stock:     45,
+					ID:          Product11ID,
+					ShopID:      shop.ID,
+					CatID:       &electronicsCatID,
+					Name:        "Smartphone Case Surabaya",
+					Barcode:     strPtr("7777777777777"),
+					Unit:        strPtr("pcs"),
+					Sale:        50000,
+					Buy:         30000,
+					Stock:       45,
 					IsHaveStock: true,
 				},
 				{
-					ID:        Product12ID,
-					ShopID:    shop.ID,
-					CatID:     &electronicsCatID,
-					Name:      "Screen Protector Surabaya",
-					Barcode:   strPtr("8888888888888"),
-					Unit:      strPtr("pcs"),
-					Sale:      30000,
-					Buy:       15000,
-					Stock:     70,
+					ID:          Product12ID,
+					ShopID:      shop.ID,
+					CatID:       &electronicsCatID,
+					Name:        "Screen Protector Surabaya",
+					Barcode:     strPtr("8888888888888"),
+					Unit:        strPtr("pcs"),
+					Sale:        30000,
+					Buy:         15000,
+					Stock:       70,
 					IsHaveStock: true,
 				},
 			}
@@ -1128,49 +1128,49 @@ func (s *InitialDataSeeder) SeedCasbinRules() error {
 // SeedDomainSpecificPolicies creates domain-specific policies for tenant users
 func (s *InitialDataSeeder) SeedDomainSpecificPolicies() error {
 	log.Println("Creating domain-specific policies for tenant users...")
-	
+
 	// Create auth seeder with policy repository for domain-specific policy creation
 	authSeeder := NewAuthSeeder(s.roleRepo, s.policyRepo, s.enforcerService)
-	
+
 	// Assign policies for owner_business roles
 	if err := authSeeder.AssignPoliciesForRole("owner_business", "LIC-001-DEMO"); err != nil {
 		log.Printf("Failed to assign policies for owner_business LIC-001-DEMO: %v", err)
 		return err
 	}
 	log.Printf("✅ Assigned domain-specific policies for owner_business LIC-001-DEMO")
-	
+
 	if err := authSeeder.AssignPoliciesForRole("owner_business", "LIC-002-DEMO"); err != nil {
 		log.Printf("Failed to assign policies for owner_business LIC-002-DEMO: %v", err)
 		return err
 	}
 	log.Printf("✅ Assigned domain-specific policies for owner_business LIC-002-DEMO")
-	
+
 	// Get shop domains for cashier policies
 	shop1, err := s.shopRepo.GetByID(context.Background(), Shop1ID)
 	if err != nil {
 		log.Printf("Failed to get shop1: %v", err)
 		return err
 	}
-	
+
 	shop2, err := s.shopRepo.GetByID(context.Background(), Shop2ID)
 	if err != nil {
 		log.Printf("Failed to get shop2: %v", err)
 		return err
 	}
-	
+
 	// Assign policies for cashier roles in their shop domains
 	if err := authSeeder.AssignPoliciesForRole("cashier", shop1.Domain); err != nil {
 		log.Printf("Failed to assign policies for cashier %s: %v", shop1.Domain, err)
 		return err
 	}
 	log.Printf("✅ Assigned domain-specific policies for cashier in shop domain %s", shop1.Domain)
-	
+
 	if err := authSeeder.AssignPoliciesForRole("cashier", shop2.Domain); err != nil {
 		log.Printf("Failed to assign policies for cashier %s: %v", shop2.Domain, err)
 		return err
 	}
 	log.Printf("✅ Assigned domain-specific policies for cashier in shop domain %s", shop2.Domain)
-	
+
 	log.Println("Domain-specific policies creation completed successfully")
 	return nil
 }

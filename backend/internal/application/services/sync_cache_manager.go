@@ -22,21 +22,21 @@ type SyncCacheManager struct {
 
 // SyncCacheConfig contains configuration for sync caching
 type SyncCacheConfig struct {
-	EnableCaching           bool          `json:"enable_caching"`
-	ShopLicenseCacheTTL     time.Duration `json:"shop_license_cache_ttl"`
-	ProductShopCacheTTL     time.Duration `json:"product_shop_cache_ttl"`
-	UserShopsCacheTTL       time.Duration `json:"user_shops_cache_ttl"`
-	MaxCacheEntries         int           `json:"max_cache_entries"`
-	CacheCleanupInterval    time.Duration `json:"cache_cleanup_interval"`
-	EnableCacheStatistics   bool          `json:"enable_cache_statistics"`
+	EnableCaching         bool          `json:"enable_caching"`
+	ShopLicenseCacheTTL   time.Duration `json:"shop_license_cache_ttl"`
+	ProductShopCacheTTL   time.Duration `json:"product_shop_cache_ttl"`
+	UserShopsCacheTTL     time.Duration `json:"user_shops_cache_ttl"`
+	MaxCacheEntries       int           `json:"max_cache_entries"`
+	CacheCleanupInterval  time.Duration `json:"cache_cleanup_interval"`
+	EnableCacheStatistics bool          `json:"enable_cache_statistics"`
 }
 
 // SyncCacheStats tracks cache performance metrics
 type SyncCacheStats struct {
-	Hits        int64 `json:"hits"`
-	Misses      int64 `json:"misses"`
-	Evictions   int64 `json:"evictions"`
-	Entries     int64 `json:"entries"`
+	Hits        int64     `json:"hits"`
+	Misses      int64     `json:"misses"`
+	Evictions   int64     `json:"evictions"`
+	Entries     int64     `json:"entries"`
 	LastCleanup time.Time `json:"last_cleanup"`
 }
 
@@ -70,8 +70,8 @@ type UserShopsCacheEntry struct {
 // NewSyncCacheManager creates a new sync cache manager
 func NewSyncCacheManager(db *gorm.DB, config SyncCacheConfig) *SyncCacheManager {
 	manager := &SyncCacheManager{
-		db:    db,
-		cache: &sync.Map{},
+		db:     db,
+		cache:  &sync.Map{},
 		config: config,
 		stats: SyncCacheStats{
 			LastCleanup: time.Now(),
@@ -137,7 +137,7 @@ func (c *SyncCacheManager) GetProductShopMapping(ctx context.Context, productIDs
 	// Check cache for each product
 	for _, productID := range productIDs {
 		cacheKey := fmt.Sprintf("product_shop:%s", productID.String())
-		
+
 		if cached, found := c.cache.Load(cacheKey); found {
 			if entry, ok := cached.(*CacheEntry); ok && time.Now().Before(entry.ExpiresAt) {
 				if productShopEntry, ok := entry.Data.(*ProductShopCacheEntry); ok && productShopEntry.Valid {
@@ -165,7 +165,7 @@ func (c *SyncCacheManager) GetProductShopMapping(ctx context.Context, productIDs
 		// Cache the results and merge with cached data
 		for productID, shopID := range dbMapping {
 			productToShop[productID] = shopID
-			
+
 			// Cache this mapping
 			cacheKey := fmt.Sprintf("product_shop:%s", productID.String())
 			entry := &CacheEntry{
