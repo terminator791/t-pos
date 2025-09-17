@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
+	"github.com/terminator791/t-pos/internal/domain/dto"
 	"github.com/terminator791/t-pos/internal/domain/entities"
 	"github.com/terminator791/t-pos/internal/domain/repositories"
 )
@@ -43,11 +44,11 @@ func (uc *ProductUseCase) CreateProduct(ctx context.Context, product *entities.P
 		return errors.New("invalid shop ID")
 	}
 
-	// Check if category exists if provided
+	// Check if category exists and belongs to the same shop if provided
 	if product.CatID != nil {
-		_, err := uc.categoryRepo.GetByID(ctx, *product.CatID)
+		_, err := uc.categoryRepo.GetByIDAndShopID(ctx, *product.CatID, product.ShopID)
 		if err != nil {
-			return errors.New("invalid category ID")
+			return errors.New("invalid category ID or category does not belong to the specified shop")
 		}
 	}
 
@@ -84,6 +85,14 @@ func (uc *ProductUseCase) UpdateProduct(ctx context.Context, product *entities.P
 	}
 	if existing == nil {
 		return errors.New("product not found")
+	}
+
+	// Check if category exists and belongs to the same shop if provided
+	if product.CatID != nil {
+		_, err := uc.categoryRepo.GetByIDAndShopID(ctx, *product.CatID, existing.ShopID)
+		if err != nil {
+			return errors.New("invalid category ID or category does not belong to the product's shop")
+		}
 	}
 
 	// Calculate profit
@@ -131,4 +140,53 @@ func (uc *ProductUseCase) GetLowStockProducts(ctx context.Context, shopID uuid.U
 // SearchProducts searches for products by name or barcode within a shop
 func (uc *ProductUseCase) SearchProducts(ctx context.Context, query string, shopID uuid.UUID) ([]*entities.Product, error) {
 	return uc.productRepo.Search(ctx, query, shopID)
+}
+
+// ListProductsFiltered retrieves a list of products filtered by accessible shop IDs
+func (uc *ProductUseCase) ListProductsFiltered(ctx context.Context, shopIDs []uuid.UUID, limit, offset int) ([]*entities.Product, error) {
+	if len(shopIDs) == 0 {
+		// If no shop IDs provided, return empty list
+		return []*entities.Product{}, nil
+	}
+	return uc.productRepo.ListByShopIDs(ctx, shopIDs, limit, offset)
+}
+
+// GetLowStockProductsFiltered retrieves low stock products filtered by accessible shop IDs
+func (uc *ProductUseCase) GetLowStockProductsFiltered(ctx context.Context, shopIDs []uuid.UUID) ([]*entities.Product, error) {
+	if len(shopIDs) == 0 {
+		// If no shop IDs provided, return empty list
+		return []*entities.Product{}, nil
+	}
+	return uc.productRepo.GetLowStockProductsByShopIDs(ctx, shopIDs)
+}
+
+// SearchProductsFiltered searches for products by name or barcode within accessible shops
+func (uc *ProductUseCase) SearchProductsFiltered(ctx context.Context, query string, shopIDs []uuid.UUID) ([]*entities.Product, error) {
+	if len(shopIDs) == 0 {
+		// If no shop IDs provided, return empty list
+		return []*entities.Product{}, nil
+	}
+	return uc.productRepo.SearchByShopIDs(ctx, query, shopIDs)
+}
+
+// ListProductsForDTO retrieves a list of products as DTOs
+func (uc *ProductUseCase) ListProductsForDTO(ctx context.Context, limit, offset int) ([]*dto.ProductListDTO, error) {
+	products, err := uc.productRepo.ListForDTO(ctx, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	return dto.ProductsToListDTO(products), nil
+}
+
+// ListProductsFilteredForDTO retrieves a list of products filtered by accessible shop IDs as DTOs
+func (uc *ProductUseCase) ListProductsFilteredForDTO(ctx context.Context, shopIDs []uuid.UUID, limit, offset int) ([]*dto.ProductListDTO, error) {
+	if len(shopIDs) == 0 {
+		// If no shop IDs provided, return empty list
+		return []*dto.ProductListDTO{}, nil
+	}
+	products, err := uc.productRepo.ListByShopIDsForDTO(ctx, shopIDs, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	return dto.ProductsToListDTO(products), nil
 }

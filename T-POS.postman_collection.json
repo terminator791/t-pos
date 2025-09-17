@@ -1,0 +1,3095 @@
+{
+	"info": {
+		"_postman_id": "8afe665d-060a-4393-9502-19fa26e0301f",
+		"name": "T-POS",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "34330168"
+	},
+	"item": [
+		{
+			"name": "Auth middleware",
+			"item": [
+				{
+					"name": "Auth Owner",
+					"item": [
+						{
+							"name": "Register owner",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"var jsonData =pm.response.json();\r",
+											"pm.collectionVariables.set(\"bearer_token\", jsonData.data.token);"
+										],
+										"type": "text/javascript",
+										"packages": {}
+									}
+								},
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											""
+										],
+										"type": "text/javascript",
+										"packages": {}
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Accept",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"username\": \"bagusdss\",\r\n    \"serial_number\" : \"LIC-002-DEMO\"\r\n    // \"serial_number\" : \"LIC-001-DEMO\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{url_tpos}}/api/v1/auth/owner/register",
+									"host": [
+										"{{url_tpos}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"auth",
+										"owner",
+										"register"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Login",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"var jsonData =pm.response.json();\r",
+											"pm.collectionVariables.set(\"bearer_token\", jsonData.data.token);"
+										],
+										"type": "text/javascript",
+										"packages": {}
+									}
+								},
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											""
+										],
+										"type": "text/javascript",
+										"packages": {}
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Accept",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"username\": \"bagus\",\r\n    \"pin\" : \"123456\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{url_tpos}}/api/v1/auth/owner/login",
+									"host": [
+										"{{url_tpos}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"auth",
+										"owner",
+										"login"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Refresh Token",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearer_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Accept",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{url_tpos}}/api/v1/auth/refresh",
+									"host": [
+										"{{url_tpos}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"auth",
+										"refresh"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Pin",
+					"item": [
+						{
+							"name": "Create Pin",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearer_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Accept",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"pin\" : \"123456\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{url_tpos}}/api/v1/auth/pin",
+									"host": [
+										"{{url_tpos}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"auth",
+										"pin"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "update pin",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearer_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Accept",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"old_pin\" : \"123456\",\r\n    \"new_pin\" : \"123457\",\r\n    \"confirm_new_pin\" : \"123457\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{url_tpos}}/api/v1/auth/pin",
+									"host": [
+										"{{url_tpos}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"auth",
+										"pin"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "delete pin",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearer_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "DELETE",
+								"header": [
+									{
+										"key": "Accept",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{url_tpos}}/api/v1/auth/pin",
+									"host": [
+										"{{url_tpos}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"auth",
+										"pin"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Auth cashier",
+					"item": [
+						{
+							"name": "Register cashier",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"var jsonData =pm.response.json();\r",
+											"pm.collectionVariables.set(\"bearer_token\", jsonData.data.token);"
+										],
+										"type": "text/javascript",
+										"packages": {}
+									}
+								},
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											""
+										],
+										"type": "text/javascript",
+										"packages": {}
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{bearer_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Accept",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"username\": \"cashier\",\r\n    \"shop_id\" : \"22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{url_tpos}}/api/v1/auth/cashier/register",
+									"host": [
+										"{{url_tpos}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"auth",
+										"cashier",
+										"register"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Login cashier",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"var jsonData =pm.response.json();\r",
+											"pm.collectionVariables.set(\"bearer_token\", jsonData.data.token);"
+										],
+										"type": "text/javascript",
+										"packages": {}
+									}
+								},
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											""
+										],
+										"type": "text/javascript",
+										"packages": {}
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Accept",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"username\": \"cashier1\",\r\n    \"pin\" : \"123456\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{url_tpos}}/api/v1/auth/cashier/login",
+									"host": [
+										"{{url_tpos}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"auth",
+										"cashier",
+										"login"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Auth admin",
+					"item": [
+						{
+							"name": "Login admin",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"var jsonData =pm.response.json();\r",
+											"pm.collectionVariables.set(\"bearer_token\", jsonData.data.token);"
+										],
+										"type": "text/javascript",
+										"packages": {}
+									}
+								},
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											""
+										],
+										"type": "text/javascript",
+										"packages": {}
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Accept",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"username\": \"superadmin\",\r\n    \"pin\" : \"123456\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{url_tpos}}/api/v1/auth/admin/login",
+									"host": [
+										"{{url_tpos}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"auth",
+										"admin",
+										"login"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Profile",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"pin\" : \"123458\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/auth/profile",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"profile"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "permissions",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"pin\" : \"123458\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/auth/permissions",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"permissions"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Logout",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"username\": \"iqbasl222\",\r\n    \"pin\" : \"123456\"\r\n\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/auth/logout",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"logout"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Products",
+			"item": [
+				{
+					"name": "Create Product",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Sample Product\",\n    \"description\": \"Product description\",\n    \"sale\": 100,\n    \"buy\": 80,\n    \"unit\": \"kg\",\n    \"ppn\": 5,\n    \"photo\": \"\",\n    \"category_id\": \"bbbbbbbb-2222-2222-2222-bbbbbbbbbbbb\",\n    \"barcode\": \"123456789\",\n    \"stock_quantity\": 50,\n    \"shop_id\": \"22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/products",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "List Products",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/products",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Search Products",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/products/search?q=Nasi Goreng&shop_id=11111111-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"search"
+							],
+							"query": [
+								{
+									"key": "q",
+									"value": "Nasi Goreng"
+								},
+								{
+									"key": "shop_id",
+									"value": "11111111-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Low Stock Products",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/products/low-stock?shop_id=22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"low-stock"
+							],
+							"query": [
+								{
+									"key": "shop_id",
+									"value": "22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Product by ID",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/products/44444444-2222-bbbb-bbbb-dddddddddddd",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"44444444-2222-bbbb-bbbb-dddddddddddd"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Product by Barcode",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/products/barcode/123456789",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"barcode",
+								"123456789"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Product",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Updated Product\",\n    \"description\": \"Updated description\",\n    \"price\": 150.00,\n    \"barcode\": \"123456789\",\n    \"stock_quantity\": 75\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/products/24cdc63a-dcbe-4aa1-8e9c-5e96c7cabcbc",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"24cdc63a-dcbe-4aa1-8e9c-5e96c7cabcbc"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Product",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/products/{{product_id}}",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"{{product_id}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Transactions",
+			"item": [
+				{
+					"name": "Get Transaction Details",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/transactions/9d2f8fb6-171e-4d67-bd7c-8ca815594daa",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"transactions",
+								"9d2f8fb6-171e-4d67-bd7c-8ca815594daa"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Today's Transactions",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/transactions/shop/550e8400-e29b-41d4-a716-446655440013/today",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"transactions",
+								"shop",
+								"550e8400-e29b-41d4-a716-446655440013",
+								"today"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "transactions",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "\n  {\n\"customer_name\" : \"iqbal\",\n  \"items\": [                // Array item transaksi\n    {\n      \"product_id\": \"22222222-2222-bbbb-bbbb-bbbbbbbbbbbb\",\n      \"quantity\": 23\n    },\n    {\n      \"product_id\": \"44444444-2222-bbbb-bbbb-dddddddddddd\",\n      \"quantity\": 10\n    }\n  ],\n  \"cashier_name\" : \"iqbalbg\",\n  \"shop_id\" : \"22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/transactions",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"transactions"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "transactions pay",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"amount\" : 10000000\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/transactions/59674e31-b63e-4769-b6d8-944c465cff0b/pay",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"transactions",
+								"59674e31-b63e-4769-b6d8-944c465cff0b",
+								"pay"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "transactions cancel",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"amount\" : 100000000\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/transactions/a9e4e032-a946-4263-ae84-91358a864cb3/cancel",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"transactions",
+								"a9e4e032-a946-4263-ae84-91358a864cb3",
+								"cancel"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "list transaction per shop",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/transactions/shop/33333333-cccc-cccc-cccc-cccccccccccc",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"transactions",
+								"shop",
+								"33333333-cccc-cccc-cccc-cccccccccccc"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "list transaction per shop by status",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/transactions/shop/22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb/status/completed",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"transactions",
+								"shop",
+								"22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+								"status",
+								"completed"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Licenses",
+			"item": [
+				{
+					"name": "Get All Licenses",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/licenses",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"licenses"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get License by ID",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/licenses/{{license_id}}",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"licenses",
+								"{{license_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create License",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"serial_number\": \"LICENSE-2024-003\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/licenses",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"licenses"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete License",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/licenses/{{license_id}}",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"licenses",
+								"{{license_id}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Customers",
+			"item": [
+				{
+					"name": "Get All Customers",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/customers",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"customers"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Customer by ID",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/customers/{{customer_id}}",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"customers",
+								"{{customer_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Customer",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"new_customer\",\n    \"serial_number\": \"LIC-001-DEMO\",\n    \"role_id\": \"cashier\",\n    \"pin\": \"123456\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/customers",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"customers"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Customer",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/customers/{{customer_id}}",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"customers",
+								"{{customer_id}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Users",
+			"item": [
+				{
+					"name": "Get All Users",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/users",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get User by ID",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/users/{{user_id}}",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"{{user_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create User",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"new_admin\",\n    \"serial_number\": \"LIC-001-DEMO\",\n    \"role_id\": \"dbfdefda-b350-4360-ba20-2aad191d267d\",\n    \"pin\": \"admin123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/users",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update User Password",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"password\": \"new_password\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/users/{{user_id}}",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"{{user_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete User",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/users/{{user_id}}",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"{{user_id}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Categories",
+			"item": [
+				{
+					"name": "detail categories by id",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/categories/dddddddd-2222-2222-2222-dddddddddddd",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"categories",
+								"dddddddd-2222-2222-2222-dddddddddddd"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "create categories",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"name\" : \"test-cat\",\r\n    \"shop_id\" : \"22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/categories",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"categories"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "update categories",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"name\" : \"test-cat-update\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/categories/5526f598-5ff9-463a-b439-87b568be9946",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"categories",
+								"5526f598-5ff9-463a-b439-87b568be9946"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "delete categories",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"name\" : \"test-cat-update\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/categories/5526f598-5ff9-463a-b439-87b568be9946",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"categories",
+								"5526f598-5ff9-463a-b439-87b568be9946"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "list categories",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/categories",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"categories"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Sync",
+			"item": [
+				{
+					"name": "sync",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"last_sync_timestamp\": null,\r\n    \"categories\": [\r\n        {\r\n            \"id\": \"550e8400-e29b-41d4-a716-446655440011\",\r\n            \"shop_id\": \"22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb\",\r\n            \"name\": \"Test Category Syncs\",\r\n            \"created_at\": \"2026-01-15T11:00:00Z\",\r\n            \"updated_at\": \"2026-01-15T11:30:00Z\"\r\n        }\r\n    ],\r\n    \"transactions\": [\r\n        {\r\n            \"id\": \"550e8400-e29b-41d4-a716-446655440005\",\r\n            \"shop_id\": \"22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb\",\r\n            \"cashier_id\": \"ffffffff-ffff-ffff-ffff-ffffffffffff\",\r\n            \"customer_name\": \"John Doe update\",\r\n            \"discount\": 10.00,\r\n            \"discount_percentage\": 5.0,\r\n            \"additional_cost\": 0.00,\r\n            \"status\": \"completed\",\r\n            \"total_price\": 589.98,\r\n            \"profit_transaction\": 289.98,\r\n            \"cashier_name\": \"Cashier 2\",\r\n            \"change\": 10.02,\r\n            \"amount\": 600,\r\n            \"initial_payment_status\": \"paid\",\r\n            \"created_at\": \"2026-01-15T12:00:00Z\",\r\n            \"updated_at\": \"2026-01-15T12:05:00Z\"\r\n        }\r\n    ],\r\n    \"transaction_products\": [\r\n        {\r\n            \"id\": \"550e8400-e29b-41d4-a716-446655440006\",\r\n            \"transaction_id\": \"550e8400-e29b-41d4-a716-446655440005\",\r\n            \"product_id\": \"33333333-2222-bbbb-bbbb-cccccccccccc\",\r\n            \"shop_id\": \"22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb\",\r\n            \"quantity\": 2,\r\n            \"unit_price\": 25000.00,\r\n            \"total_price\": 15000.00,\r\n            \"created_at\": \"2024-01-15T12:00:00Z\",\r\n            \"updated_at\": \"2024-01-15T12:00:00Z\"\r\n        }\r\n    ],\r\n    \"payments\": [\r\n        {\r\n            \"id\": \"550e8400-e29b-41d4-a716-446655440007\",\r\n            \"shop_id\": \"22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb\",\r\n            \"user_id\": \"ffffffff-ffff-ffff-ffff-ffffffffffff\",\r\n            \"transaction_id\": \"550e8400-e29b-41d4-a716-446655440005\",\r\n            \"status\": \"completed\",\r\n            \"total\": 589.98,\r\n            \"created_at\": \"2024-01-15T12:05:00Z\",\r\n            \"updated_at\": \"2024-01-15T12:05:00Z\"\r\n        }\r\n    ],\r\n    \"receipts\": [\r\n        {\r\n            \"id\": \"550e8400-e29b-41d4-a716-446655440008\",\r\n            \"shop_id\": \"22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb\",\r\n            \"payments_id\": \"550e8400-e29b-41d4-a716-446655440007\",\r\n            \"created_at\": \"2024-01-15T12:06:00Z\",\r\n            \"updated_at\": \"2024-01-15T12:06:00Z\"\r\n        }\r\n    ],\r\n    \"histories\": [\r\n        {\r\n            \"id\": \"550e8400-e29b-41d4-a716-446655440010\",\r\n            \"shop_id\": \"22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb\",\r\n            \"transaction_id\": \"550e8400-e29b-41d4-a716-446655440005\",\r\n            \"created_at\": \"2024-01-15T12:07:00Z\",\r\n            \"updated_at\": \"2024-01-15T12:07:00Z\"\r\n        }\r\n    ],\r\n    \"expenses\": [\r\n        {\r\n            \"id\": \"550e8400-e29b-41d4-a716-446655440012\",\r\n            \"shop_id\": \"22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb\",\r\n            \"nominal\": 50000.00,\r\n            \"status\": \"failed\",\r\n            \"date\": \"2027-01-15T12:00:00Z\",\r\n            \"label\": \"Office Supplies update\",\r\n            \"desc\": \"Monthly office supplies purchase\",\r\n            \"created_at\": \"2027-01-15T12:08:00Z\",\r\n            \"updated_at\": \"2027-01-15T12:08:00Z\"\r\n        }\r\n    ],\r\n    \"shops\": [\r\n        {\r\n            \"id\": \"550e8400-e29b-41d4-a716-446655440013\",\r\n            \"license_id\": \"22222222-2222-2222-2222-222222222222\",\r\n            \"user_id\": \"cccccccc-cccc-cccc-cccc-cccccccccccc\",\r\n            \"name\": \"Test Shop Sync\",\r\n            \"code\": \"shop-test-sync\",\r\n            \"address\": \"Jl. Test Sync No. 123, Jakarta\",\r\n            \"description\": \"Test Shop for Sync\",\r\n            \"slogan\": \"toko kami hebat\",\r\n            \"is_active\": 1,\r\n            \"created_at\": \"2024-01-15T12:09:00Z\",\r\n            \"updated_at\": \"2024-01-15T12:09:00Z\"\r\n        }\r\n    ],\r\n    \"stock_histories\": [\r\n        {\r\n            \"id\": \"550e8400-e29b-41d4-a716-446655440014\",\r\n            \"shop_id\": \"22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb\",\r\n            \"product_id\": \"22222222-2222-bbbb-bbbb-bbbbbbbbbbbb\",\r\n            \"stock\": 10,\r\n            \"last_stock\": 50,\r\n            \"stocked_at\": \"2024-01-15T12:10:00Z\",\r\n            \"created_at\": \"2024-01-15T12:10:00Z\",\r\n            \"updated_at\": \"2024-01-15T12:10:00Z\"\r\n        }\r\n    ],\r\n    \"users\": [\r\n        {\r\n            \"id\": \"550e8400-e29b-41d4-a716-446655440015\",\r\n            \"license_id\": \"22222222-2222-2222-2222-222222222222\",\r\n            \"shop_id\": \"22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb\",\r\n            \"role_id\": \"68ff4a16-8164-4158-b639-8cb556a04c25\",\r\n            \"name\": \"Test Cashier Sync\",\r\n            \"email\": \"testcashier@sync.test\",\r\n            \"username\": \"testcashier\",\r\n            \"phone\": \"081234567890\",\r\n            \"is_active\": true,\r\n            \"created_at\": \"2024-01-15T12:11:00Z\",\r\n            \"updated_at\": \"2024-01-15T12:11:00Z\"\r\n        }\r\n    ]\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/sync",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"sync"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "sync cashier",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"last_sync_timestamp\": null,\r\n    \"categories\": [\r\n        {\r\n            \"id\": \"550e8400-e29b-41d4-a716-446655440011\",\r\n            \"shop_id\": \"22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb\",\r\n            \"name\": \"Test Category Syncs\",\r\n            \"created_at\": \"2026-01-15T11:00:00Z\",\r\n            \"updated_at\": \"2026-01-15T11:30:00Z\"\r\n        }\r\n    ],\r\n    \"transactions\": [\r\n        {\r\n            \"id\": \"550e8400-e29b-41d4-a716-446655440005\",\r\n            \"shop_id\": \"22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb\",\r\n            \"cashier_id\": \"ffffffff-ffff-ffff-ffff-ffffffffffff\",\r\n            \"customer_name\": \"John Doe\",\r\n            \"discount\": 10.00,\r\n            \"discount_percentage\": 5.0,\r\n            \"additional_cost\": 0.00,\r\n            \"status\": \"completed\",\r\n            \"total_price\": 589.98,\r\n            \"profit_transaction\": 289.98,\r\n            \"cashier_name\": \"Cashier 2\",\r\n            \"change\": 10.02,\r\n            \"amount\": 600,\r\n            \"initial_payment_status\": \"paid\",\r\n            \"created_at\": \"2026-01-15T12:00:00Z\",\r\n            \"updated_at\": \"2026-01-15T12:05:00Z\"\r\n        }\r\n    ],\r\n    \"transaction_products\": [\r\n        {\r\n            \"id\": \"550e8400-e29b-41d4-a716-446655440006\",\r\n            \"transaction_id\": \"550e8400-e29b-41d4-a716-446655440005\",\r\n            \"product_id\": \"33333333-2222-bbbb-bbbb-cccccccccccc\",\r\n            \"shop_id\": \"22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb\",\r\n            \"quantity\": 2,\r\n            \"unit_price\": 25000.00,\r\n            \"total_price\": 15000.00,\r\n            \"created_at\": \"2024-01-15T12:00:00Z\",\r\n            \"updated_at\": \"2024-01-15T12:00:00Z\"\r\n        }\r\n    ],\r\n    \"payments\": [\r\n        {\r\n            \"id\": \"550e8400-e29b-41d4-a716-446655440007\",\r\n            \"shop_id\": \"33333333-cccc-cccc-cccc-cccccccccccc\",\r\n            \"user_id\": \"ffffffff-ffff-ffff-ffff-ffffffffffff\",\r\n            \"transaction_id\": \"550e8400-e29b-41d4-a716-446655440005\",\r\n            \"status\": \"completed\",\r\n            \"total\": 589.98,\r\n            \"created_at\": \"2024-01-15T12:05:00Z\",\r\n            \"updated_at\": \"2024-01-15T12:05:00Z\"\r\n        }\r\n    ],\r\n    \"receipts\": [\r\n        {\r\n            \"id\": \"550e8400-e29b-41d4-a716-446655440008\",\r\n            \"shop_id\": \"22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb\",\r\n            \"payments_id\": \"550e8400-e29b-41d4-a716-446655440007\",\r\n            \"created_at\": \"2024-01-15T12:06:00Z\",\r\n            \"updated_at\": \"2024-01-15T12:06:00Z\"\r\n        }\r\n    ],\r\n    \"histories\": [\r\n        {\r\n            \"id\": \"550e8400-e29b-41d4-a716-446655440010\",\r\n            \"shop_id\": \"22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb\",\r\n            \"transaction_id\": \"550e8400-e29b-41d4-a716-446655440005\",\r\n            \"created_at\": \"2024-01-15T12:07:00Z\",\r\n            \"updated_at\": \"2024-01-15T12:07:00Z\"\r\n        }\r\n    ],\r\n    \"expenses\": [\r\n        {\r\n            \"id\": \"550e8400-e29b-41d4-a716-446655440012\",\r\n            \"shop_id\": \"22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb\",\r\n            \"nominal\": 50000.00,\r\n            \"status\": \"approved\",\r\n            \"date\": \"2024-01-15T12:00:00Z\",\r\n            \"label\": \"Office Supplies\",\r\n            \"desc\": \"Monthly office supplies purchase\",\r\n            \"created_at\": \"2024-01-15T12:08:00Z\",\r\n            \"updated_at\": \"2024-01-15T12:08:00Z\"\r\n        }\r\n    ],\r\n    \"shops\": [\r\n        {\r\n            \"id\": \"550e8400-e29b-41d4-a716-446655440013\",\r\n            \"license_id\": \"22222222-2222-2222-2222-222222222222\",\r\n            \"user_id\": \"cccccccc-cccc-cccc-cccc-cccccccccccc\",\r\n            \"name\": \"Test Shop Sync\",\r\n            \"code\": \"shop-test-sync\",\r\n            \"address\": \"Jl. Test Sync No. 123, Jakarta\",\r\n            \"description\": \"Test Shop for Sync\",\r\n            \"slogan\": \"toko kami hebat\",\r\n            \"is_active\": 1,\r\n            \"created_at\": \"2024-01-15T12:09:00Z\",\r\n            \"updated_at\": \"2024-01-15T12:09:00Z\"\r\n        }\r\n    ],\r\n    \"stock_histories\": [\r\n        {\r\n            \"id\": \"550e8400-e29b-41d4-a716-446655440014\",\r\n            \"shop_id\": \"22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb\",\r\n            \"product_id\": \"22222222-2222-bbbb-bbbb-bbbbbbbbbbbb\",\r\n            \"stock\": 10,\r\n            \"last_stock\": 50,\r\n            \"stocked_at\": \"2024-01-15T12:10:00Z\",\r\n            \"created_at\": \"2024-01-15T12:10:00Z\",\r\n            \"updated_at\": \"2024-01-15T12:10:00Z\"\r\n        }\r\n    ],\r\n    \"users\": [\r\n        {\r\n            \"id\": \"550e8400-e29b-41d4-a716-446655440015\",\r\n            \"license_id\": \"22222222-2222-2222-2222-222222222222\",\r\n            \"shop_id\": \"22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb\",\r\n            \"role_id\": \"68ff4a16-8164-4158-b639-8cb556a04c25\",\r\n            \"name\": \"Test Cashier Sync\",\r\n            \"email\": \"testcashier@sync.test\",\r\n            \"username\": \"testcashier\",\r\n            \"phone\": \"081234567890\",\r\n            \"is_active\": true,\r\n            \"created_at\": \"2024-01-15T12:11:00Z\",\r\n            \"updated_at\": \"2024-01-15T12:11:00Z\"\r\n        }\r\n    ]\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/sync",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"sync"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "sync trancsation",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"transactions\": [\r\n        {\r\n            \"id\": \"550e8400-e29b-41d4-a716-446655440009\",\r\n            \"shop_id\": \"22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb\",\r\n            \"cashier_id\": \"ffffffff-ffff-ffff-ffff-ffffffffffff\",\r\n            \"customer_name\": \"John Doe\",\r\n            \"discount\": 20.00,\r\n            \"discount_percentage\": 5.0,\r\n            \"additional_cost\": 0.00,\r\n            \"status\": \"completed\",\r\n            \"total_price\": 589.98,\r\n            \"profit_transaction\": 289.98,\r\n            \"cashier_name\": \"Cashier 2\",\r\n            \"change\": 10.02,\r\n            \"amount\": 600,\r\n            \"initial_payment_status\": \"paid\",\r\n            \"created_at\": \"2026-01-15T12:00:00Z\",\r\n            \"updated_at\": \"2026-01-15T12:05:00Z\"\r\n        }\r\n    ],\r\n    \"transaction_products\": [\r\n        {\r\n            \"id\": \"550e8400-e29b-41d4-a716-446655440001\",\r\n            \"transaction_id\": \"550e8400-e29b-41d4-a716-446655440009\",\r\n            \"product_id\": \"33333333-1111-aaaa-aaaa-cccccccccccc\",\r\n            \"shop_id\": \"22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb\",\r\n            \"quantity\": 2,\r\n            \"unit_price\": 25000.00,\r\n            \"total_price\": 15000.00,\r\n            \"created_at\": \"2024-01-15T12:00:00Z\",\r\n            \"updated_at\": \"2024-01-15T12:00:00Z\"\r\n        }\r\n    ],\r\n    \"stock_histories\": [\r\n        {\r\n            \"id\": \"550e8400-e29b-41d4-a716-446655440014\",\r\n            \"shop_id\": \"22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb\",\r\n            \"product_id\": \"22222222-2222-bbbb-bbbb-bbbbbbbbbbbb\",\r\n            \"stock\": 10,\r\n            \"last_stock\": 50,\r\n            \"stocked_at\": \"2024-01-15T12:10:00Z\",\r\n            \"created_at\": \"2024-01-15T12:10:00Z\",\r\n            \"updated_at\": \"2024-01-15T12:10:00Z\"\r\n        }\r\n    ]\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/sync",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"sync"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "sync health",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/sync/health",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"sync",
+								"health"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "sync info",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/sync/info",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"sync",
+								"info"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Shop",
+			"item": [
+				{
+					"name": "shops",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/shops",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"shops"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "shops by id",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/shops/22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"shops",
+								"22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "shops by owner (need fix shop_id)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/shops/owner/dddddddd-dddd-dddd-dddd-dddddddddddd",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"shops",
+								"owner",
+								"dddddddd-dddd-dddd-dddd-dddddddddddd"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Carts",
+			"item": [
+				{
+					"name": "list carts",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/carts/all",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"carts",
+								"all"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "create carts",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"shop_id\" : \"22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb\",\r\n    \"product_id\" : \"11111111-2222-bbbb-bbbb-aaaaaaaaaaaa\",\r\n    \"quantity\" : 10\r\n    // \"user_id\" : \"\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/carts",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"carts"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "detail carts by id",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/carts/550e8400-e29b-41d4-a716-446655440001",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"carts",
+								"550e8400-e29b-41d4-a716-446655440001"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "delete carts by id",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/carts/02eb5aa8-db12-4f6c-a332-8b941f1070f1",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"carts",
+								"02eb5aa8-db12-4f6c-a332-8b941f1070f1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "clear cart user",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/carts",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"carts"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "update carts by id",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"quantity\": 101\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/carts/02eb5aa8-db12-4f6c-a332-8b941f1070f1",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"carts",
+								"02eb5aa8-db12-4f6c-a332-8b941f1070f1"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Roles",
+			"item": [
+				{
+					"name": "roles by id",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/roles/55dc4122-6dfe-400a-9ca9-67a96d273b62",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"roles",
+								"55dc4122-6dfe-400a-9ca9-67a96d273b62"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "roles by name",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/roles/super_admin",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"roles",
+								"super_admin"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "list roles",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/roles",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"roles"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "ACL",
+			"item": [
+				{
+					"name": "policies",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/acl/policies",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"acl",
+								"policies"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "policies system",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/acl/policies/system",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"acl",
+								"policies",
+								"system"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "roles",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/acl/roles",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"acl",
+								"roles"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "roles by user",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/acl/users/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/roles",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"acl",
+								"users",
+								"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+								"roles"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "users by roles",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/acl/roles/d64f4f5d-dd41-49a4-ba18-c9537426c316/users",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"acl",
+								"roles",
+								"d64f4f5d-dd41-49a4-ba18-c9537426c316",
+								"users"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "add role user",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/acl/users/roles",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"acl",
+								"users",
+								"roles"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "delete role user",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/acl/users/roles",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"acl",
+								"users",
+								"roles"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "roles system",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/acl/roles/system",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"acl",
+								"roles",
+								"system"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "policies",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/acl/policies",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"acl",
+								"policies"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "check",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/acl/check",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"acl",
+								"check"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "reload",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/acl/reload",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"acl",
+								"reload"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "policies",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url_tpos}}/api/v1/acl/policies",
+							"host": [
+								"{{url_tpos}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"acl",
+								"policies"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Health",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{url_tpos}}/health",
+					"host": [
+						"{{url_tpos}}"
+					],
+					"path": [
+						"health"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "url_tpos",
+			"value": ""
+		},
+		{
+			"key": "bearer_token",
+			"value": ""
+		},
+		{
+			"key": "product_id",
+			"value": ""
+		},
+		{
+			"key": "transaction_id",
+			"value": ""
+		},
+		{
+			"key": "shop_id",
+			"value": ""
+		},
+		{
+			"key": "license_id",
+			"value": ""
+		},
+		{
+			"key": "customer_id",
+			"value": ""
+		},
+		{
+			"key": "user_id",
+			"value": ""
+		},
+		{
+			"key": "barcode",
+			"value": ""
+		}
+	]
+}

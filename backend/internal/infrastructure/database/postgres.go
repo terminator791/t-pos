@@ -38,8 +38,14 @@ func Migrate() error {
 		return fmt.Errorf("database not connected")
 	}
 
+	// Enable UUID extension for PostgreSQL
+	err := DB.Exec(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`).Error
+	if err != nil {
+		return fmt.Errorf("failed to enable uuid-ossp extension: %w", err)
+	}
+
 	// First, migrate base entities (no dependencies)
-	err := DB.AutoMigrate(
+	err = DB.AutoMigrate(
 		&entities.License{},
 		&entities.Role{},
 		&entities.Policy{},
@@ -169,32 +175,32 @@ func DropAllTables() error {
 	// Drop tables in reverse dependency order to respect foreign key constraints
 	tables := []string{
 		"casbin_rule", // Casbin table
-		
+
 		// History and logs (depends on Shop and User)
 		"logs",
-		"stock_histories", 
+		"stock_histories",
 		"expenses",
 		"histories",
-		
+
 		// Transaction related entities (depends on User, Shop, Product)
 		"receipts",
 		"payments",
 		"transaction_products",
 		"transactions",
 		"carts",
-		
+
 		// Product related entities (depends on Shop)
 		"products",
 		"categories",
-		
+
 		// Shop entities (depends on License and User)
 		"shops",
-		
+
 		// User entities (depends on License and Role)
 		"user_domains",
 		"license_logs",
 		"users",
-		
+
 		// Base entities (no dependencies)
 		"policies",
 		"roles",
@@ -217,7 +223,7 @@ func DropAllTables() error {
 // RefreshDatabase drops all tables and re-runs migrations (like migrate:fresh)
 func RefreshDatabase() error {
 	log.Println("Refreshing database...")
-	
+
 	if err := DropAllTables(); err != nil {
 		return fmt.Errorf("failed to drop tables: %w", err)
 	}

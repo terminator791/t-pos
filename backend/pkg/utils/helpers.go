@@ -8,14 +8,14 @@ import (
 // GenerateOrderNumber generates a unique order number
 func GenerateOrderNumber() string {
 	now := time.Now()
-	return fmt.Sprintf("ORD-%d%02d%02d-%d", 
+	return fmt.Sprintf("ORD-%d%02d%02d-%d",
 		now.Year(), now.Month(), now.Day(), now.Unix()%10000)
 }
 
 // GenerateSKU generates a SKU based on category and timestamp
 func GenerateSKU(categoryCode string) string {
 	now := time.Now()
-	return fmt.Sprintf("%s-%d%02d%02d-%d", 
+	return fmt.Sprintf("%s-%d%02d%02d-%d",
 		categoryCode, now.Year(), now.Month(), now.Day(), now.Unix()%10000)
 }
 
@@ -29,10 +29,10 @@ func FormatCurrency(amount float64) string {
 	return fmt.Sprintf("$%.2f", amount)
 }
 
-// GenerateSerialNumber generates a serial number with a given prefix 
+// GenerateSerialNumber generates a serial number with a given prefix
 func GenerateSerialNumber(prefix string) string {
 	// 10 characters random alphanumeric string
 	now := time.Now()
-	return fmt.Sprintf("%s-%d%02d%02d-%d", 
+	return fmt.Sprintf("%s-%d%02d%02d-%d",
 		prefix, now.Year(), now.Month(), now.Day(), now.Unix()%10000)
 }

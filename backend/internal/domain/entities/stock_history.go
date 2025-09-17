@@ -10,12 +10,12 @@ import (
 // StockHistory represents append-only changes to product stock
 type StockHistory struct {
 	ID        uuid.UUID      `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
-	ProductID uuid.UUID      `gorm:"type:uuid;not null" json:"product_id"`
+	ProductID uuid.UUID      `gorm:"type:uuid;not null;index:idx_stock_histories_product_id" json:"product_id"`
 	Stock     int            `gorm:"not null" json:"stock"`
 	LastStock int            `gorm:"not null" json:"last_stock"`
 	StockedAt time.Time      `gorm:"not null" json:"stocked_at"`
 	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
+	UpdatedAt time.Time      `gorm:"index:idx_stock_histories_updated_at" json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Relationships
@@ -40,4 +40,24 @@ func (sh *StockHistory) IsStockIncrease() bool {
 // IsStockDecrease checks if this is a stock decrease
 func (sh *StockHistory) IsStockDecrease() bool {
 	return sh.Stock < sh.LastStock
+}
+
+// Syncable interface implementation
+func (sh StockHistory) GetID() uuid.UUID {
+	return sh.ID
+}
+
+func (sh StockHistory) GetCreatedAt() time.Time {
+	return sh.CreatedAt
+}
+
+func (sh StockHistory) GetUpdatedAt() time.Time {
+	return sh.UpdatedAt
+}
+
+func (sh StockHistory) GetDeletedAt() *time.Time {
+	if sh.DeletedAt.Valid {
+		return &sh.DeletedAt.Time
+	}
+	return nil
 }

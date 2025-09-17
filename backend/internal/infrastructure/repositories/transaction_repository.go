@@ -46,7 +46,9 @@ func (r *TransactionRepositoryImpl) GetByID(ctx context.Context, id uuid.UUID) (
 // GetByShopID retrieves transactions by shop ID
 func (r *TransactionRepositoryImpl) GetByShopID(ctx context.Context, shopID uuid.UUID) ([]*entities.Transaction, error) {
 	var transactions []*entities.Transaction
-	err := r.db.WithContext(ctx).Where("shop_id = ?", shopID).Find(&transactions).Error
+	err := r.db.WithContext(ctx).
+		Preload("Cashier").
+		Where("shop_id = ?", shopID).Find(&transactions).Error
 	return transactions, err
 }
 
@@ -54,9 +56,6 @@ func (r *TransactionRepositoryImpl) GetByShopID(ctx context.Context, shopID uuid
 func (r *TransactionRepositoryImpl) GetByShopIDAndStatus(ctx context.Context, shopID uuid.UUID, status entities.TransactionStatus) ([]*entities.Transaction, error) {
 	var transactions []*entities.Transaction
 	err := r.db.WithContext(ctx).
-		Preload("Shop").
-		Preload("Shop.License").
-		// Preload("Shop.Owner").
 		Preload("Cashier").
 		Where("shop_id = ? AND status = ?", shopID, status).Find(&transactions).Error
 	return transactions, err
@@ -98,5 +97,35 @@ func (r *TransactionRepositoryImpl) Delete(ctx context.Context, id uuid.UUID) er
 func (r *TransactionRepositoryImpl) List(ctx context.Context, limit, offset int) ([]*entities.Transaction, error) {
 	var transactions []*entities.Transaction
 	err := r.db.WithContext(ctx).Limit(limit).Offset(offset).Find(&transactions).Error
+	return transactions, err
+}
+
+// ListByShopIDs retrieves transactions filtered by accessible shop IDs for multi-tenant access
+func (r *TransactionRepositoryImpl) ListByShopIDs(ctx context.Context, shopIDs []uuid.UUID, limit, offset int) ([]*entities.Transaction, error) {
+	var transactions []*entities.Transaction
+	if len(shopIDs) == 0 {
+		return transactions, nil // Return empty slice if no accessible shops
+	}
+
+	err := r.db.WithContext(ctx).
+		Where("shop_id IN (?)", shopIDs).
+		Limit(limit).
+		Offset(offset).
+		Find(&transactions).Error
+
+	return transactions, err
+}
+
+// GetByShopIDs retrieves all transactions for specified shop IDs (no pagination)
+func (r *TransactionRepositoryImpl) GetByShopIDs(ctx context.Context, shopIDs []uuid.UUID) ([]*entities.Transaction, error) {
+	var transactions []*entities.Transaction
+	if len(shopIDs) == 0 {
+		return transactions, nil // Return empty slice if no accessible shops
+	}
+
+	err := r.db.WithContext(ctx).
+		Where("shop_id IN (?)", shopIDs).
+		Find(&transactions).Error
+
 	return transactions, err
 }

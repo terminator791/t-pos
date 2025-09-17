@@ -20,14 +20,14 @@ const (
 // Expense represents shop expenses/outflows
 type Expense struct {
 	ID        uuid.UUID      `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
-	ShopID    uuid.UUID      `gorm:"type:uuid;not null" json:"shop_id"`
+	ShopID    uuid.UUID      `gorm:"type:uuid;not null;index:idx_expenses_shop_updated,priority:1" json:"shop_id"`
 	Nominal   float64        `gorm:"type:decimal(10,2);not null" json:"nominal"`
 	Status    ExpenseStatus  `gorm:"default:pending" json:"status"`
 	Date      time.Time      `gorm:"type:date;not null" json:"date"`
 	Label     *string        `gorm:"size:255" json:"label"`
 	Desc      *string        `gorm:"type:text" json:"desc"`
 	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
+	UpdatedAt time.Time      `gorm:"index:idx_expenses_updated_at;index:idx_expenses_shop_updated,priority:2" json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Relationships
@@ -42,4 +42,24 @@ func (Expense) TableName() string {
 // IsCompleted checks if the expense is completed
 func (e *Expense) IsCompleted() bool {
 	return e.Status == ExpenseStatusCompleted
+}
+
+// Syncable interface implementation
+func (e Expense) GetID() uuid.UUID {
+	return e.ID
+}
+
+func (e Expense) GetCreatedAt() time.Time {
+	return e.CreatedAt
+}
+
+func (e Expense) GetUpdatedAt() time.Time {
+	return e.UpdatedAt
+}
+
+func (e Expense) GetDeletedAt() *time.Time {
+	if e.DeletedAt.Valid {
+		return &e.DeletedAt.Time
+	}
+	return nil
 }

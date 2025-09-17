@@ -5,20 +5,27 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/terminator791/t-pos/internal/domain/dto"
 	"github.com/terminator791/t-pos/internal/domain/entities"
+	"github.com/terminator791/t-pos/internal/domain/repositories"
 	"github.com/terminator791/t-pos/internal/domain/usecases"
+	"github.com/terminator791/t-pos/internal/infrastructure/auth"
 	"github.com/terminator791/t-pos/pkg/response"
 )
 
 // CategoryHandler handles category-related HTTP requests
 type CategoryHandler struct {
 	categoryUseCase *usecases.CategoryUseCase
+	roleRepo        repositories.RoleRepository
+	shopRepo        repositories.ShopRepository
 }
 
 // NewCategoryHandler creates a new CategoryHandler
-func NewCategoryHandler(categoryUseCase *usecases.CategoryUseCase) *CategoryHandler {
+func NewCategoryHandler(categoryUseCase *usecases.CategoryUseCase, roleRepo repositories.RoleRepository, shopRepo repositories.ShopRepository) *CategoryHandler {
 	return &CategoryHandler{
 		categoryUseCase: categoryUseCase,
+		roleRepo:        roleRepo,
+		shopRepo:        shopRepo,
 	}
 }
 
@@ -41,18 +48,36 @@ func (h *CategoryHandler) CreateCategory(c *gin.Context) {
 		return
 	}
 
+	// Validate user has access to the shop before creating category
+	domainAccess, err := auth.GetUserDomainAccess(c, h.roleRepo, h.shopRepo)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to get user access info", err.Error())
+		return
+	}
+
+	if !domainAccess.CanAccessShop(req.ShopID) {
+		response.ErrorForbidden(c, "Cannot create category for this shop", map[string]interface{}{
+			"shop_id": req.ShopID,
+			"user_id": domainAccess.UserID,
+			"role":    domainAccess.Role,
+		})
+		return
+	}
+
 	category := &entities.Category{
 		ShopID: req.ShopID,
 		Name:   req.Name,
 	}
 
-	err := h.categoryUseCase.CreateCategory(c.Request.Context(), category)
+	err = h.categoryUseCase.CreateCategory(c.Request.Context(), category)
 	if err != nil {
 		response.ErrorBadRequest(c, "Failed to create category", err.Error())
 		return
 	}
 
-	response.SuccessCreated(c, "Category created successfully", category)
+	// Return only category data without nested relationships
+	categoryResponse := dto.CategoryToResponseDTO(category)
+	response.SuccessCreated(c, "Category created successfully", categoryResponse)
 }
 
 // GetCategory handles GET /categories/:id
@@ -63,7 +88,7 @@ func (h *CategoryHandler) GetCategory(c *gin.Context) {
 		return
 	}
 
-	category, err := h.categoryUseCase.GetCategory(c.Request.Context(), id)
+	category, err := h.categoryUseCase.GetCategoryForDTO(c.Request.Context(), id)
 	if err != nil {
 		response.ErrorNotFound(c, "Category not found", err.Error())
 		return
@@ -88,22 +113,72 @@ func (h *CategoryHandler) ListCategories(c *gin.Context) {
 		offset = 0
 	}
 
-	var categories []*entities.Category
+	var categories []*dto.CategoryListDTO
 
+	// If specific shop_id is requested, validate access and filter by that shop
 	if shopIDStr != "" {
 		shopID, err := uuid.Parse(shopIDStr)
 		if err != nil {
 			response.ErrorBadRequest(c, "Invalid shop ID", err.Error())
 			return
 		}
-		categories, err = h.categoryUseCase.GetCategoriesByShop(c.Request.Context(), shopID)
-	} else {
-		categories, err = h.categoryUseCase.ListCategories(c.Request.Context(), limit, offset)
-	}
 
-	if err != nil {
-		response.ErrorInternalServer(c, "Failed to retrieve categories", err.Error())
-		return
+		// Get domain access info to validate shop access
+		domainAccess, err := auth.GetUserDomainAccess(c, h.roleRepo, h.shopRepo)
+		if err != nil {
+			response.ErrorInternalServer(c, "Failed to get user access info", err.Error())
+			return
+		}
+
+		// Check if user can access the requested shop
+		if !domainAccess.CanAccessShop(shopID) {
+			response.ErrorForbidden(c, "Cannot access categories for this shop", map[string]interface{}{
+				"requested_shop_id": shopID,
+				"user_role":         domainAccess.Role,
+				"accessible_shops":  domainAccess.AccessibleShopIDs,
+			})
+			return
+		}
+
+		// For single shop request, we still need to get entities first since GetCategoriesByShop returns entities
+		entities, err := h.categoryUseCase.GetCategoriesByShop(c.Request.Context(), shopID)
+		if err != nil {
+			response.ErrorInternalServer(c, "Failed to retrieve categories", err.Error())
+			return
+		}
+		categories = dto.CategoriesToListDTO(entities)
+	} else {
+		// List all categories with domain-specific filtering
+		domainAccess, err := auth.GetUserDomainAccess(c, h.roleRepo, h.shopRepo)
+		if err != nil {
+			response.ErrorInternalServer(c, "Failed to get user access info", err.Error())
+			return
+		}
+
+		// Apply domain-specific filtering
+		if domainAccess.HasGlobalAccess {
+			// Super admin and admin can see all categories
+			var listErr error
+			categories, listErr = h.categoryUseCase.ListCategoriesForDTO(c.Request.Context(), limit, offset)
+			if listErr != nil {
+				response.ErrorInternalServer(c, "Failed to retrieve categories", listErr.Error())
+				return
+			}
+		} else {
+			// Filter by accessible shop IDs for tenant users
+			shopFilter := domainAccess.GetShopFilter()
+			if len(shopFilter) == 0 {
+				// User has no accessible shops
+				categories = []*dto.CategoryListDTO{}
+			} else {
+				var listErr error
+				categories, listErr = h.categoryUseCase.ListCategoriesFilteredForDTO(c.Request.Context(), shopFilter, limit, offset)
+				if listErr != nil {
+					response.ErrorInternalServer(c, "Failed to retrieve categories", listErr.Error())
+					return
+				}
+			}
+		}
 	}
 
 	response.SuccessOK(c, "Categories retrieved successfully", gin.H{

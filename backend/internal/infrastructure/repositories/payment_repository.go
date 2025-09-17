@@ -83,3 +83,35 @@ func (r *PaymentRepositoryImpl) List(ctx context.Context, limit, offset int) ([]
 	err := r.db.WithContext(ctx).Limit(limit).Offset(offset).Find(&payments).Error
 	return payments, err
 }
+
+// ListByShopIDs retrieves payments filtered by accessible shop IDs for multi-tenant access
+func (r *PaymentRepositoryImpl) ListByShopIDs(ctx context.Context, shopIDs []uuid.UUID, limit, offset int) ([]*entities.Payment, error) {
+	var payments []*entities.Payment
+	if len(shopIDs) == 0 {
+		return payments, nil // Return empty slice if no accessible shops
+	}
+
+	err := r.db.WithContext(ctx).
+		Joins("JOIN transactions ON payments.transaction_id = transactions.id").
+		Where("transactions.shop_id IN (?)", shopIDs).
+		Limit(limit).
+		Offset(offset).
+		Find(&payments).Error
+
+	return payments, err
+}
+
+// GetByShopIDs retrieves all payments for specified shop IDs (no pagination)
+func (r *PaymentRepositoryImpl) GetByShopIDs(ctx context.Context, shopIDs []uuid.UUID) ([]*entities.Payment, error) {
+	var payments []*entities.Payment
+	if len(shopIDs) == 0 {
+		return payments, nil // Return empty slice if no accessible shops
+	}
+
+	err := r.db.WithContext(ctx).
+		Joins("JOIN transactions ON payments.transaction_id = transactions.id").
+		Where("transactions.shop_id IN (?)", shopIDs).
+		Find(&payments).Error
+
+	return payments, err
+}

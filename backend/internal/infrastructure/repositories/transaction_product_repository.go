@@ -90,3 +90,39 @@ func (r *TransactionProductRepositoryImpl) List(ctx context.Context, limit, offs
 		Limit(limit).Offset(offset).Find(&transactionProducts).Error
 	return transactionProducts, err
 }
+
+// ListByShopIDs retrieves transaction products filtered by accessible shop IDs for multi-tenant access
+func (r *TransactionProductRepositoryImpl) ListByShopIDs(ctx context.Context, shopIDs []uuid.UUID, limit, offset int) ([]*entities.TransactionProduct, error) {
+	var transactionProducts []*entities.TransactionProduct
+	if len(shopIDs) == 0 {
+		return transactionProducts, nil // Return empty slice if no accessible shops
+	}
+
+	err := r.db.WithContext(ctx).
+		Preload("Transaction").
+		Preload("Product").
+		Joins("JOIN transactions ON transaction_products.transaction_id = transactions.id").
+		Where("transactions.shop_id IN (?)", shopIDs).
+		Limit(limit).
+		Offset(offset).
+		Find(&transactionProducts).Error
+
+	return transactionProducts, err
+}
+
+// GetByShopIDs retrieves all transaction products for specified shop IDs (no pagination)
+func (r *TransactionProductRepositoryImpl) GetByShopIDs(ctx context.Context, shopIDs []uuid.UUID) ([]*entities.TransactionProduct, error) {
+	var transactionProducts []*entities.TransactionProduct
+	if len(shopIDs) == 0 {
+		return transactionProducts, nil // Return empty slice if no accessible shops
+	}
+
+	err := r.db.WithContext(ctx).
+		Preload("Transaction").
+		Preload("Product").
+		Joins("JOIN transactions ON transaction_products.transaction_id = transactions.id").
+		Where("transactions.shop_id IN (?)", shopIDs).
+		Find(&transactionProducts).Error
+
+	return transactionProducts, err
+}

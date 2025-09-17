@@ -7,26 +7,55 @@ import (
 	"github.com/google/uuid"
 	"github.com/terminator791/t-pos/internal/domain/entities"
 	"github.com/terminator791/t-pos/internal/domain/repositories"
+	"github.com/terminator791/t-pos/internal/infrastructure/auth"
 	"github.com/terminator791/t-pos/pkg/response"
 )
 
 // ExpenseHandler handles expense-related HTTP requests
 type ExpenseHandler struct {
 	expenseRepo repositories.ExpenseRepository
+	roleRepo    repositories.RoleRepository
+	shopRepo    repositories.ShopRepository
 }
 
 // NewExpenseHandler creates a new ExpenseHandler
-func NewExpenseHandler(expenseRepo repositories.ExpenseRepository) *ExpenseHandler {
+func NewExpenseHandler(expenseRepo repositories.ExpenseRepository, roleRepo repositories.RoleRepository, shopRepo repositories.ShopRepository) *ExpenseHandler {
 	return &ExpenseHandler{
 		expenseRepo: expenseRepo,
+		roleRepo:    roleRepo,
+		shopRepo:    shopRepo,
 	}
 }
 
-// ListExpenses handles GET /expenses - super admin and admin only
+// ListExpenses handles GET /expenses - with domain-specific filtering
 func (h *ExpenseHandler) ListExpenses(c *gin.Context) {
 	limit, offset := parsePaginationFromContext(c)
 
-	expenses, err := h.expenseRepo.List(c.Request.Context(), limit, offset)
+	// Get domain access info to apply filtering
+	domainAccess, err := auth.GetUserDomainAccess(c, h.roleRepo, h.shopRepo)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to get user access info", err.Error())
+		return
+	}
+
+	var expenses []*entities.Expense
+
+	// Apply domain-specific filtering
+	if domainAccess.HasGlobalAccess {
+		// Super admin and admin can see all expenses
+		expenses, err = h.expenseRepo.List(c.Request.Context(), limit, offset)
+	} else {
+		// Filter by accessible shop IDs for tenant users
+		shopFilter := domainAccess.GetShopFilter()
+		if len(shopFilter) == 0 {
+			// User has no accessible shops
+			expenses = []*entities.Expense{}
+			err = nil
+		} else {
+			expenses, err = h.expenseRepo.ListByShopIDs(c.Request.Context(), shopFilter, limit, offset)
+		}
+	}
+
 	if err != nil {
 		response.ErrorInternalServer(c, "Failed to retrieve expenses", err.Error())
 		return

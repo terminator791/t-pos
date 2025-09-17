@@ -6,6 +6,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/terminator791/t-pos/internal/domain/dto"
+	"github.com/terminator791/t-pos/internal/domain/entities"
+	"github.com/terminator791/t-pos/internal/domain/repositories"
 	"github.com/terminator791/t-pos/internal/domain/usecases"
 	"github.com/terminator791/t-pos/internal/infrastructure/auth"
 	"github.com/terminator791/t-pos/pkg/response"
@@ -14,21 +17,26 @@ import (
 // TransactionHandler handles transaction-related HTTP requests
 type TransactionHandler struct {
 	transactionUseCase *usecases.TransactionUseCase
+	roleRepo           repositories.RoleRepository
+	shopRepo           repositories.ShopRepository
 }
 
 // NewTransactionHandler creates a new TransactionHandler
-func NewTransactionHandler(transactionUseCase *usecases.TransactionUseCase) *TransactionHandler {
+func NewTransactionHandler(transactionUseCase *usecases.TransactionUseCase, roleRepo repositories.RoleRepository, shopRepo repositories.ShopRepository) *TransactionHandler {
 	return &TransactionHandler{
 		transactionUseCase: transactionUseCase,
+		roleRepo:           roleRepo,
+		shopRepo:           shopRepo,
 	}
 }
 
 // CreateTransactionRequest represents the request structure for creating a transaction
 type CreateTransactionRequest struct {
-	ShopID       *uuid.UUID                    `json:"shop_id,omitempty"` // Optional for owner business, ignored for cashiers
-	CustomerName string                        `json:"customer_name" binding:"required"`
+	ShopID       *uuid.UUID                     `json:"shop_id,omitempty"` // Optional for owner business, ignored for cashiers
+	CustomerName string                         `json:"customer_name" binding:"required"`
+	CashierName  string                         `json:"cashier_name,omitempty"`
 	Items        []CreateTransactionItemRequest `json:"items" binding:"required"`
-	Discount     float64                       `json:"discount,omitempty"`
+	Discount     float64                        `json:"discount,omitempty"`
 }
 
 // CreateTransactionItemRequest represents an item in the transaction
@@ -68,12 +76,28 @@ func (h *TransactionHandler) CreateTransaction(c *gin.Context) {
 	// For owner business: can specify shop_id in request or use context
 	var shopID uuid.UUID
 	userShopID, hasShopContext := auth.GetUserShopIDFromContext(c)
-	
+
 	if hasShopContext && userShopID != nil {
 		// User has shop context (cashier), use it
 		shopID = *userShopID
 	} else if req.ShopID != nil {
 		// No shop context but shop_id provided in request (owner business)
+		// Validate user has access to this shop before proceeding
+		domainAccess, err := auth.GetUserDomainAccess(c, h.roleRepo, h.shopRepo)
+		if err != nil {
+			response.ErrorInternalServer(c, "Failed to get user access info", err.Error())
+			return
+		}
+
+		if !domainAccess.CanAccessShop(*req.ShopID) {
+			response.ErrorForbidden(c, "Cannot create transaction for this shop", map[string]interface{}{
+				"shop_id": *req.ShopID,
+				"user_id": domainAccess.UserID,
+				"role":    domainAccess.Role,
+			})
+			return
+		}
+
 		shopID = *req.ShopID
 	} else {
 		// No shop context and no shop_id in request
@@ -160,12 +184,36 @@ func (h *TransactionHandler) GetTransaction(c *gin.Context) {
 	response.SuccessOK(c, "Transaction retrieved successfully", transaction)
 }
 
-// ListTransactions handles GET /transactions - super admin and admin only
+// ListTransactions handles GET /transactions - with domain-specific filtering
 func (h *TransactionHandler) ListTransactions(c *gin.Context) {
 	// Parse query parameters
 	limit, offset := parsePagination(c)
 
-	transactions, err := h.transactionUseCase.ListTransactions(c.Request.Context(), limit, offset)
+	// Get domain access info to apply filtering
+	domainAccess, err := auth.GetUserDomainAccess(c, h.roleRepo, h.shopRepo)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to get user access info", err.Error())
+		return
+	}
+
+	var transactions []*entities.Transaction
+
+	// Apply domain-specific filtering
+	if domainAccess.HasGlobalAccess {
+		// Super admin and admin can see all transactions
+		transactions, err = h.transactionUseCase.ListTransactions(c.Request.Context(), limit, offset)
+	} else {
+		// Filter by accessible shop IDs for tenant users
+		shopFilter := domainAccess.GetShopFilter()
+		if len(shopFilter) == 0 {
+			// User has no accessible shops
+			transactions = []*entities.Transaction{}
+			err = nil
+		} else {
+			transactions, err = h.transactionUseCase.ListTransactionsByShopIDs(c.Request.Context(), shopFilter, limit, offset)
+		}
+	}
+
 	if err != nil {
 		response.ErrorInternalServer(c, "Failed to retrieve transactions", err.Error())
 		return
@@ -194,8 +242,14 @@ func (h *TransactionHandler) ListTransactionsByShop(c *gin.Context) {
 		return
 	}
 
+	// Convert to DTOs to avoid circular dependency issues
+	transactionDTOs := make([]*dto.TransactionDTO, len(transactions))
+	for i, t := range transactions {
+		transactionDTOs[i] = dto.ConvertToTransactionDTO(t)
+	}
+
 	response.SuccessOK(c, "Transactions retrieved successfully", map[string]interface{}{
-		"transactions": transactions,
+		"transactions": transactionDTOs,
 		"shop_id":      shopID,
 		"limit":        limit,
 		"offset":       offset,
@@ -219,10 +273,46 @@ func (h *TransactionHandler) ListTransactionsByShopAndStatus(c *gin.Context) {
 		return
 	}
 
+	// Convert to DTOs to avoid circular dependency issues
+	transactionDTOs := make([]*dto.TransactionDTO, len(transactions))
+	for i, t := range transactions {
+		transactionDTOs[i] = dto.ConvertToTransactionDTO(t)
+	}
+
 	response.SuccessOK(c, "Transactions retrieved successfully", map[string]interface{}{
-		"transactions": transactions,
+		"transactions": transactionDTOs,
 		"shop_id":      shopID,
 		"status":       status,
+		"limit":        limit,
+		"offset":       offset,
+	})
+}
+
+// GetTodaysTransactions handles GET /transactions/shop/:shopId/today
+func (h *TransactionHandler) GetTodaysTransactions(c *gin.Context) {
+	shopID, err := uuid.Parse(c.Param("shopId"))
+	if err != nil {
+		response.ErrorBadRequest(c, "Invalid shop ID", err.Error())
+		return
+	}
+
+	limit, offset := parsePagination(c)
+
+	transactions, err := h.transactionUseCase.GetTodaysTransactionsByShop(c.Request.Context(), shopID, limit, offset)
+	if err != nil {
+		response.ErrorInternalServer(c, "Failed to retrieve today's transactions", err.Error())
+		return
+	}
+
+	// Convert to DTOs to avoid circular dependency issues
+	transactionDTOs := make([]*dto.TransactionDTO, len(transactions))
+	for i, t := range transactions {
+		transactionDTOs[i] = dto.ConvertToTransactionDTO(t)
+	}
+
+	response.SuccessOK(c, "Today's transactions retrieved successfully", map[string]interface{}{
+		"transactions": transactionDTOs,
+		"shop_id":      shopID,
 		"limit":        limit,
 		"offset":       offset,
 	})
@@ -236,7 +326,7 @@ func convertToUseCaseItems(items []CreateTransactionItemRequest) ([]usecases.Cre
 		if item.ProductID == uuid.Nil {
 			return nil, errors.New("invalid product ID: cannot be empty or zero UUID")
 		}
-		
+
 		result[i] = usecases.CreateTransactionItem{
 			ProductID: item.ProductID,
 			Quantity:  item.Quantity,

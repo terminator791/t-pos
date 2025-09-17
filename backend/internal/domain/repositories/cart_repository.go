@@ -17,4 +17,6 @@ type CartRepository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 	DeleteByUserID(ctx context.Context, userID uuid.UUID) error
 	List(ctx context.Context, limit, offset int) ([]*entities.Cart, error)
+	ListByShopIDs(ctx context.Context, shopIDs []uuid.UUID, limit, offset int) ([]*entities.Cart, error)
+	GetByShopIDs(ctx context.Context, shopIDs []uuid.UUID) ([]*entities.Cart, error)
 }

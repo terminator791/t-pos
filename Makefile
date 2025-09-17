@@ -15,6 +15,7 @@ help:
 	@echo "  make migrate-down   - Drop all tables (rollback)"
 	@echo "  make migrate-fresh  - Drop all tables and re-run migrations"
 	@echo "  make migrate-status - Check migration status"
+	@echo "  make enable-uuid    - Enable PostgreSQL UUID extension"
 	@echo "  make seed           - Run database seeders"
 
 # Run both backend and frontend concurrently
@@ -85,9 +86,18 @@ migrate-fresh:
 	@echo "Refreshing database (drop + migrate)..."
 	@cd backend && go run cmd/migrate/main.go fresh
 
+migrate-fresh-seed:
+	@echo "Refreshing database (drop + migrate + seed)..."
+	@cd backend && go run cmd/migrate/main.go fresh && go run cmd/migrate/main.go seed
+
 migrate-status:
 	@echo "Checking migration status..."
 	@cd backend && go run cmd/migrate/main.go status
+
+# Enable UUID extension separately
+enable-uuid:
+	@echo "Enabling PostgreSQL UUID extension..."
+	@cd backend && go run cmd/migrate/main.go enable-uuid
 
 seed:
 	@echo "Running database seeders..."

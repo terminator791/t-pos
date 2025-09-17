@@ -66,3 +66,33 @@ func (r *ReceiptRepositoryImpl) List(ctx context.Context, limit, offset int) ([]
 	err := r.db.WithContext(ctx).Limit(limit).Offset(offset).Find(&receipts).Error
 	return receipts, err
 }
+
+// ListByShopIDs retrieves receipts filtered by accessible shop IDs for multi-tenant access
+func (r *ReceiptRepositoryImpl) ListByShopIDs(ctx context.Context, shopIDs []uuid.UUID, limit, offset int) ([]*entities.Receipt, error) {
+	var receipts []*entities.Receipt
+	if len(shopIDs) == 0 {
+		return receipts, nil // Return empty slice if no accessible shops
+	}
+
+	err := r.db.WithContext(ctx).
+		Where("shop_id IN (?)", shopIDs).
+		Limit(limit).
+		Offset(offset).
+		Find(&receipts).Error
+
+	return receipts, err
+}
+
+// GetByShopIDs retrieves all receipts for specified shop IDs (no pagination)
+func (r *ReceiptRepositoryImpl) GetByShopIDs(ctx context.Context, shopIDs []uuid.UUID) ([]*entities.Receipt, error) {
+	var receipts []*entities.Receipt
+	if len(shopIDs) == 0 {
+		return receipts, nil // Return empty slice if no accessible shops
+	}
+
+	err := r.db.WithContext(ctx).
+		Where("shop_id IN (?)", shopIDs).
+		Find(&receipts).Error
+
+	return receipts, err
+}
